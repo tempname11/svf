@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="Range&lt;*&gt;">
+  <DisplayString>{{ count={count} }}</DisplayString>
+  <Expand>
+      <Item Name="[count]" ExcludeView="simple">count</Item>
+      <ArrayItems>
+        <Size>count</Size>
+        <ValuePointer>pointer</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+</AutoVisualizer>

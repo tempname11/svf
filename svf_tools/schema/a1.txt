@@ -1,0 +1,21 @@
+#name A1
+
+Entry: struct {
+  pointer: Target*;
+  some_struct: SomeStruct;
+};
+
+SomeStruct: struct {
+  array: Target[];
+  some_choice: SomeChoice;
+};
+
+SomeChoice: choice {
+  target: Target;
+  x: U64;
+};
+
+Target: struct {
+  value: U64;
+  // y: U64;
+};

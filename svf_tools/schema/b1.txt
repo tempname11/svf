@@ -1,0 +1,53 @@
+#name B1
+
+Entry: struct {
+  reorder_fields: ReorderFields;
+  reorder_options: ReorderOptions;
+  remove_field: RemoveField;
+  add_option: AddOption;
+  primitives: Primitives;
+};
+
+ReorderFields: struct {
+  two: U32;
+  one: U64;
+};
+
+ReorderOptions: choice {
+  two: I32;
+  one: I64;
+};
+
+RemoveField: struct {
+  one: U8;
+  // two: U16;
+  three: U32;
+};
+
+AddOption: choice {
+  one: U8;
+  two: U16;
+  three: U32;
+};
+
+Primitives: struct {
+  u8_to_u16: U16;
+  u8_to_u32: U32;
+  u8_to_u64: U64;
+  u8_to_i16: I16;
+  u8_to_i32: I32;
+  u8_to_i64: I64;
+  u16_to_u32: U32;
+  u16_to_u64: U64;
+  u16_to_i32: I32;
+  u16_to_i64: I64;
+  u32_to_u64: U64;
+  u32_to_i64: I64;
+  i8_to_i16: I16;
+  i8_to_i32: I32;
+  i8_to_i64: I64;
+  i16_to_i32: I32;
+  i16_to_i64: I64;
+  i32_to_i64: I64;
+  f32_to_f64: F64;
+};

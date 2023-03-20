@@ -1,0 +1,68 @@
+#name META
+
+Schema: struct {
+  name_hash: U64;
+  name: U8[];
+  structs: StructDefinition[];
+  choices: ChoiceDefinition[];
+};
+
+ChoiceDefinition: struct {
+  name_hash: U64;
+  name: U8[];
+  payload_size: U32;
+  options: OptionDefinition[];
+};
+
+OptionDefinition: struct {
+  name_hash: U64;
+  name: U8[];
+  index: U8;
+  type: Type;
+};
+
+StructDefinition: struct {
+  name_hash: U64;
+  name: U8[];
+  size: U32;
+  fields: FieldDefinition[];
+};
+
+FieldDefinition: struct {
+  name_hash: U64;
+  name: U8[];
+  offset: U32;
+  type: Type;
+};
+
+ConcreteType: choice {
+  u8;
+  u16;
+  u32;
+  u64;
+  i8;
+  i16;
+  i32;
+  i64;
+  f32;
+  f64;
+  zero_sized;
+  defined_struct: struct {
+    index: U32;
+  };
+  defined_choice: struct {
+    index: U32;
+  };
+};
+
+Type: choice {
+  concrete: struct {
+    type: ConcreteType;
+  };
+  pointer: struct {
+    type: ConcreteType;
+  };
+  flexible_array: struct {
+    element_type: ConcreteType;
+  };
+};
