@@ -8,7 +8,7 @@ void abort_this_process(char const *cstr_source_code) {
 	abort();
 }
 
-namespace VM {
+namespace vm {
 
 LinearArena create_linear_arena(size_t reserved_size_in_bytes) {
 	SYSTEM_INFO info;
@@ -74,4 +74,4 @@ void *allocate_manually(
 	return (void *)(arena->reserved_range.pointer + allocation_offset);
 }
 
-} // namespace VM
+} // namespace vm

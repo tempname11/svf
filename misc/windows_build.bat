@@ -1,3 +1,4 @@
+cls
 pushd .build
 
 cl ^

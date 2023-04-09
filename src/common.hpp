@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdint>
 
+using Bool = uint8_t;
 using Byte = uint8_t;
 using Int = int64_t;
 
@@ -29,6 +30,17 @@ struct Range {
 	T* pointer;
 	size_t count;
 };
+// Range is considered invalid, if `pointer` is 0.
+
+template<typename T>
+struct DynamicArray {
+	T* pointer;
+	size_t count;
+	size_t capacity;
+};
+// This is a temporary solution; it is too coupled to VM stuff.
+// Does the job for now.
+// Is considered invalid, if `pointer` is 0.
 
 static inline
 size_t align_up(size_t value, size_t alignment) {
@@ -37,7 +49,7 @@ size_t align_up(size_t value, size_t alignment) {
 }
 // Untested, but should work.
 
-namespace VM {
+namespace vm {
 
 struct LinearArena {
 	Range<Byte> reserved_range;
@@ -46,7 +58,7 @@ struct LinearArena {
 	size_t waterline;
 };
 // `reserved_range.pointer` must be be 16-byte-aligned (likely OS page-aligned).
-// Arena is considered invalid, if `reserved_range.pointer` is 0.
+// Arena is considered invalid, if `reserved_range` is invalid.
 
 LinearArena create_linear_arena(size_t reserved_size_in_bytes);
 // May return invalid arena.
@@ -69,12 +81,75 @@ T *allocate_one(LinearArena *arena) {
 
 template<typename T>
 static inline
-T *allocate_many(LinearArena *arena, size_t count) {
+Range<T> allocate_many(LinearArena *arena, size_t count) {
 	size_t total_size = count * sizeof(T);
 	if (total_size / sizeof(T) != count) {
-		return 0;
+		return {};
 	}
-	return (T *)allocate_manually(arena, total_size, alignof(T));
+	auto pointer = (T *)allocate_manually(arena, total_size, alignof(T));
+	return Range<T> {
+		.pointer = pointer,
+		.count = count,
+	};
 }
 
-} // namespace VM
+} // namespace vm
+
+static inline
+size_t round_up_to_power_of_two(size_t size) {
+	ASSERT(size < SIZE_MAX / 2); // sanity check
+	size_t result = 1;
+	while (result < size) {
+		result *= 2;
+	}
+	return result;
+}
+
+template<typename T>
+static inline
+void dynamic_resize(
+	DynamicArray<T> *dynamic,
+	vm::LinearArena *arena,
+	size_t required_count
+)
+// May fail, leaving `dynamic` in invalid state.
+//
+// Note: old values are left intact. This may be surprising.
+{
+	if (dynamic->capacity >= required_count) {
+		return;
+	}
+	size_t final_count = round_up_to_power_of_two(required_count);
+
+	auto reserved_range = allocate_many<T>(arena, final_count);
+	if (!reserved_range.pointer) {
+		*dynamic = {};
+	}
+
+	memcpy(reserved_range.pointer, dynamic->pointer, dynamic->count * sizeof(T));
+	*dynamic = {
+		.pointer = reserved_range.pointer,
+		.count = dynamic->count,
+		.capacity = reserved_range.count,
+	};
+}
+
+namespace hash64 {
+
+U64 const fnv_offset_basis = 14695981039346656037ull;
+U64 const fnv_prime = 1099511628211ull;
+
+static inline
+U64 begin() {
+  return fnv_offset_basis;
+}
+
+static inline
+void add_bytes(U64 *h, Range<Byte> range) {
+  for (U64 i = 0; i < range.count; i++) {
+    *h = *h ^ range.pointer[i];
+    *h = *h * fnv_prime;
+  }
+}
+
+}

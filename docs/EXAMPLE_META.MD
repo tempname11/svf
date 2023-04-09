@@ -10,22 +10,24 @@ EntryPoint: struct {
   choices: ChoiceDefinition[];
 };
 
+StructDefinition: struct {
+  name_hash: U64;
+  fields: FieldDefinition[];
+};
+
+FieldDefinition: struct {
+  name_hash: U64;
+  type: Type;
+};
+
 ChoiceDefinition: struct {
+  name_hash: U64;
   options: OptionDefinition[];
 };
 
 OptionDefinition: struct {
   name_hash: U64;
   index: U8;
-  type: Type;
-};
-
-StructDefinition: struct {
-  fields: FieldDefinition[];
-};
-
-FieldDefinition: struct {
-  name_hash: U64;
   type: Type;
 };
 
@@ -111,6 +113,7 @@ struct EntryPoint {
 };
 
 struct ChoiceDefinition {
+  U64 name_hash;
   Array<OptionDefinition> options;
 };
 
@@ -123,6 +126,7 @@ struct OptionDefinition {
 };
 
 struct StructDefinition {
+  U64 name_hash;
   Array<FieldDefinition> fields;
 };
 
