@@ -84,7 +84,7 @@ struct ConcreteType {
   };
 
   struct Unresolved {
-    Range<U8> name;
+    U64 name_hash;
   };
   // This is only necessary before everything was parsed.
   // After that, a second pass must resolve all names.
@@ -123,6 +123,8 @@ struct Type {
   union {
     Concrete concrete;
     Pointer pointer;
+    FixedSizeArray fixed_size_array;
+    FlexibleArray flexible_array;
   };
 };
 
@@ -165,6 +167,7 @@ struct Root {
 
 struct ParserState {
   U64 cursor;
+  DynamicArray<TopLevelDefinition> top_level_definitions;
   struct Fail {
     Bool flag;
     U64 cursor;
@@ -174,7 +177,6 @@ struct ParserState {
 struct ParserContext {
   vm::LinearArena *arena;
   Range<U8> input;
-  DynamicArray<TopLevelDefinition> top_level_definitions;
   ParserState state;
 };
 
@@ -182,6 +184,13 @@ using Ctx = ParserContext *;
 
 void parse_struct(Ctx ctx, Range<Byte> definition_name, StructDefinition *result);
 void parse_choice(Ctx ctx, Range<Byte> definition_name, ChoiceDefinition *result);
+
+static inline
+U64 compute_name_hash(Range<Byte> name) {
+  auto hash = hash64::begin();
+  hash64::add_bytes(&hash, name);
+  return hash;
+}
 
 static inline
 void set_fail(Ctx ctx) {
@@ -300,17 +309,43 @@ Type parse_type(Ctx ctx) {
   }
 
   auto byte = ctx->input.pointer[ctx->state.cursor];
+  auto name_hash = compute_name_hash(name);
+
+  auto concrete_type = ConcreteType {
+    .which = ConcreteType::Which::unresolved,
+    .unresolved = {
+      .name_hash = name_hash,
+    },
+  };
+
+  static_assert(sizeof(char) == 1); // sanity check
+  if (strncmp("U8", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::u8 };
+  } else if (strncmp("U16", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::u16 };
+  } else if (strncmp("U32", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::u32 };
+  } else if (strncmp("U64", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::u64 };
+  } else if (strncmp("I8", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::i8 };
+  } else if (strncmp("I16", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::i16 };
+  } else if (strncmp("I32", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::i32 };
+  } else if (strncmp("I64", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::i64 };
+  } else if (strncmp("F32", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::f32 };
+  } else if (strncmp("F64", (char const *) name.pointer, name.count) == 0) {
+    concrete_type = { .which = ConcreteType::Which::f64 };
+  }
 
   if (byte == '*') {
     return {
       .which = Type::Which::pointer,
       .pointer = {
-        .type = {
-          .which = ConcreteType::Which::unresolved,
-          .unresolved = {
-            .name = name,
-          },
-        },
+        .type = concrete_type,
       },
     };
   } else if (byte == '[') {
@@ -319,39 +354,34 @@ Type parse_type(Ctx ctx) {
     skip_specific_character(ctx, ']'); // TODO: fixed size array
     return {
       .which = Type::Which::flexible_array,
-      .pointer = {
-        .type = {
-          .which = ConcreteType::Which::unresolved,
-          .unresolved = {
-            .name = name,
-          },
-        },
+      .flexible_array = {
+        .element_type = concrete_type,
       },
     };
   } else {
     return {
       .which = Type::Which::concrete,
       .concrete = {
-        .type = {
-          .which = ConcreteType::Which::unresolved,
-          .unresolved = {
-            .name = name,
-          },
-        },
+        .type = concrete_type,
       },
     };
   }
 }
 
-void parse_type_definition(Ctx ctx, Range<Byte> definition_name, TopLevelDefinition *result) {
+U32 parse_type_definition(Ctx ctx, Range<Byte> definition_name) {
   auto saved_state = ctx->state;
   skip_specific_cstring(ctx, "struct");
+  TopLevelDefinition result;
 
   if (!ctx->state.fail.flag) {
     ctx->state = saved_state;
-    parse_struct(ctx, definition_name, &result->a_struct);
-    result->which = TopLevelDefinition::Which::a_struct;
-    return;
+    parse_struct(ctx, definition_name, &result.a_struct);
+    result.which = TopLevelDefinition::Which::a_struct;
+
+    dynamic_resize(&ctx->state.top_level_definitions, ctx->arena, ctx->state.top_level_definitions.count + 1);
+    ASSERT(ctx->state.top_level_definitions.pointer); // temporary?
+    ctx->state.top_level_definitions.pointer[ctx->state.top_level_definitions.count] = result;
+    return ctx->state.top_level_definitions.count++;
   }
 
   ctx->state = saved_state;
@@ -359,12 +389,18 @@ void parse_type_definition(Ctx ctx, Range<Byte> definition_name, TopLevelDefinit
 
   if (!ctx->state.fail.flag) {
     ctx->state = saved_state;
-    parse_choice(ctx, definition_name, &result->a_choice);
-    result->which = TopLevelDefinition::Which::a_choice;
-    return;
+    parse_choice(ctx, definition_name, &result.a_choice);
+    result.which = TopLevelDefinition::Which::a_choice;
+
+    dynamic_resize(&ctx->state.top_level_definitions, ctx->arena, ctx->state.top_level_definitions.count + 1);
+    ASSERT(ctx->state.top_level_definitions.pointer); // temporary?
+    ctx->state.top_level_definitions.pointer[ctx->state.top_level_definitions.count] = result;
+    return ctx->state.top_level_definitions.count++;
   }
 
   ctx->state = saved_state;
+  set_fail(ctx);
+  return U32(-1);
 }
 
 Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Range<Byte> part_name) {
@@ -374,14 +410,6 @@ Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Rang
   if (!ctx->state.fail.flag) {
     return type;
   }
-
-  dynamic_resize(&ctx->top_level_definitions, ctx->arena, ctx->top_level_definitions.count + 1);
-  ASSERT(ctx->top_level_definitions.pointer); // temporary?
-  auto definition_pointer = (
-    ctx->top_level_definitions.pointer +
-    ctx->top_level_definitions.count
-  );
-  ctx->top_level_definitions.count++;
 
   // We rely on `vm` allocating contiguous memory.
   auto definition_name = vm::allocate_many<Byte>(ctx->arena, 0);
@@ -408,16 +436,16 @@ Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Rang
 
   // It wasn't a type, so it must be an inline type definition.
   ctx->state = saved_state;
-  parse_type_definition(ctx, definition_name, definition_pointer);
+  auto index = parse_type_definition(ctx, definition_name);
 
   if (!ctx->state.fail.flag) {
     return {
       .which = Type::Which::concrete,
       .concrete = {
         .type = {
-          .which = ConcreteType::Which::unresolved,
-          .unresolved = {
-            .name = definition_name,
+          .which = ConcreteType::Which::defined,
+          .defined = {
+            .top_level_definition_index = index,
           },
         },
       },
@@ -425,12 +453,6 @@ Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Rang
   }
 
   return {};
-}
-
-U64 compute_name_hash(Range<Byte> name) {
-  auto hash = hash64::begin();
-  hash64::add_bytes(&hash, name);
-  return hash;
 }
 
 void parse_choice(Ctx ctx, Range<Byte> definition_name, ChoiceDefinition *result) {
@@ -555,7 +577,7 @@ void parse_struct(Ctx ctx, Range<Byte> definition_name, StructDefinition *result
   }
 }
 
-void parse_top_level_definition(Ctx ctx, TopLevelDefinition *result) {
+void parse_top_level_definition(Ctx ctx) {
   auto definition_name = parse_type_name(ctx);
   skip_specific_character(ctx, ':');
   skip_whitespace(ctx);
@@ -563,7 +585,7 @@ void parse_top_level_definition(Ctx ctx, TopLevelDefinition *result) {
     return;
   }
 
-  parse_type_definition(ctx, definition_name, result);
+  parse_type_definition(ctx, definition_name);
 
   skip_whitespace(ctx);
   skip_specific_character(ctx, ';');
@@ -574,7 +596,6 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
   ParserContext context_value = {
     .arena = arena,
     .input = input,
-    .top_level_definitions = {},
     .state = {},
   };
   auto ctx = &context_value;
@@ -586,17 +607,7 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
     if (ctx->state.cursor == ctx->input.count) {
       break;
     }
-    dynamic_resize(&ctx->top_level_definitions, arena, ctx->top_level_definitions.count + 1);
-    ASSERT(ctx->top_level_definitions.pointer); // temporary?
-    auto definition_pointer = (
-      ctx->top_level_definitions.pointer +
-      ctx->top_level_definitions.count
-    );
-    ctx->top_level_definitions.count++;
-    parse_top_level_definition(
-      ctx,
-      definition_pointer
-    );
+    parse_top_level_definition(ctx);
     skip_whitespace(ctx);
     if (ctx->state.fail.flag) {
       return 0;
@@ -604,10 +615,101 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
   }
 
   root->definitions = {
-    .pointer = ctx->top_level_definitions.pointer,
-    .count = ctx->top_level_definitions.count,
+    .pointer = ctx->state.top_level_definitions.pointer,
+    .count = ctx->state.top_level_definitions.count,
   };
   return root;
+}
+
+bool resolve_type(Root *root, Type *type) {
+  ConcreteType *concrete_type;
+  switch (type->which) {
+    case Type::Which::concrete: {
+      concrete_type = &type->concrete.type;
+      break;
+    }
+    case Type::Which::pointer: {
+      concrete_type = &type->pointer.type;
+      break;
+    }
+    case Type::Which::flexible_array: {
+      concrete_type = &type->flexible_array.element_type;
+      break;
+    }
+    case Type::Which::fixed_size_array: {
+      concrete_type = &type->fixed_size_array.element_type;
+      break;
+    }
+    default: {
+      ASSERT(false);
+    }
+  }
+
+  if (concrete_type->which == ConcreteType::Which::unresolved) {
+    for (size_t k = 0; k < root->definitions.count; k++) {
+      auto definition = root->definitions.pointer + k;
+      switch (definition->which) {
+        case TopLevelDefinition::Which::a_struct: {
+          if (definition->a_struct.name_hash == concrete_type->unresolved.name_hash) {
+            concrete_type->which = ConcreteType::Which::defined,
+            concrete_type->defined = {
+              .top_level_definition_index = U32(k),
+            };
+            return true;
+          }
+          break;
+        }
+        case TopLevelDefinition::Which::a_choice: {
+          if (definition->a_choice.name_hash == concrete_type->unresolved.name_hash) {
+            concrete_type->which = ConcreteType::Which::defined,
+            concrete_type->defined = {
+              .top_level_definition_index = U32(k),
+            };
+            return true;
+          }
+          break;
+        }
+        default: {
+          ASSERT(false);
+        }
+      }
+    }
+    return false;
+  }
+
+  return true;
+}
+
+bool resolve_types(Root *root) {
+  for (size_t i = 0; i < root->definitions.count; i++) {
+    auto definition = root->definitions.pointer + i;
+    switch (definition->which) {
+      case TopLevelDefinition::Which::a_struct: {
+        auto struct_definition = &definition->a_struct;
+        for (size_t j = 0; j < struct_definition->fields.count; j++) {
+          auto field = struct_definition->fields.pointer + j;
+          if (!resolve_type(root, &field->type)) {
+            return false;
+          }
+        }
+        break;
+      }
+      case TopLevelDefinition::Which::a_choice: {
+        auto choice_definition = &definition->a_choice;
+        for (size_t j = 0; j < choice_definition->options.count; j++) {
+          auto option = choice_definition->options.pointer + j;
+          if (!resolve_type(root, &option->type)) {
+            return false;
+          }
+        }
+        break;
+      }
+      default: {
+        ASSERT(false);
+      }
+    }
+  }
+  return true;
 }
 
 } // namespace grammar
@@ -631,6 +733,11 @@ int main(int argc, char *argv[]) {
 
   if (!result) {
     printf("Error: failed to parse input.\n");
+    return 1;
+  }
+
+  if (!grammar::resolve_types(result)) {
+    printf("Error: failed to resolve types.\n");
     return 1;
   }
 
