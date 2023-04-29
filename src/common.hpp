@@ -49,6 +49,16 @@ size_t align_up(size_t value, size_t alignment) {
 }
 // Untested, but should work.
 
+template<typename T1, typename T2>
+static inline
+T1 safe_int_cast(T2 value) {
+	auto forward = T1(value);
+	auto back = T2(forward);
+	ASSERT(back == value);
+	ASSERT((value >= 0 && back >= 0) || (value < 0 && back < 0));
+  return T1(value);
+}
+
 namespace vm {
 
 struct LinearArena {
