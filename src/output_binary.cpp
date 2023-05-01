@@ -1,11 +1,11 @@
-#include "common.hpp"
+#include "platform.hpp"
 #include "grammar.hpp"
 #include "meta.hpp"
 #include "utilities.hpp"
 
 namespace meta = svf::schema_format_0;
 
-namespace binary {
+namespace output_binary {
 
 void output_concrete_type(
 	grammar::ConcreteType* in_concrete,
@@ -237,4 +237,4 @@ Range<Byte> output_bytes(
   return range;
 }
 
-} // namespace binary
+} // namespace output_binary

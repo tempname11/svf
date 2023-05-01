@@ -5,7 +5,7 @@ cl ^
   /std:c++20 ^
 	/Zi ^
 	/DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
-	..\src\test_file.cpp ^
+	..\src\exe_test_file.cpp ^
 	..\src\platform_windows.cpp ^
 	/link ^
 	/DEBUG:FULL ^
@@ -21,8 +21,11 @@ cl ^
   /std:c++20 ^
 	/Zi ^
 	/DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
-	..\src\svfc.cpp ^
-	..\src\binary.cpp ^
+	..\src\exe_svfc.cpp ^
+	..\src\parsing.cpp ^
+	..\src\typechecking.cpp ^
+	..\src\output_binary.cpp ^
+	..\src\output_cpp.cpp ^
 	..\src\platform_windows.cpp ^
 	/link ^
 	/DEBUG:FULL ^
@@ -38,7 +41,7 @@ cl ^
   /std:c++20 ^
 	/Zi ^
 	/DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
-	..\src\embed.cpp ^
+	..\src\exe_embed.cpp ^
 	/link ^
 	/DEBUG:FULL ^
 	/OUT:embed.exe

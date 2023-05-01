@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	if (fprintf(output_file, "unsgined char const bytes[] = {") < 0) {
+	if (fprintf(output_file, "unsigned char const bytes[] = {") < 0) {
 		return 1;
 	}
 

@@ -2,7 +2,7 @@
 #include <cstring>
 
 #include "utilities.hpp"
-#include "common.hpp"
+#include "platform.hpp"
 #include "meta.hpp"
 
 char const *example = R"(
@@ -94,7 +94,7 @@ int test_write() {
 		},
 	};
 
-	auto file = fopen("test_file.svf", "wb");
+	auto file = fopen(".tmp/test_file.svf", "wb");
 	if (!file) {
 		printf("Failed to open file for writing.\n");
 		return 1;
@@ -120,7 +120,7 @@ int test_write() {
 }
 
 int test_read() {
-	auto file = fopen("test_file.svf", "rb");
+	auto file = fopen(".tmp/test_file.svf", "rb");
 	if (!file) {
 		printf("Failed to open file for reading.\n");
 		return 1;

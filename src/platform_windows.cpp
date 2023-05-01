@@ -1,5 +1,6 @@
 #include <windows.h>
-#include "common.hpp"
+
+#include "platform.hpp"
 
 void abort_this_process(char const *cstr_source_code) {
 	// Should output some message here.

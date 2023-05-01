@@ -1,6 +1,8 @@
 #include <cstring>
 
-#include "common.hpp"
+#include "platform.hpp"
+
+// Temporary place to keep utilities.
 
 static inline
 U64 compute_name_hash(Range<Byte> name) {

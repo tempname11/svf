@@ -1,4 +1,4 @@
-#include "common.hpp"
+#include "platform.hpp"
 
 namespace grammar {
 
@@ -100,6 +100,10 @@ struct TopLevelDefinition {
 };
 
 struct Root {
+  /*
+  Range<Byte> schema_name;
+  U32 entry_point_index;
+  */
   Range<TopLevelDefinition> definitions;
 };
 
