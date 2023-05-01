@@ -34,6 +34,21 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 @echo "svfc": OK
 @echo ----------
 
+cl ^
+  /std:c++20 ^
+	/Zi ^
+	/DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
+	..\src\embed.cpp ^
+	/link ^
+	/DEBUG:FULL ^
+	/OUT:embed.exe
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+@echo.
+@echo -----------
+@echo "embed": OK
+@echo -----------
+
 @echo.
 @echo ---------
 @echo All done!

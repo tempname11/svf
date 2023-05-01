@@ -20,6 +20,15 @@ struct Header {
 	U32 entry_point_offset;
 };
 
+namespace meta_schema_binary {
+	#include "meta.inc"
+
+	Range<Byte> range = {
+		.pointer = (Byte *) bytes,
+		.count = sizeof(bytes),
+	};
+} // namespace meta_schema_binary
+
 int test_write() {
 	auto arena = vm::create_linear_arena(2ull < 30);
 	if (!arena.reserved_range.pointer) {
@@ -27,15 +36,12 @@ int test_write() {
 		return 1;
 	}
 
-	auto schema_bytes = Range<Byte> {(Byte *) example, strlen(example)};
-	// TODO need to replace with binary schema.
-
 	auto header = vm::allocate_one<Header>(&arena);
 	ASSERT(header); // temporary
 
-	auto schema = vm::allocate_many<Byte>(&arena, schema_bytes.count);
-	ASSERT(schema.pointer); // temporary
-	memcpy(schema.pointer, schema_bytes.pointer, schema_bytes.count);
+	auto out_schema = vm::allocate_many<Byte>(&arena, meta_schema_binary::range.count);
+	ASSERT(out_schema.pointer); // temporary
+	memcpy(out_schema.pointer, meta_schema_binary::range.pointer, meta_schema_binary::range.count);
 
 	auto entry_point = vm::allocate_one<svf::schema_format_0::EntryPoint>(&arena);
 	ASSERT(entry_point); // temporary
@@ -43,6 +49,7 @@ int test_write() {
 	*header = {
 		.magic = { 'S', 'V', 'F', '\0' },
 		.version = 0,
+		.schema_offset = offset_between(header, out_schema.pointer),
 		.entry_point_offset = offset_between(header, entry_point),
 	};
 
@@ -176,6 +183,19 @@ int test_read() {
 		return 1;
 	}
 
+	auto schema_range = Range<Byte> {
+		.pointer = file_range.pointer + header->schema_offset,
+		.count = header->entry_point_offset - header->schema_offset,
+	};
+
+	ASSERT(schema_range.count == meta_schema_binary::range.count);
+	for (U64 i = 0; i < schema_range.count; i++) {
+		if (schema_range.pointer[i] != meta_schema_binary::range.pointer[i]) {
+			printf("File does not contain the expected schema.\n");
+			return 1;
+		}
+	}
+
 	auto data_range = Range<Byte> {
 		.pointer = file_range.pointer + header->entry_point_offset,
 		.count = file_size - header->entry_point_offset,
@@ -256,6 +276,8 @@ int main(int argc, char *argv[]) {
 	if (read_result != 0) {
 		return read_result;
 	}
+
+	printf("All tests passed.\n");
 	
 	return 0;
 }
