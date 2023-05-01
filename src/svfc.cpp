@@ -1,6 +1,8 @@
 #include <cstring>
 #include <cstdlib>
+
 #include "common.hpp"
+#include "grammar.hpp"
 
 char const input_cstr[] = R"#(
 EntryPoint: struct {
@@ -58,107 +60,6 @@ Type: choice {
 )#";
 
 namespace grammar {
-
-struct ConcreteType {
-  enum class Which {
-    u8,
-    u16,
-    u32,
-    u64,
-    i8,
-    i16,
-    i32,
-    i64,
-    f32,
-    f64,
-    zero_sized,
-    defined,
-    unresolved,
-  } which;
-
-  struct Defined {
-    U32 top_level_definition_index;
-  };
-
-  struct Unresolved {
-    Range<Byte> name;
-    U64 name_hash;
-  };
-  // This is only necessary before everything was parsed.
-  // After that, a second pass must resolve all names.
-
-  union {
-    Defined defined;
-    Unresolved unresolved;
-  };
-};
-
-struct Type {
-  enum class Which {
-    concrete,
-    pointer,
-    flexible_array,
-  } which;
-
-  struct Concrete {
-    ConcreteType type;
-  };
-
-  struct Pointer {
-    ConcreteType type;
-  };
-
-  struct FlexibleArray {
-    ConcreteType element_type;
-  };
-
-  union {
-    Concrete concrete;
-    Pointer pointer;
-    FlexibleArray flexible_array;
-  };
-};
-
-struct FieldDefinition {
-  Range<Byte> name;
-  U64 name_hash;
-  Type type;
-};
-
-struct OptionDefinition {
-  Range<Byte> name;
-  U64 name_hash;
-  U8 index;
-  Type type;
-};
-
-struct StructDefinition {
-  Range<Byte> name;
-  U64 name_hash;
-  Range<FieldDefinition> fields;
-};
-
-struct ChoiceDefinition {
-  Range<Byte> name;
-  U64 name_hash;
-  Range<OptionDefinition> options;
-};
-
-struct TopLevelDefinition {
-  enum class Which {
-    a_struct,
-    a_choice,
-  } which;
-
-  union {
-    StructDefinition a_struct;
-    ChoiceDefinition a_choice;
-  };
-};
-
-struct Root {
-  Range<TopLevelDefinition> definitions;
-};
 
 struct ParserState {
   U64 cursor;
@@ -708,9 +609,121 @@ bool resolve_types(Root *root) {
   return true;
 }
 
+int compare_by_ordering(const void *a_, const void *b_) {
+  auto a = (OrderElement *) a_;
+  auto b = (OrderElement *) b_;
+  if (a->ordering < b->ordering) {
+    return -1;
+  } else if (a->ordering > b->ordering) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+Range<OrderElement> order_types(grammar::Root *root, vm::LinearArena *arena) {
+  auto result = vm::allocate_many<OrderElement>(arena, root->definitions.count);
+  ASSERT(result.pointer);
+
+  for (size_t i = 0; i < root->definitions.count; i++) {
+    result.pointer[i] = {
+      .index = i,
+      .ordering = size_t(-1),
+    };
+  }
+
+  size_t current_ordering = 0;
+
+  for (;;) {
+    bool all_ok = true;
+    bool some_ok = false;
+
+    for (size_t i = 0; i < root->definitions.count; i++) {
+      if (result.pointer[i].ordering < current_ordering) {
+        continue;
+      }
+      bool ok = true;
+      auto definition = root->definitions.pointer + i;
+      switch (definition->which) {
+        case grammar::TopLevelDefinition::Which::a_struct: {
+          for (size_t j = 0; j < definition->a_struct.fields.count; j++) {
+            auto field = definition->a_struct.fields.pointer + j;
+            if (field->type.which != grammar::Type::Which::concrete) {
+              continue;
+            }
+            if (field->type.concrete.type.which != grammar::ConcreteType::Which::defined) {
+              continue;
+            }
+            auto ix = field->type.concrete.type.defined.top_level_definition_index;
+            if (result.pointer[ix].ordering >= current_ordering) {
+              ok = false;
+              break;
+            }
+          }
+          break;
+        }
+        case grammar::TopLevelDefinition::Which::a_choice: {
+          for (size_t j = 0; j < definition->a_choice.options.count; j++) {
+            auto option = definition->a_choice.options.pointer + j;
+            if (option->type.which != grammar::Type::Which::concrete) {
+              continue;
+            }
+            if (option->type.concrete.type.which != grammar::ConcreteType::Which::defined) {
+              continue;
+            }
+            auto ix = option->type.concrete.type.defined.top_level_definition_index;
+            if (result.pointer[ix].ordering >= current_ordering) {
+              ok = false;
+              break;
+            }
+          }
+          break;
+        }
+        default: {
+          ASSERT(false);
+        }
+      }
+      if (ok) {
+        some_ok = true;
+        result.pointer[i].ordering = current_ordering;
+        //printf("Type %zu has ordering %zu\n", i, current_ordering);
+      } else {
+        all_ok = false;
+      }
+    }
+
+    if (all_ok) {
+      break;
+    }
+
+    if (some_ok) {
+      current_ordering++;
+    } else {
+      return {};
+    }
+  }
+
+  /*
+  printf("Ordering:\n");
+  for (size_t i = 0; i < result.count; i++) {
+    printf("%zu: %zu\n", result.pointer[i].index, result.pointer[i].ordering);
+  }
+  */
+
+  qsort(
+    result.pointer,
+    result.count,
+    sizeof(*result.pointer),
+    compare_by_ordering
+  );
+
+  return result;
+}
+
+
 } // namespace
 
-namespace output {
+namespace cpp {
 
 struct OutputContext {
   vm::LinearArena *dedicated_arena;
@@ -719,11 +732,6 @@ struct OutputContext {
 };
 
 using Ctx = OutputContext *;
-
-struct OrderElement {
-  size_t index;
-  size_t ordering;
-};
 
 void output_cstring(Ctx ctx, const char *cstr) {
   auto clen = strlen(cstr);
@@ -982,9 +990,9 @@ char const *output_cpp_footer = R"(#pragma pack(pop)
 } // namespace svf
 )";
 
-Range<Byte> output_cpp_code(
+Range<Byte> output_code(
   grammar::Root *root,
-  Range<OrderElement> ordering,
+  Range<grammar::OrderElement> ordering,
   vm::LinearArena *arena,
   vm::LinearArena *output_arena
 ) {
@@ -1040,120 +1048,66 @@ Range<Byte> output_cpp_code(
   return ctx->range;
 }
 
-int compare_by_ordering(const void *a_, const void *b_) {
-  auto a = (OrderElement *) a_;
-  auto b = (OrderElement *) b_;
-  if (a->ordering < b->ordering) {
-    return -1;
-  } else if (a->ordering > b->ordering) {
-    return 1;
+} // namespace cpp
+
+struct CommandLineOptions {
+  enum class Subcommand {
+    cpp,
+    binary,
+  };
+
+  bool valid;
+  Subcommand subcommand;
+};
+
+CommandLineOptions parse_command_line_options(Range<Byte *> args) {
+  // `svfc cpp` or `svfc binary`.
+
+  CommandLineOptions result = {
+    .valid = true,
+  };
+
+  if (args.count < 2) {
+    printf("Error: expected subcommand.\n");
+    result.valid = false;
+    return result;
+  }
+
+  auto subcommand = args.pointer[1];
+  if (strcmp((char const *) subcommand, "cpp") == 0) {
+    result.subcommand = CommandLineOptions::Subcommand::cpp;
+  } else if (strcmp((char const *) subcommand, "binary") == 0) {
+    result.subcommand = CommandLineOptions::Subcommand::binary;
   } else {
-    return 0;
+    printf("Error: unknown subcommand '%s'.\n", subcommand);
+    result.valid = false;
+    return result;
   }
-}
-
-Range<OrderElement> order_types(grammar::Root *root, vm::LinearArena *arena) {
-  auto result = vm::allocate_many<OrderElement>(arena, root->definitions.count);
-  ASSERT(result.pointer);
-
-  for (size_t i = 0; i < root->definitions.count; i++) {
-    result.pointer[i] = {
-      .index = i,
-      .ordering = size_t(-1),
-    };
-  }
-
-  size_t current_ordering = 0;
-
-  for (;;) {
-    bool all_ok = true;
-    bool some_ok = false;
-
-    for (size_t i = 0; i < root->definitions.count; i++) {
-      if (result.pointer[i].ordering < current_ordering) {
-        continue;
-      }
-      bool ok = true;
-      auto definition = root->definitions.pointer + i;
-      switch (definition->which) {
-        case grammar::TopLevelDefinition::Which::a_struct: {
-          for (size_t j = 0; j < definition->a_struct.fields.count; j++) {
-            auto field = definition->a_struct.fields.pointer + j;
-            if (field->type.which != grammar::Type::Which::concrete) {
-              continue;
-            }
-            if (field->type.concrete.type.which != grammar::ConcreteType::Which::defined) {
-              continue;
-            }
-            auto ix = field->type.concrete.type.defined.top_level_definition_index;
-            if (result.pointer[ix].ordering >= current_ordering) {
-              ok = false;
-              break;
-            }
-          }
-          break;
-        }
-        case grammar::TopLevelDefinition::Which::a_choice: {
-          for (size_t j = 0; j < definition->a_choice.options.count; j++) {
-            auto option = definition->a_choice.options.pointer + j;
-            if (option->type.which != grammar::Type::Which::concrete) {
-              continue;
-            }
-            if (option->type.concrete.type.which != grammar::ConcreteType::Which::defined) {
-              continue;
-            }
-            auto ix = option->type.concrete.type.defined.top_level_definition_index;
-            if (result.pointer[ix].ordering >= current_ordering) {
-              ok = false;
-              break;
-            }
-          }
-          break;
-        }
-        default: {
-          ASSERT(false);
-        }
-      }
-      if (ok) {
-        some_ok = true;
-        result.pointer[i].ordering = current_ordering;
-        //printf("Type %zu has ordering %zu\n", i, current_ordering);
-      } else {
-        all_ok = false;
-      }
-    }
-
-    if (all_ok) {
-      break;
-    }
-
-    if (some_ok) {
-      current_ordering++;
-    } else {
-      return {};
-    }
-  }
-
-  /*
-  printf("Ordering:\n");
-  for (size_t i = 0; i < result.count; i++) {
-    printf("%zu: %zu\n", result.pointer[i].index, result.pointer[i].ordering);
-  }
-  */
-
-  qsort(
-    result.pointer,
-    result.count,
-    sizeof(*result.pointer),
-    output::compare_by_ordering
-  );
 
   return result;
 }
 
-} // namespace output
+namespace binary {
+
+Range<Byte> output_bytes(
+  grammar::Root *root,
+  Range<grammar::OrderElement> ordering,
+  vm::LinearArena *arena,
+  vm::LinearArena *output_arena
+);
+
+} // namespace binary
 
 int main(int argc, char *argv[]) {
+  auto options = parse_command_line_options({
+    .pointer = (Byte **) argv,
+    .count = safe_int_cast<U64>(argc),
+  });
+
+  if (!options.valid) {
+    return 1;
+  }
+
   auto arena = vm::create_linear_arena(2ull << 30);
   // never free, we will just exit the program.
 
@@ -1180,20 +1134,37 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto ordering = output::order_types(root, &arena);
+  auto ordering = grammar::order_types(root, &arena);
   if (!ordering.pointer) {
     printf("Error: failed to order types.\n");
     return 1;
   }
 
   auto output_arena = vm::create_linear_arena(2ull << 30);
-  auto output_range = output::output_cpp_code(root, ordering, &arena, &output_arena);
+  // never free, we will just exit the program.
 
-  /*
-  printf("Success.\n");
-  printf("========\n");
-  */
-  printf("%.*s\n", safe_int_cast<int>(output_range.count), output_range.pointer);
+  if (!output_arena.reserved_range.pointer) {
+    printf("Error: could not create output memory arena.\n");
+    return 1;
+  }
+
+  if (options.subcommand == CommandLineOptions::Subcommand::cpp) {
+    auto output_range = cpp::output_code(root, ordering, &arena, &output_arena);
+    auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
+    if (result != output_range.count) {
+      printf("Error: failed to write output.\n");
+      return 1;
+    }
+  } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
+    auto output_range = binary::output_bytes(root, ordering, &arena, &output_arena);
+    auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
+    if (result != output_range.count) {
+      printf("Error: failed to write output.\n");
+      return 1;
+    }
+  } else {
+    ASSERT(false);
+  }
 
   return 0;
 }

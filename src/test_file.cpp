@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "utilities.hpp"
 #include "common.hpp"
 #include "meta.hpp"
 
@@ -15,26 +16,9 @@ struct Header {
 	U8 magic[4];
 	U8 version;
 	U8 _reserved[3];
+	U32 schema_offset;
 	U32 entry_point_offset;
 };
-
-static inline
-U64 compute_name_hash(Range<Byte> name) {
-  auto hash = hash64::begin();
-  hash64::add_bytes(&hash, name);
-  return hash;
-}
-
-static inline
-U64 compute_cstr_hash(char const *cstr) {
-	return compute_name_hash({(Byte *) cstr, strlen(cstr)});
-}
-
-static inline
-U32 offset_between(void *base, void *pointer) {
-	auto result = (Byte *) pointer - (Byte *) base;
-	return safe_int_cast<U32>(result);
-}
 
 int test_write() {
 	auto arena = vm::create_linear_arena(2ull < 30);
@@ -43,8 +27,15 @@ int test_write() {
 		return 1;
 	}
 
+	auto schema_bytes = Range<Byte> {(Byte *) example, strlen(example)};
+	// TODO need to replace with binary schema.
+
 	auto header = vm::allocate_one<Header>(&arena);
 	ASSERT(header); // temporary
+
+	auto schema = vm::allocate_many<Byte>(&arena, schema_bytes.count);
+	ASSERT(schema.pointer); // temporary
+	memcpy(schema.pointer, schema_bytes.pointer, schema_bytes.count);
 
 	auto entry_point = vm::allocate_one<svf::schema_format_0::EntryPoint>(&arena);
 	ASSERT(entry_point); // temporary
