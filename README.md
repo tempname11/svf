@@ -1,4 +1,4 @@
-# Simple Universal Format
+# Simple Versatile Format
 
 ## Problem statement
 
@@ -25,13 +25,13 @@ Your concerns are:
 
 I will not argue against any of these, but in my opinion, these solutions are more than many problems truly require. Perhaps we can do more with less?
 
-## Outline
+## Status
 
-Let's now clarify what this project aims to be:
+This project aims to be:
 
 - a small schema language specification,
-- a code generation tool for C and C++
+- a code generation tool for C and C++.
 - and a debugging tool to inspect data.
 - documentation on how everything works.
 
-If you find this interesting, jump into specific topics.
+Currently, it's a work in progress.
