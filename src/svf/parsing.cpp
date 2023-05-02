@@ -497,10 +497,6 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
 
   auto schema_name = parse_directive_name(ctx);
   skip_whitespace(ctx);
-  /*
-  parse_directive_entry(ctx);
-  skip_whitespace(ctx);
-  */
 
   if (ctx->state.fail.flag) {
     return 0;

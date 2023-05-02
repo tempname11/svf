@@ -103,9 +103,6 @@ struct TopLevelDefinition {
 struct Root {
   Range<Byte> schema_name;
   U64 schema_name_hash;
-  /*
-  U32 entry_point_index;
-  */
   Range<TopLevelDefinition> definitions;
 };
 

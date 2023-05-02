@@ -4,13 +4,6 @@
 #include "platform.hpp"
 #include "meta.hpp"
 
-char const *example = R"(
-EntryPoint: struct {
-  i64: I64;
-  f32: F32;
-};
-)";
-
 struct Header {
   U8 magic[4];
   U8 version;
