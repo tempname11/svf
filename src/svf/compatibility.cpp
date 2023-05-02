@@ -4,9 +4,9 @@
 namespace svf::compatiblity::binary {
 
 bool check_schema(grammar::Root* root) {
-	// TODO
+  // TODO
 
-	return false;
+  return false;
 }
 
 } // namespace binary_compatiblity
