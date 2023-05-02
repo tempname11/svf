@@ -1,45 +1,17 @@
 #include <cstring>
-
 #include "platform.hpp"
-#include "grammar.hpp"
+#include "svf.hpp"
 
-namespace output_binary {
-  Range<Byte> output_bytes(
-    grammar::Root *root,
-    Range<grammar::OrderElement> ordering,
-    vm::LinearArena *arena,
-    vm::LinearArena *output_arena
-  );
-}
+char const input_cstr[] = R"#(#name svf_meta
 
-namespace output_cpp {
-  Range<Byte> output_code(
-    grammar::Root *root,
-    Range<grammar::OrderElement> ordering,
-    vm::LinearArena *arena,
-    vm::LinearArena *output_arena
-  );
-}
-
-namespace parsing {
-  grammar::Root *parse_input(vm::LinearArena *arena, Range<U8> input);
-}
-
-namespace typechecking {
-  bool resolve_types(grammar::Root *root);
-  Range<grammar::OrderElement> order_types(
-    grammar::Root *root,
-    vm::LinearArena *arena
-  );
-}
-
-char const input_cstr[] = R"#(
-EntryPoint: struct {
+Schema: struct {
+  name_hash: U64;
   structs: StructDefinition[];
   choices: ChoiceDefinition[];
 };
 
 ChoiceDefinition: struct {
+  name_hash: U64;
   options: OptionDefinition[];
 };
 
@@ -50,6 +22,7 @@ OptionDefinition: struct {
 };
 
 StructDefinition: struct {
+  name_hash: U64;
   fields: FieldDefinition[];
 };
 
@@ -149,19 +122,19 @@ int main(int argc, char *argv[]) {
     .count = strlen(input_cstr),
   };
 
-  auto root = parsing::parse_input(&arena, input);
+  auto root = svf::parsing::parse_input(&arena, input);
 
   if (!root) {
     printf("Error: failed to parse input.\n");
     return 1;
   }
 
-  if (!typechecking::resolve_types(root)) {
+  if (!svf::typechecking::resolve_types(root)) {
     printf("Error: failed to resolve types.\n");
     return 1;
   }
 
-  auto ordering = typechecking::order_types(root, &arena);
+  auto ordering = svf::typechecking::order_types(root, &arena);
   if (!ordering.pointer) {
     printf("Error: failed to order types.\n");
     return 1;
@@ -176,14 +149,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (options.subcommand == CommandLineOptions::Subcommand::cpp) {
-    auto output_range = output_cpp::output_code(root, ordering, &arena, &output_arena);
+    auto output_range = svf::output_cpp::output_code(root, ordering, &arena, &output_arena);
     auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
     if (result != output_range.count) {
       printf("Error: failed to write output.\n");
       return 1;
     }
   } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
-    auto output_range = output_binary::output_bytes(root, ordering, &arena, &output_arena);
+    auto output_range = svf::output_binary::output_bytes(root, ordering, &arena, &output_arena);
     auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
     if (result != output_range.count) {
       printf("Error: failed to write output.\n");

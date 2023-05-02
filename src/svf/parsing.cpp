@@ -1,9 +1,8 @@
 #include <cstring>
-
-#include "platform.hpp"
+#include "../platform.hpp"
 #include "grammar.hpp"
 
-namespace parsing {
+namespace svf::parsing {
 
 using namespace grammar;
 
@@ -44,6 +43,35 @@ void set_fail(Ctx ctx) {
   }
 }
 
+void skip_whitespace_and_one_newline(Ctx ctx) {
+  while (true) {
+    if (ctx->state.cursor == ctx->input.count) {
+      return;
+    }
+
+    auto byte = ctx->input.pointer[ctx->state.cursor];
+
+    if (byte == ' ' || byte == '\t' || byte == '\r') {
+      ctx->state.cursor++;
+    } else {
+      break;
+    }
+  }
+
+  if (ctx->state.cursor == ctx->input.count) {
+    set_fail(ctx);
+    return;
+  }
+
+  auto byte = ctx->input.pointer[ctx->state.cursor];
+
+  if (byte == '\n') {
+    ctx->state.cursor++;
+  } else {
+    set_fail(ctx);
+  }
+}
+
 void skip_whitespace(Ctx ctx) {
   while (true) {
     if (ctx->state.cursor == ctx->input.count) {
@@ -60,7 +88,13 @@ void skip_whitespace(Ctx ctx) {
   }
 }
 
-Range<U8> parse_name(Ctx ctx, Bool is_type) {
+enum class NameKind {
+  type,
+  value,
+  generic,
+};
+
+Range<U8> parse_name(Ctx ctx, NameKind kind) {
   size_t cursor_start = ctx->state.cursor;
   if (ctx->state.cursor == ctx->input.count) {
     set_fail(ctx);
@@ -71,8 +105,12 @@ Range<U8> parse_name(Ctx ctx, Bool is_type) {
     auto byte = ctx->input.pointer[ctx->state.cursor];
 
     if (0
-      || (is_type && byte >= 'A' && byte <= 'Z')
-      || (!is_type && byte >= 'a' && byte <= 'z')
+      || (kind == NameKind::type && byte >= 'A' && byte <= 'Z')
+      || (kind == NameKind::value && byte >= 'a' && byte <= 'z')
+      || (kind == NameKind::generic && (0
+        || (byte >= 'A' && byte <= 'Z')
+        || (byte >= 'a' && byte <= 'z')
+      ))
     ) {
       ctx->state.cursor++;
     } else {
@@ -106,8 +144,8 @@ Range<U8> parse_name(Ctx ctx, Bool is_type) {
   };
 }
 
-Range<U8> parse_type_name(Ctx ctx) { return parse_name(ctx, true); }
-Range<U8> parse_value_name(Ctx ctx) { return parse_name(ctx, false); }
+Range<U8> parse_type_name(Ctx ctx) { return parse_name(ctx, NameKind::type); }
+Range<U8> parse_value_name(Ctx ctx) { return parse_name(ctx, NameKind::value); }
 
 void skip_specific_character(Ctx ctx, U8 ascii_character) {
   if (ctx->state.cursor == ctx->input.count) {
@@ -439,6 +477,14 @@ void parse_top_level_definition(Ctx ctx) {
   skip_whitespace(ctx);
 }
 
+Range<Byte> parse_directive_name(Ctx ctx) {
+  skip_specific_cstring(ctx, "#name");
+  skip_whitespace(ctx);
+  auto result = parse_name(ctx, NameKind::generic);
+  skip_whitespace_and_one_newline(ctx);
+  return result;
+}
+
 Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
   ParserContext context_value = {
     .arena = arena,
@@ -449,7 +495,17 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
   auto root = vm::allocate_one<Root>(ctx->arena);
   ASSERT(root); // temporary?
 
+  auto schema_name = parse_directive_name(ctx);
   skip_whitespace(ctx);
+  /*
+  parse_directive_entry(ctx);
+  skip_whitespace(ctx);
+  */
+
+  if (ctx->state.fail.flag) {
+    return 0;
+  }
+
   while (true) {
     if (ctx->state.cursor == ctx->input.count) {
       break;
@@ -461,9 +517,13 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
     }
   }
 
-  root->definitions = {
-    .pointer = ctx->state.top_level_definitions.pointer,
-    .count = ctx->state.top_level_definitions.count,
+  *root = {
+    .schema_name = schema_name,
+    .schema_name_hash = compute_name_hash(schema_name),
+    .definitions = {
+      .pointer = ctx->state.top_level_definitions.pointer,
+      .count = ctx->state.top_level_definitions.count,
+    },
   };
   return root;
 }

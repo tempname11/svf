@@ -22,10 +22,10 @@ cl ^
 	/Zi ^
 	/DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
 	..\src\exe_svfc.cpp ^
-	..\src\parsing.cpp ^
-	..\src\typechecking.cpp ^
-	..\src\output_binary.cpp ^
-	..\src\output_cpp.cpp ^
+	..\src\svf\parsing.cpp ^
+	..\src\svf\typechecking.cpp ^
+	..\src\svf\output_binary.cpp ^
+	..\src\svf\output_cpp.cpp ^
 	..\src\platform_windows.cpp ^
 	/link ^
 	/DEBUG:FULL ^

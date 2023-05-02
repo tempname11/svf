@@ -1,9 +1,8 @@
 #include <cstdlib>
-
-#include "platform.hpp"
+#include "../platform.hpp"
 #include "grammar.hpp"
 
-namespace typechecking {
+namespace svf::typechecking {
 
 using namespace grammar;
 

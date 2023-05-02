@@ -1,5 +1,5 @@
+#pragma once
 #include <cstring>
-
 #include "platform.hpp"
 
 // Temporary place to keep utilities.
