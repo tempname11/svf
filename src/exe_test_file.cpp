@@ -4,10 +4,11 @@
 #include "platform.hpp"
 #include "meta.hpp"
 
-struct Header {
+struct MessageHeader {
   U8 magic[4];
   U8 version;
   U8 _reserved[3];
+  U64 entry_name_hash;
   U32 schema_offset;
   U32 schema_length;
   U32 data_offset;
@@ -32,31 +33,32 @@ int test_write() {
     return 1;
   }
 
-  auto header = vm::allocate_one<Header>(&arena);
+  auto header = vm::allocate_one<MessageHeader>(&arena);
   ASSERT(header); // temporary
 
   auto out_schema = vm::allocate_many<Byte>(&arena, meta_schema_binary::range.count);
   ASSERT(out_schema.pointer); // temporary
   memcpy(out_schema.pointer, meta_schema_binary::range.pointer, meta_schema_binary::range.count);
 
-  auto schema = vm::allocate_one<meta::Schema>(&arena);
-  ASSERT(schema); // temporary
+  auto root = vm::allocate_one<meta::Schema>(&arena);
+  ASSERT(root); // temporary
 
   *header = {
     .magic = { 'S', 'V', 'F', '\0' },
     .version = 0,
+    .entry_name_hash = meta::Schema_name_hash,
     .schema_offset = offset_between(header, out_schema.pointer),
     .schema_length = safe_int_cast<U32>(meta_schema_binary::range.count),
-    .data_offset = offset_between(header, schema),
+    .data_offset = offset_between(header, root),
     .data_length = 0, // will be filled in later
   };
 
   auto structs = vm::allocate_many<meta::StructDefinition>(&arena, 1);
   ASSERT(structs.pointer); // temporary
 
-  *schema = {
+  *root = {
     .structs = {
-      .pointer_offset = offset_between(schema, structs.pointer),
+      .pointer_offset = offset_between(root, structs.pointer),
       .count = safe_int_cast<U32>(structs.count),
     },
     .choices = {},
@@ -67,7 +69,7 @@ int test_write() {
 
   structs.pointer[0] = {
     .fields = {
-      .pointer_offset = offset_between(schema, fields.pointer),
+      .pointer_offset = offset_between(root, fields.pointer),
       .count = safe_int_cast<U32>(fields.count),
     },
   };
@@ -167,7 +169,7 @@ int test_read() {
     }
   }
 
-  auto header = (Header *) file_range.pointer;
+  auto header = (MessageHeader *) file_range.pointer;
   if (
     header->magic[0] != 'S' ||
     header->magic[1] != 'V' ||
@@ -181,6 +183,10 @@ int test_read() {
   if (header->version != 0) {
     printf("File is not an SVF version 0 file.\n");
     return 1;
+  }
+  
+  if (header->entry_name_hash != meta::Schema_name_hash) {
+    printf("File does not contain the expected entry point.\n");
   }
 
   ASSERT(header->schema_offset + header->schema_length <= header->data_offset);
@@ -203,13 +209,13 @@ int test_read() {
     .count = header->data_length,
   };
 
-  auto schema = (meta::Schema *) data_range.pointer;
+  auto root = (meta::Schema *) data_range.pointer;
 
   auto structs_range = Range<meta::StructDefinition> {
     .pointer = (meta::StructDefinition *) (
-      data_range.pointer + schema->structs.pointer_offset
+      data_range.pointer + root->structs.pointer_offset
     ),
-    .count = schema->structs.count,
+    .count = root->structs.count,
   };
 
   if (structs_range.count != 1) {

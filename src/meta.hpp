@@ -41,6 +41,19 @@ union Type_union;
 struct OptionDefinition;
 struct FieldDefinition;
 
+// Hashes of top level definition names
+U64 const Schema_name_hash = 0x5DF4EB1350801A96ull;
+U64 const ChoiceDefinition_name_hash = 0x2240FF3EC854982Full;
+U64 const ConcreteType_dot_defined_name_hash = 0x4DFC442616B80464ull;
+U64 const StructDefinition_name_hash = 0x713C0B32A28A6581ull;
+U64 const ConcreteType_name_hash = 0x698D4BD276D7869Eull;
+U64 const Type_dot_flexible_array_name_hash = 0x80D402D4DFCA5AC3ull;
+U64 const Type_dot_concrete_name_hash = 0xD52542288532EF0Dull;
+U64 const Type_dot_pointer_name_hash = 0x1112B5AB620370AFull;
+U64 const Type_name_hash = 0xD2223AFB7D6B100Dull;
+U64 const OptionDefinition_name_hash = 0x1F70FAEE117DDC5Dull;
+U64 const FieldDefinition_name_hash = 0xDF03D0229D043C3Aull;
+
 // Full declarations
 struct Schema {
   U64 name_hash;
