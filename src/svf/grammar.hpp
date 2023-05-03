@@ -17,23 +17,14 @@ struct ConcreteType {
     f64,
     zero_sized,
     defined,
-    unresolved,
   } which;
 
   struct Defined {
-    U32 top_level_definition_index;
+    U64 top_level_definition_name_hash;
   };
-
-  struct Unresolved {
-    Range<Byte> name;
-    U64 name_hash;
-  };
-  // This is only necessary before everything was parsed.
-  // After that, a second pass must resolve all names.
 
   union {
     Defined defined;
-    Unresolved unresolved;
   };
 };
 

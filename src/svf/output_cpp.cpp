@@ -1,6 +1,12 @@
+// UNREVIEWED.
 #include <cstring>
 #include "../platform.hpp"
 #include "grammar.hpp"
+
+namespace svf::typechecking {
+  // This dependency is not ideal.
+  grammar::TopLevelDefinition *resolve_by_name_hash(grammar::Root* root, U64 name_hash);
+}
 
 namespace svf::output_cpp {
 
@@ -46,7 +52,11 @@ void output_choice_declaration(Ctx ctx, grammar::ChoiceDefinition *it) {
 void output_concrete_type_name(Ctx ctx, grammar::ConcreteType *concrete_type) {
   switch (concrete_type->which) {
     case grammar::ConcreteType::Which::defined: {
-      auto definition = ctx->root->definitions.pointer + concrete_type->defined.top_level_definition_index;
+      auto definition = typechecking::resolve_by_name_hash(
+        ctx->root,
+        concrete_type->defined.top_level_definition_name_hash
+      );
+      ASSERT(definition);
       switch (definition->which) {
         case grammar::TopLevelDefinition::Which::a_struct: {
           output_range(ctx, definition->a_struct.name);
@@ -146,9 +156,12 @@ TypePlurality get_plurality(Ctx ctx, grammar::Type *it) {
     // TODO: Check for zero-sized arrays?
 
     if (it->concrete.type.which == grammar::ConcreteType::Which::defined) {
-      auto definition = it->concrete.type.defined.top_level_definition_index;
-      auto top_level_definition = ctx->root->definitions.pointer + definition;
-      switch (top_level_definition->which) {
+      auto definition = typechecking::resolve_by_name_hash(
+        ctx->root,
+        it->concrete.type.defined.top_level_definition_name_hash
+      );
+      ASSERT(definition);
+      switch (definition->which) {
         case grammar::TopLevelDefinition::Which::a_struct: {
           return TypePlurality::one;
         }

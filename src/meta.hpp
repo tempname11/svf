@@ -67,7 +67,7 @@ struct ChoiceDefinition {
 };
 
 struct ConcreteType_dot_defined {
-  U32 top_level_definition_index;
+  U64 top_level_definition_name_hash;
 };
 
 struct StructDefinition {

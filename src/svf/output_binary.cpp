@@ -60,7 +60,7 @@ void output_concrete_type(
     case grammar::ConcreteType::Which::defined: {
       *out_enum = meta::ConcreteType_enum::defined;
       out_union->defined = {
-        .top_level_definition_index = in_concrete->defined.top_level_definition_index,
+        .top_level_definition_name_hash = in_concrete->defined.top_level_definition_name_hash,
       };
       break;
     }

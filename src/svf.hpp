@@ -24,8 +24,7 @@ namespace svf {
   }
 
   namespace typechecking {
-    bool resolve_types(grammar::Root *root);
-    Range<grammar::OrderElement> order_types(
+    Range<grammar::OrderElement> check_types(
       grammar::Root *root,
       vm::LinearArena *arena
     );

@@ -44,7 +44,7 @@ ConcreteType: choice {
   f64;
   zero_sized;
   defined: struct {
-    top_level_definition_index: U32;
+    top_level_definition_name_hash: U64;
   };
 };
 
@@ -129,14 +129,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  if (!svf::typechecking::resolve_types(root)) {
-    printf("Error: failed to resolve types.\n");
-    return 1;
-  }
-
-  auto ordering = svf::typechecking::order_types(root, &arena);
+  auto ordering = svf::typechecking::check_types(root, &arena);
   if (!ordering.pointer) {
-    printf("Error: failed to order types.\n");
+    printf("Error: failed to check types.\n");
     return 1;
   }
 

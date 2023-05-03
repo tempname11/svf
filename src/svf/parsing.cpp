@@ -192,10 +192,9 @@ Type parse_type(Ctx ctx) {
   auto name_hash = compute_name_hash(name);
 
   auto concrete_type = ConcreteType {
-    .which = ConcreteType::Which::unresolved,
-    .unresolved = {
-      .name = name,
-      .name_hash = name_hash,
+    .which = ConcreteType::Which::defined,
+    .defined = {
+      .top_level_definition_name_hash = name_hash,
     },
   };
 
@@ -249,7 +248,7 @@ Type parse_type(Ctx ctx) {
   }
 }
 
-U32 parse_type_definition(Ctx ctx, Range<Byte> definition_name) {
+U64 parse_type_definition(Ctx ctx, Range<Byte> definition_name) {
   auto saved_state = ctx->state;
   skip_specific_cstring(ctx, "struct");
   TopLevelDefinition result;
@@ -262,7 +261,8 @@ U32 parse_type_definition(Ctx ctx, Range<Byte> definition_name) {
     dynamic_resize(&ctx->state.top_level_definitions, ctx->arena, ctx->state.top_level_definitions.count + 1);
     ASSERT(ctx->state.top_level_definitions.pointer); // temporary?
     ctx->state.top_level_definitions.pointer[ctx->state.top_level_definitions.count] = result;
-    return ctx->state.top_level_definitions.count++;
+    ctx->state.top_level_definitions.count++;
+    return result.a_struct.name_hash;
   }
 
   ctx->state = saved_state;
@@ -317,7 +317,7 @@ Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Rang
 
   // It wasn't a type, so it must be an inline type definition.
   ctx->state = saved_state;
-  auto index = parse_type_definition(ctx, definition_name);
+  auto hash = parse_type_definition(ctx, definition_name);
 
   if (!ctx->state.fail.flag) {
     return {
@@ -326,7 +326,7 @@ Type parse_type_or_inline_type_definition(Ctx ctx, Range<Byte> parent_name, Rang
         .type = {
           .which = ConcreteType::Which::defined,
           .defined = {
-            .top_level_definition_index = index,
+            .top_level_definition_name_hash = hash,
           },
         },
       },
