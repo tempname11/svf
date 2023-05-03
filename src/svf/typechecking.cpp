@@ -1,5 +1,4 @@
 // UNREVIEWED.
-#include <cstdlib>
 #include "../platform.hpp"
 #include "grammar.hpp"
 
@@ -32,7 +31,7 @@ TopLevelDefinition *resolve_by_name_hash(Root* root, U64 name_hash) {
   return 0;
 }
 
-bool check_type(Root* root, Type* type) {
+Bool check_type(Root* root, Type* type) {
   ConcreteType *concrete_type;
   switch (type->which) {
     case Type::Which::concrete: {
@@ -118,14 +117,14 @@ Range<OrderElement> check_types(grammar::Root *root, vm::LinearArena *arena) {
   size_t current_ordering = 0;
 
   for (;;) {
-    bool all_ok = true;
-    bool some_ok = false;
+    Bool all_ok = true;
+    Bool some_ok = false;
 
     for (size_t i = 0; i < root->definitions.count; i++) {
       if (result.pointer[i].ordering < current_ordering) {
         continue;
       }
-      bool ok = true;
+      Bool ok = true;
       auto definition = root->definitions.pointer + i;
       switch (definition->which) {
         case grammar::TopLevelDefinition::Which::a_struct: {

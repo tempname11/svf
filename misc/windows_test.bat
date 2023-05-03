@@ -1,9 +1,9 @@
 if not exist .tmp mkdir .tmp
 
-.build\svfc.exe cpp > meta\meta.hpp
+.build\svfc.exe cpp meta\meta.txt > meta\meta.hpp
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-.build\svfc.exe binary > meta\meta.blob 
+.build\svfc.exe binary meta\meta.txt > meta\meta.blob 
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 .build\embed.exe meta\meta.blob meta\meta.inc

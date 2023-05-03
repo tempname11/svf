@@ -1,66 +1,6 @@
 // UNREVIEWED.
-#include <cstring>
 #include "platform.hpp"
 #include "svf.hpp"
-
-char const input_cstr[] = R"#(#name svf_meta
-
-Schema: struct {
-  name_hash: U64;
-  structs: StructDefinition[];
-  choices: ChoiceDefinition[];
-};
-
-ChoiceDefinition: struct {
-  name_hash: U64;
-  options: OptionDefinition[];
-};
-
-OptionDefinition: struct {
-  name_hash: U64;
-  index: U8;
-  type: Type;
-};
-
-StructDefinition: struct {
-  name_hash: U64;
-  fields: FieldDefinition[];
-};
-
-FieldDefinition: struct {
-  name_hash: U64;
-  type: Type;
-};
-
-ConcreteType: choice {
-  u8;
-  u16;
-  u32;
-  u64;
-  i8;
-  i16;
-  i32;
-  i64;
-  f32;
-  f64;
-  zero_sized;
-  defined: struct {
-    top_level_definition_name_hash: U64;
-  };
-};
-
-Type: choice {
-  concrete: struct {
-    type: ConcreteType;
-  };
-  pointer: struct {
-    type: ConcreteType;
-  };
-  flexible_array: struct {
-    element_type: ConcreteType;
-  };
-};
-)#";
 
 struct CommandLineOptions {
   enum class Subcommand {
@@ -68,12 +8,13 @@ struct CommandLineOptions {
     binary,
   };
 
-  bool valid;
+  Bool valid;
   Subcommand subcommand;
+  Range<Byte> input_file_path; // empty if stdin.
 };
 
 CommandLineOptions parse_command_line_options(Range<Byte *> args) {
-  // `svfc cpp` or `svfc binary`.
+  // `svfc cpp <file>` or `svfc binary <file>`.
 
   CommandLineOptions result = {
     .valid = true,
@@ -88,8 +29,30 @@ CommandLineOptions parse_command_line_options(Range<Byte *> args) {
   auto subcommand = args.pointer[1];
   if (strcmp((char const *) subcommand, "cpp") == 0) {
     result.subcommand = CommandLineOptions::Subcommand::cpp;
+    if (args.count != 3) {
+      printf("Error: expected input file path.\n");
+      result.valid = false;
+      return result;
+    }
+    if (strcmp((char const *) args.pointer[2], "-") != 0) {
+      result.input_file_path = {
+        .pointer = args.pointer[2],
+        .count = strlen((char const *) args.pointer[2]),
+      };
+    }
   } else if (strcmp((char const *) subcommand, "binary") == 0) {
     result.subcommand = CommandLineOptions::Subcommand::binary;
+    if (args.count != 3) {
+      printf("Error: expected input file path.\n");
+      result.valid = false;
+      return result;
+    }
+    if (strcmp((char const *) args.pointer[2], "-") != 0) {
+      result.input_file_path = {
+        .pointer = args.pointer[2],
+        .count = strlen((char const *) args.pointer[2]),
+      };
+    }
   } else {
     printf("Error: unknown subcommand '%s'.\n", subcommand);
     result.valid = false;
@@ -117,11 +80,31 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  static_assert(sizeof(char) == 1); // sanity check
+  auto input_file = stdin;
+  if (options.input_file_path.pointer) {
+    input_file = fopen((char const *) options.input_file_path.pointer, "rb");
+  }
+
+  auto input_buffer = vm::begin<Byte>(&arena);
+  U64 input_cstr_size = 0;
+  while (!feof(input_file)) {
+    input_buffer.count += vm::many<Byte>(&arena, 1024).count;
+    input_cstr_size += fread(input_buffer.pointer, 1, 1024, input_file);
+
+    if (ferror(input_file)) {
+      printf("Error: failed to read input.\n");
+      return 1;
+    }
+  }
+
   auto input = Range<U8> {
-    .pointer = (U8 *) input_cstr,
-    .count = strlen(input_cstr),
+    .pointer = (U8 *) input_buffer.pointer,
+    .count = input_cstr_size,
   };
+
+  if (input_file != stdin) {
+    fclose(input_file);
+  }
 
   auto root = svf::parsing::parse_input(&arena, input);
 
@@ -145,14 +128,24 @@ int main(int argc, char *argv[]) {
   }
 
   if (options.subcommand == CommandLineOptions::Subcommand::cpp) {
-    auto output_range = svf::output_cpp::output_code(root, ordering, &arena, &output_arena);
+    auto output_range = svf::output_cpp::output_code(
+      root,
+      ordering,
+      &arena,
+      &output_arena
+    );
     auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
     if (result != output_range.count) {
       printf("Error: failed to write output.\n");
       return 1;
     }
   } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
-    auto output_range = svf::output_binary::output_bytes(root, ordering, &arena, &output_arena);
+    auto output_range = svf::output_binary::output_bytes(
+      root,
+      ordering,
+      &arena,
+      &output_arena
+    );
     auto result = fwrite(output_range.pointer, 1, output_range.count, stdout);
     if (result != output_range.count) {
       printf("Error: failed to write output.\n");

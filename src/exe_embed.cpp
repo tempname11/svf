@@ -1,6 +1,6 @@
 // UNREVIEWED.
 #include <cstdio>
-#include <memory>
+#include <cstdlib>
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {

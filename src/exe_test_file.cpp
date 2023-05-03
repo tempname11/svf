@@ -36,7 +36,7 @@ namespace svf::compatiblity::binary {
     meta::Schema* s1;
   };
 
-  bool check_entry(
+  Bool check_entry(
     CheckContext *ctx,
     U64 entry_name_hash
   );

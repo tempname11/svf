@@ -1,5 +1,4 @@
 // UNREVIEWED.
-#include <cstring>
 #include "../platform.hpp"
 #include "grammar.hpp"
 
@@ -199,7 +198,6 @@ Type parse_type(Ctx ctx) {
     },
   };
 
-  static_assert(sizeof(char) == 1); // sanity check
   if (strncmp("U8", (char const *) name.pointer, name.count) == 0) {
     concrete_type = { .which = ConcreteType::Which::u8 };
   } else if (strncmp("U16", (char const *) name.pointer, name.count) == 0) {

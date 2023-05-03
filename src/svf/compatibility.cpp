@@ -27,13 +27,13 @@ struct CheckContext {
   meta::Schema* s1;
 };
 
-bool check_struct(
+Bool check_struct(
   CheckContext *ctx,
   meta::StructDefinition *s0,
   meta::StructDefinition *s1
 );
 
-bool check_choice(
+Bool check_choice(
   CheckContext *ctx,
   meta::ChoiceDefinition *c0,
   meta::ChoiceDefinition *c1
@@ -67,7 +67,7 @@ meta::ChoiceDefinition *find_choice_by_name_hash(
   return {};
 }
 
-bool check_concrete_type(
+Bool check_concrete_type(
   CheckContext *ctx,
   meta::ConcreteType_enum t0,
   meta::ConcreteType_enum t1,
@@ -100,7 +100,7 @@ bool check_concrete_type(
   return true;
 }
 
-bool check_type(
+Bool check_type(
   CheckContext *ctx,
   meta::Type_enum t0,
   meta::Type_enum t1,
@@ -145,7 +145,7 @@ bool check_type(
   return false;
 }
 
-bool check_struct(
+Bool check_struct(
   CheckContext *ctx,
   meta::StructDefinition *s0,
   meta::StructDefinition *s1
@@ -182,7 +182,7 @@ bool check_struct(
   return true;
 }
 
-bool check_choice(
+Bool check_choice(
   CheckContext *ctx,
   meta::ChoiceDefinition *c0,
   meta::ChoiceDefinition *c1
@@ -200,7 +200,7 @@ bool check_choice(
   for (U64 i = 0; i < options1.count; i++) {
     auto option1 = options1.pointer + i;
 
-    bool found = false;
+    Bool found = false;
     for (U64 j = 0; j < options0.count; j++) {
       auto option0 = options0.pointer + j;
 
@@ -233,7 +233,7 @@ bool check_choice(
 U64 const INVALID = U64(-1);
 
 // TODO: recursive types will break this!
-bool check_entry(
+Bool check_entry(
   CheckContext *ctx,
   U64 entry_name_hash
 ) {

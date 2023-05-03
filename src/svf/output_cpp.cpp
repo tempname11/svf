@@ -1,5 +1,4 @@
 // UNREVIEWED.
-#include <cstring>
 #include "../platform.hpp"
 #include "grammar.hpp"
 
