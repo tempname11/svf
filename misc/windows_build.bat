@@ -6,6 +6,7 @@ cl ^
   /Zi ^
   /DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
   ..\src\exe_test_file.cpp ^
+  ..\src\svf\compatibility.cpp ^
   ..\src\platform_windows.cpp ^
   /link ^
   /DEBUG:FULL ^

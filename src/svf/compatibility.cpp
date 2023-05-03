@@ -1,15 +1,10 @@
+// UNREVIEWED.
 #include "../platform.hpp"
 #include "../meta.hpp"
 
 namespace svf::compatiblity::binary {
 
 namespace meta = svf::svf_meta;
-
-/*=================================================
-
-`check_choice(c0, c1)`:
-
-=================================================*/
 
 template<typename T>
 inline static
@@ -20,7 +15,7 @@ Range<T> to_range(Range<Byte> data_range, svf::Array<T> array) {
   }
 
   return {
-    .pointer = (T*) (data_range.begin + array.pointer_offset),
+    .pointer = (T*) (data_range.pointer + array.pointer_offset),
     .count = array.count,
   };
 }
@@ -237,6 +232,7 @@ bool check_choice(
 
 U64 const INVALID = U64(-1);
 
+// TODO: recursive types will break this!
 bool check_entry(
   CheckContext *ctx,
   U64 entry_name_hash
@@ -286,7 +282,7 @@ bool check_entry(
     return check_struct(
       ctx,
       structs0.pointer + struct_index0,
-      structs1.pointer + struct_index1,
+      structs1.pointer + struct_index1
     );
   }
 
@@ -297,11 +293,11 @@ bool check_entry(
     return check_choice(
       ctx,
       choices0.pointer + choice_index0,
-      choices1.pointer + choice_index1,
+      choices1.pointer + choice_index1
     );
   }
 
   return false;
 }
 
-} // namespace binary_compatiblity
+} // namespace svf::compatibility::binary

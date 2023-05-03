@@ -1,3 +1,4 @@
+// UNREVIEWED.
 #include <cstdio>
 #include <cstring>
 #include "utilities.hpp"
@@ -22,9 +23,24 @@ namespace meta_schema_binary {
     .pointer = (Byte *) bytes,
     .count = sizeof(bytes),
   };
-} // namespace meta_schema_binary
+}
 
 namespace meta = svf::svf_meta;
+
+namespace svf::compatiblity::binary {
+  // Copied `from src/svf/compatibility.cpp`. TODO
+  struct CheckContext {
+    Range<Byte> r0;
+    Range<Byte> r1;
+    meta::Schema* s0;
+    meta::Schema* s1;
+  };
+
+  bool check_entry(
+    CheckContext *ctx,
+    U64 entry_name_hash
+  );
+}
 
 int test_write() {
   auto arena = vm::create_linear_arena(2ull < 30);
@@ -195,6 +211,8 @@ int test_read() {
     .count = header->schema_length,
   };
 
+#if 0
+  // Check exact equality.
   ASSERT(schema_range.count == meta_schema_binary::range.count);
   for (U64 i = 0; i < schema_range.count; i++) {
     if (schema_range.pointer[i] != meta_schema_binary::range.pointer[i]) {
@@ -202,6 +220,26 @@ int test_read() {
       return 1;
     }
   }
+#else
+  ASSERT(meta_schema_binary::range.count >= sizeof(meta::Schema));
+  if (schema_range.count < sizeof(meta::Schema)) {
+    printf("Schema embedded in file is too small.\n");
+  }
+
+  // Check binary compatibility.
+  svf::compatiblity::binary::CheckContext check_context = {
+    .r0 = meta_schema_binary::range,
+    .r1 = schema_range,
+    .s0 = (meta::Schema *) meta_schema_binary::range.pointer,
+    .s1 = (meta::Schema *) schema_range.pointer,
+  };
+
+  auto result = svf::compatiblity::binary::check_entry(&check_context, meta::Schema_name_hash);
+  if (!result) {
+    printf("Schema in file is not binary compatible with expected schema.\n");
+    return 1;
+  }
+#endif
 
   ASSERT(header->data_offset + header->data_length <= file_range.count);
   auto data_range = Range<Byte> {

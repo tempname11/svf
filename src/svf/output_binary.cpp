@@ -1,3 +1,4 @@
+// UNREVIEWED.
 #include "../platform.hpp"
 #include "../meta.hpp"
 #include "../utilities.hpp"
@@ -164,8 +165,9 @@ Range<Byte> output_bytes(
       ASSERT(out_fields.pointer); // temporary
 
       *out_struct = {
+        .name_hash = in_struct->name_hash,
         .fields = {
-          .pointer_offset = offset_between(out_struct, out_fields.pointer),
+          .pointer_offset = offset_between(out_schema, out_fields.pointer),
           .count = safe_int_cast<U32>(out_fields.count),
         },
       };
@@ -196,8 +198,9 @@ Range<Byte> output_bytes(
       ASSERT(out_options.pointer); // temporary
 
       *out_choice = {
+        .name_hash = in_choice->name_hash,
         .options = {
-          .pointer_offset = offset_between(out_choice, out_options.pointer),
+          .pointer_offset = offset_between(out_schema, out_options.pointer),
           .count = safe_int_cast<U32>(out_options.count),
         },
       };
