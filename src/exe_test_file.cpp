@@ -4,6 +4,7 @@
 #include "utilities.hpp"
 #include "platform.hpp"
 #include "../meta/meta.hpp"
+#include "../example/schema_a/schema_a.hpp"
 
 struct MessageHeader {
   U8 magic[4];
@@ -16,8 +17,8 @@ struct MessageHeader {
   U32 data_length;
 };
 
-namespace meta_schema_binary {
-  #include "../meta/meta.inc"
+namespace example_schema_binary {
+  #include "../example/schema_a/schema_a.inc"
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -26,6 +27,7 @@ namespace meta_schema_binary {
 }
 
 namespace meta = svf::svf_meta;
+namespace example = svf::schema_a;
 
 namespace svf::compatiblity::binary {
   // Copied `from src/svf/compatibility.cpp`. TODO
@@ -49,22 +51,22 @@ int test_write() {
     return 1;
   }
 
-  auto header = vm::allocate_one<MessageHeader>(&arena);
-  ASSERT(header); // temporary
+  auto header = vm::one<MessageHeader>(&arena);
+  auto out_schema = vm::many<Byte>(&arena, example_schema_binary::range.count);
+  auto root = vm::one<example::A>(&arena);
 
-  auto out_schema = vm::allocate_many<Byte>(&arena, meta_schema_binary::range.count);
-  ASSERT(out_schema.pointer); // temporary
-  memcpy(out_schema.pointer, meta_schema_binary::range.pointer, meta_schema_binary::range.count);
-
-  auto root = vm::allocate_one<meta::Schema>(&arena);
-  ASSERT(root); // temporary
+  memcpy(
+    out_schema.pointer,
+    example_schema_binary::range.pointer,
+    example_schema_binary::range.count
+  );
 
   *header = {
     .magic = { 'S', 'V', 'F', '\0' },
     .version = 0,
-    .entry_name_hash = meta::Schema_name_hash,
+    .entry_name_hash = example::A_name_hash,
     .schema_offset = offset_between(header, out_schema.pointer),
-    .schema_length = safe_int_cast<U32>(meta_schema_binary::range.count),
+    .schema_length = safe_int_cast<U32>(example_schema_binary::range.count),
     .data_offset = offset_between(header, root),
     .data_length = 0, // will be filled in later
   };
@@ -73,41 +75,8 @@ int test_write() {
   ASSERT(structs.pointer); // temporary
 
   *root = {
-    .structs = {
-      .pointer_offset = offset_between(root, structs.pointer),
-      .count = safe_int_cast<U32>(structs.count),
-    },
-    .choices = {},
-  };
-
-  auto fields = vm::allocate_many<meta::FieldDefinition>(&arena, 2);
-  ASSERT(fields.pointer); // temporary
-
-  structs.pointer[0] = {
-    .fields = {
-      .pointer_offset = offset_between(root, fields.pointer),
-      .count = safe_int_cast<U32>(fields.count),
-    },
-  };
-
-  fields.pointer[0] = {
-    .name_hash = compute_cstr_hash("i64"),
-    .type_enum = meta::Type_enum::concrete,
-    .type_union = {
-      .concrete = {
-        .type_enum = meta::ConcreteType_enum::i64,
-      },
-    },
-  };
-
-  fields.pointer[1] = {
-    .name_hash = compute_cstr_hash("f32"),
-    .type_enum = meta::Type_enum::concrete,
-    .type_union = {
-      .concrete = {
-        .type_enum = meta::ConcreteType_enum::f32,
-      },
-    },
+    .left = 0x0123456789ABCDEFull,
+    .right = 0xFEDCBA9876543210ull,
   };
 
   header->data_length = arena.waterline - header->data_offset;
@@ -213,15 +182,15 @@ int test_read() {
 
 #if 1
   // Check exact equality.
-  ASSERT(schema_range.count == meta_schema_binary::range.count);
+  ASSERT(schema_range.count == example_schema_binary::range.count);
   for (U64 i = 0; i < schema_range.count; i++) {
-    if (schema_range.pointer[i] != meta_schema_binary::range.pointer[i]) {
+    if (schema_range.pointer[i] != example_schema_binary::range.pointer[i]) {
       printf("File does not contain the expected schema.\n");
       return 1;
     }
   }
 #else
-  ASSERT(meta_schema_binary::range.count >= sizeof(meta::Schema));
+  ASSERT(example_schema_binary::range.count >= sizeof(meta::Schema));
   if (schema_range.count < sizeof(meta::Schema)) {
     printf("Schema embedded in file is too small.\n");
   }
@@ -250,65 +219,15 @@ int test_read() {
     .count = header->data_length,
   };
 
-  auto root = (meta::Schema *) data_range.pointer;
+  auto root = (example::A *) data_range.pointer;
 
-  auto structs_range = Range<meta::StructDefinition> {
-    .pointer = (meta::StructDefinition *) (
-      data_range.pointer + root->structs.pointer_offset
-    ),
-    .count = root->structs.count,
-  };
-
-  if (structs_range.count != 1) {
-    printf("File does not contain exactly one struct.\n");
+  if (root->left != 0x0123456789ABCDEFull) {
+    printf("root->left is not the expected value.\n");
     return 1;
   }
 
-  auto struct_ = structs_range.pointer[0];
-
-  auto fields_range = Range<meta::FieldDefinition> {
-    .pointer = (meta::FieldDefinition *) (
-      data_range.pointer + struct_.fields.pointer_offset
-    ),
-    .count = struct_.fields.count,
-  };
-
-  if (fields_range.count != 2) {
-    printf("Struct does not contain exactly two fields.\n");
-    return 1;
-  }
-
-  auto field_0 = fields_range.pointer[0];
-
-  if (field_0.name_hash != compute_cstr_hash("i64")) {
-    printf("First field does not have the expected name.\n");
-    return 1;
-  }
-
-  if (field_0.type_enum != meta::Type_enum::concrete) {
-    printf("First field does not have the expected type.\n");
-    return 1;
-  }
-
-  if (field_0.type_union.concrete.type_enum != meta::ConcreteType_enum::i64) {
-    printf("First field does not have the expected concrete type.\n");
-    return 1;
-  }
-
-  auto field_1 = fields_range.pointer[1];
-
-  if (field_1.name_hash != compute_cstr_hash("f32")) {
-    printf("Second field does not have the expected name.\n");
-    return 1;
-  }
-
-  if (field_1.type_enum != meta::Type_enum::concrete) {
-    printf("Second field does not have the expected type.\n");
-    return 1;
-  }
-
-  if (field_1.type_union.concrete.type_enum != meta::ConcreteType_enum::f32) {
-    printf("Second field does not have the expected concrete type.\n");
+  if (root->right != 0xFEDCBA9876543210ull) {
+    printf("root->right is not the expected value.\n");
     return 1;
   }
 

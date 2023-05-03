@@ -5,23 +5,6 @@ cl ^
   /std:c++20 ^
   /Zi ^
   /DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
-  ..\src\exe_test_file.cpp ^
-  ..\src\svf\compatibility.cpp ^
-  ..\src\platform_windows.cpp ^
-  /link ^
-  /DEBUG:FULL ^
-  /OUT:test_file.exe
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-@echo.
-@echo ---------------
-@echo "test_file": OK
-@echo ---------------
-
-cl ^
-  /std:c++20 ^
-  /Zi ^
-  /DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
   ..\src\exe_svfc.cpp ^
   ..\src\svf\parsing.cpp ^
   ..\src\svf\typechecking.cpp ^
@@ -53,9 +36,26 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 @echo "embed": OK
 @echo -----------
 
+cl ^
+  /std:c++20 ^
+  /Zi ^
+  /DCOMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT ^
+  ..\src\exe_test_file.cpp ^
+  ..\src\svf\compatibility.cpp ^
+  ..\src\platform_windows.cpp ^
+  /link ^
+  /DEBUG:FULL ^
+  /OUT:test_file.exe
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+@echo.
+@echo ---------------
+@echo "test_file": OK
+@echo ---------------
+
+popd
+  
 @echo.
 @echo ---------
 @echo All done!
 @echo ---------
-  
-popd

@@ -1,0 +1,6 @@
+#name schema_a
+
+A: struct {
+	left: U64;
+	right: U64;
+};
