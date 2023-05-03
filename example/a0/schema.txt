@@ -1,4 +1,4 @@
-#name schema_a
+#name schema_a0
 
 A: struct {
 	left: U64;

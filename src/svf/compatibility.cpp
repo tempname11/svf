@@ -1,6 +1,6 @@
 // UNREVIEWED.
 #include "../platform.hpp"
-#include "../../meta/meta.hpp"
+#include "../../meta/schema.hpp"
 
 namespace svf::compatiblity::binary {
 

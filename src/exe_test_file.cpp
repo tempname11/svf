@@ -3,8 +3,9 @@
 #include <cstring>
 #include "utilities.hpp"
 #include "platform.hpp"
-#include "../meta/meta.hpp"
-#include "../example/schema_a/schema_a.hpp"
+#include "../meta/schema.hpp"
+#include "../example/a0/schema.hpp"
+#include "../example/a1/schema.hpp"
 
 struct MessageHeader {
   U8 magic[4];
@@ -17,8 +18,17 @@ struct MessageHeader {
   U32 data_length;
 };
 
-namespace example_schema_binary {
-  #include "../example/schema_a/schema_a.inc"
+namespace a0_binary {
+  #include "../example/a0/schema.inc"
+
+  Range<Byte> range = {
+    .pointer = (Byte *) bytes,
+    .count = sizeof(bytes),
+  };
+}
+
+namespace a1_binary {
+  #include "../example/a1/schema.inc"
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -27,7 +37,8 @@ namespace example_schema_binary {
 }
 
 namespace meta = svf::svf_meta;
-namespace example = svf::schema_a;
+namespace a0 = svf::schema_a0;
+namespace a1 = svf::schema_a1;
 
 namespace svf::compatiblity::binary {
   // Copied `from src/svf/compatibility.cpp`. TODO
@@ -52,21 +63,21 @@ int test_write() {
   }
 
   auto header = vm::one<MessageHeader>(&arena);
-  auto out_schema = vm::many<Byte>(&arena, example_schema_binary::range.count);
-  auto root = vm::one<example::A>(&arena);
+  auto out_schema = vm::many<Byte>(&arena, a0_binary::range.count);
+  auto root = vm::one<a0::A>(&arena);
 
   memcpy(
     out_schema.pointer,
-    example_schema_binary::range.pointer,
-    example_schema_binary::range.count
+    a0_binary::range.pointer,
+    a0_binary::range.count
   );
 
   *header = {
     .magic = { 'S', 'V', 'F', '\0' },
     .version = 0,
-    .entry_name_hash = example::A_name_hash,
+    .entry_name_hash = a0::A_name_hash,
     .schema_offset = offset_between(header, out_schema.pointer),
-    .schema_length = safe_int_cast<U32>(example_schema_binary::range.count),
+    .schema_length = safe_int_cast<U32>(a0_binary::range.count),
     .data_offset = offset_between(header, root),
     .data_length = 0, // will be filled in later
   };
@@ -170,7 +181,7 @@ int test_read() {
     return 1;
   }
   
-  if (header->entry_name_hash != meta::Schema_name_hash) {
+  if (header->entry_name_hash != a1::A_name_hash) {
     printf("File does not contain the expected entry point.\n");
   }
 
@@ -180,32 +191,32 @@ int test_read() {
     .count = header->schema_length,
   };
 
-#if 1
+#if 0
   // Check exact equality.
-  ASSERT(schema_range.count == example_schema_binary::range.count);
+  ASSERT(schema_range.count == a1_binary::range.count);
   for (U64 i = 0; i < schema_range.count; i++) {
-    if (schema_range.pointer[i] != example_schema_binary::range.pointer[i]) {
+    if (schema_range.pointer[i] != a1_binary::range.pointer[i]) {
       printf("File does not contain the expected schema.\n");
       return 1;
     }
   }
 #else
-  ASSERT(example_schema_binary::range.count >= sizeof(meta::Schema));
+  ASSERT(a1_binary::range.count >= sizeof(meta::Schema));
   if (schema_range.count < sizeof(meta::Schema)) {
     printf("Schema embedded in file is too small.\n");
   }
 
   // Check binary compatibility.
   svf::compatiblity::binary::CheckContext check_context = {
-    .r0 = meta_schema_binary::range,
+    .r0 = a1_binary::range,
     .r1 = schema_range,
-    .s0 = (meta::Schema *) meta_schema_binary::range.pointer,
+    .s0 = (meta::Schema *) a1_binary::range.pointer,
     .s1 = (meta::Schema *) schema_range.pointer,
   };
 
   auto result = svf::compatiblity::binary::check_entry(
     &check_context,
-    meta::Schema_name_hash
+    a1::A_name_hash
   );
   if (!result) {
     printf("Schema in file is not binary compatible with expected schema.\n");
@@ -219,7 +230,7 @@ int test_read() {
     .count = header->data_length,
   };
 
-  auto root = (example::A *) data_range.pointer;
+  auto root = (a1::A *) data_range.pointer;
 
   if (root->left != 0x0123456789ABCDEFull) {
     printf("root->left is not the expected value.\n");
