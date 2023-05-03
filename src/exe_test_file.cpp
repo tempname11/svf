@@ -3,7 +3,7 @@
 #include <cstring>
 #include "utilities.hpp"
 #include "platform.hpp"
-#include "meta.hpp"
+#include "../meta/meta.hpp"
 
 struct MessageHeader {
   U8 magic[4];
@@ -17,7 +17,7 @@ struct MessageHeader {
 };
 
 namespace meta_schema_binary {
-  #include "meta.inc"
+  #include "../meta/meta.inc"
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -211,7 +211,7 @@ int test_read() {
     .count = header->schema_length,
   };
 
-#if 0
+#if 1
   // Check exact equality.
   ASSERT(schema_range.count == meta_schema_binary::range.count);
   for (U64 i = 0; i < schema_range.count; i++) {
@@ -234,7 +234,10 @@ int test_read() {
     .s1 = (meta::Schema *) schema_range.pointer,
   };
 
-  auto result = svf::compatiblity::binary::check_entry(&check_context, meta::Schema_name_hash);
+  auto result = svf::compatiblity::binary::check_entry(
+    &check_context,
+    meta::Schema_name_hash
+  );
   if (!result) {
     printf("Schema in file is not binary compatible with expected schema.\n");
     return 1;
