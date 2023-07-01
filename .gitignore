@@ -1,3 +1,2 @@
-.build
-.vscode
-.tmp
+/build
+/.vscode

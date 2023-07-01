@@ -85,7 +85,10 @@ int main(int argc, char *argv[]) {
     input_file = fopen((char const *) options.input_file_path.pointer, "rb");
   }
 
-  auto input_buffer = vm::begin<Byte>(&arena);
+  auto input_buffer = Range<Byte> {
+    .pointer = vm::none<Byte>(&arena),
+    .count = 0,
+  };
   U64 input_cstr_size = 0;
   while (!feof(input_file)) {
     input_buffer.count += vm::many<Byte>(&arena, 1024).count;

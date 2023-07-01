@@ -1,11 +1,11 @@
 // UNREVIEWED.
 #include <cstdio>
 #include <cstring>
-#include "utilities.hpp"
-#include "platform.hpp"
+#include "../src/utilities.hpp"
+#include "../src/platform.hpp"
 #include "../meta/schema.hpp"
-#include "../example/a0/schema.hpp"
-#include "../example/a1/schema.hpp"
+#include "a0/schema.hpp"
+#include "a1/schema.hpp"
 
 struct MessageHeader {
   U8 magic[4];
@@ -19,7 +19,7 @@ struct MessageHeader {
 };
 
 namespace a0_binary {
-  #include "../example/a0/schema.inc"
+  #include "a0/schema.inc"
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -28,7 +28,7 @@ namespace a0_binary {
 }
 
 namespace a1_binary {
-  #include "../example/a1/schema.inc"
+  #include "a1/schema.inc"
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -55,22 +55,10 @@ namespace svf::compatiblity::binary {
   );
 }
 
-int test_write() {
-  auto arena = vm::create_linear_arena(2ull < 30);
-  if (!arena.reserved_range.pointer) {
-    printf("Failed to create arena.\n");
-    return 1;
-  }
-
-  auto header = vm::one<MessageHeader>(&arena);
-  auto out_schema = vm::many<Byte>(&arena, a0_binary::range.count);
-  auto root = vm::one<a0::A>(&arena);
-
-  memcpy(
-    out_schema.pointer,
-    a0_binary::range.pointer,
-    a0_binary::range.count
-  );
+Range<Byte> test_write(vm::LinearArena *arena) {
+  auto header = vm::one<MessageHeader>(arena);
+  auto out_schema = vm::many<Byte>(arena, a0_binary::range.count);
+  auto root = vm::one<a0::A>(arena);
 
   *header = {
     .magic = { 'S', 'V', 'F', '\0' },
@@ -79,93 +67,30 @@ int test_write() {
     .schema_offset = offset_between(header, out_schema.pointer),
     .schema_length = safe_int_cast<U32>(a0_binary::range.count),
     .data_offset = offset_between(header, root),
-    .data_length = 0, // will be filled in later
+    .data_length = 0, // Will be filled in later.
   };
 
-  auto structs = vm::allocate_many<meta::StructDefinition>(&arena, 1);
-  ASSERT(structs.pointer); // temporary
+  memcpy(
+    out_schema.pointer,
+    a0_binary::range.pointer,
+    a0_binary::range.count
+  );
 
   *root = {
     .left = 0x0123456789ABCDEFull,
     .right = 0xFEDCBA9876543210ull,
   };
 
-  header->data_length = arena.waterline - header->data_offset;
+  header->data_length = offset_between(root, vm::none<Byte>(arena));
 
-  auto file = fopen(".tmp/test_file.svf", "wb");
-  if (!file) {
-    printf("Failed to open file for writing.\n");
-    return 1;
-  }
-
-  {
-    auto result = fwrite(arena.reserved_range.pointer, 1, arena.waterline, file);
-    if (result != arena.waterline) {
-      printf("Failed to write to file.\n");
-      return 1;
-    }
-  }
-
-  {
-    auto result = fclose(file);
-    if (result != 0) {
-      printf("Failed to close file.\n");
-      return 1;
-    }
-  }
-
-  return 0;
+  return Range<Byte> {
+    .pointer = (Byte *) header,
+    .count = offset_between(header, vm::none<Byte>(arena))
+  };
 }
 
-int test_read() {
-  auto file = fopen(".tmp/test_file.svf", "rb");
-  if (!file) {
-    printf("Failed to open file for reading.\n");
-    return 1;
-  }
-
-  {
-    auto result = fseek(file, 0, SEEK_END);
-    if (result != 0) {
-      printf("Failed to seek to end of file.\n");
-      return 1;
-    }
-  }
-
-  auto file_size = ftell(file);
-
-  {
-    auto result = fseek(file, 0, SEEK_SET);
-    if (result != 0) {
-      printf("Failed to seek to beginning of file.\n");
-      return 1;
-    }
-  }
-
-  auto arena = vm::create_linear_arena(2ull < 30);
-  if (!arena.reserved_range.pointer) {
-    printf("Failed to create arena.\n");
-    return 1;
-  }
-
-  auto file_range = vm::allocate_many<Byte>(&arena, file_size);
-  {
-    auto result = fread(file_range.pointer, 1, file_range.count, file);
-    if (result != file_size) {
-      printf("Failed to read from file.\n");
-      return 1;
-    }
-  }
-
-  {
-    auto result = fclose(file);
-    if (result != 0) {
-      printf("Failed to close file.\n");
-      return 1;
-    }
-  }
-
-  auto header = (MessageHeader *) file_range.pointer;
+void test_read(Range<Byte> input_range) {
+  auto header = (MessageHeader *) input_range.pointer;
   if (
     header->magic[0] != 'S' ||
     header->magic[1] != 'V' ||
@@ -173,12 +98,12 @@ int test_read() {
     header->magic[3] != '\0'
   ) {
     printf("File is not an SVF file.\n");
-    return 1;
+    abort_this_process();
   }
 
   if (header->version != 0) {
     printf("File is not an SVF version 0 file.\n");
-    return 1;
+    abort_this_process();
   }
   
   if (header->entry_name_hash != a1::A_name_hash) {
@@ -187,7 +112,7 @@ int test_read() {
 
   ASSERT(header->schema_offset + header->schema_length <= header->data_offset);
   auto schema_range = Range<Byte> {
-    .pointer = file_range.pointer + header->schema_offset,
+    .pointer = input_range.pointer + header->schema_offset,
     .count = header->schema_length,
   };
 
@@ -220,13 +145,13 @@ int test_read() {
   );
   if (!result) {
     printf("Schema in file is not binary compatible with expected schema.\n");
-    return 1;
+    abort_this_process();
   }
 #endif
 
-  ASSERT(header->data_offset + header->data_length <= file_range.count);
+  ASSERT(header->data_offset + header->data_length <= input_range.count);
   auto data_range = Range<Byte> {
-    .pointer = file_range.pointer + header->data_offset,
+    .pointer = input_range.pointer + header->data_offset,
     .count = header->data_length,
   };
 
@@ -234,29 +159,25 @@ int test_read() {
 
   if (root->left != 0x0123456789ABCDEFull) {
     printf("root->left is not the expected value.\n");
-    return 1;
+    abort_this_process();
   }
 
   if (root->right != 0xFEDCBA9876543210ull) {
     printf("root->right is not the expected value.\n");
-    return 1;
+    abort_this_process();
   }
-
-  return 0;
 }
 
 int main(int argc, char *argv[]) {
-  auto write_result = test_write();
-  if (write_result != 0) {
-    return write_result;
+  auto arena_ = vm::create_linear_arena(2ull < 30);
+  auto arena = &arena_;
+  if (!arena->reserved_range.pointer) {
+    printf("Failed to create arena.\n");
+    abort_this_process();
   }
 
-  auto read_result = test_read();
-  if (read_result != 0) {
-    return read_result;
-  }
-
-  printf("All tests passed.\n");
-  
+  auto write_result = test_write(arena);
+  test_read(write_result);
+  printf("Test passed.\n");
   return 0;
 }

@@ -23,9 +23,9 @@ using I16 = int16_t;
 using I32 = int32_t;
 using I64 = int64_t;
 
-void abort_this_process(char const *cstr_source_code);
+void abort_this_process(char const *cstr_source_code = 0);
 
-#ifdef COMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT
+#ifndef COMPILE_TIME_OPTION_BUILD_TYPE_DEVELOPMENT
 #define ASSERT(condition) {if(!(condition)) abort_this_process(#condition);}
 #else
 #define ASSERT(...)
@@ -73,14 +73,11 @@ struct LinearArena {
   size_t committed_page_boundary;
   size_t waterline;
 };
-// `reserved_range.pointer` must be be 16-byte-aligned (likely OS page-aligned).
+// `reserved_range.pointer` must be 16-byte-aligned (likely OS page-aligned).
 // Arena is considered invalid, if `reserved_range` is invalid.
 
 LinearArena create_linear_arena(size_t reserved_size_in_bytes);
 // May return invalid arena.
-
-Bool change_allocation_size(LinearArena *arena, size_t size_in_bytes);
-// May fail, returning `false`.
 
 void *allocate_manually(
   LinearArena *arena,
@@ -111,6 +108,14 @@ Range<T> allocate_many(LinearArena *arena, size_t count) {
 
 template<typename T>
 static inline
+T *none(LinearArena *arena) {
+  auto pointer = (T *)allocate_manually(arena, 0, alignof(T));
+  ASSERT(pointer);
+  return pointer;
+}
+
+template<typename T>
+static inline
 T *one(LinearArena *arena) {
   auto result = allocate_one<T>(arena);
   ASSERT(result);
@@ -123,17 +128,6 @@ Range<T> many(LinearArena *arena, size_t count) {
   auto result = allocate_many<T>(arena, count);
   ASSERT(result.pointer);
   return result;
-}
-
-template<typename T>
-static inline
-Range<T> begin(LinearArena *arena) {
-  auto pointer = (T *) allocate_manually(arena, 0, alignof(T));
-  ASSERT(pointer);
-  return {
-    .pointer = pointer,
-    .count = 0,
-  };
 }
 
 } // namespace vm
