@@ -1,6 +1,6 @@
 // UNREVIEWED.
+#include "../meta.hpp"
 #include "../platform.hpp"
-#include "../../meta/schema.hpp"
 #include "../utilities.hpp"
 #include "grammar.hpp"
 

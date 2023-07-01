@@ -1,5 +1,5 @@
 // UNREVIEWED.
-#include "svf/grammar.hpp"
+#include "core/grammar.hpp"
 
 namespace svf {
   namespace output_binary {

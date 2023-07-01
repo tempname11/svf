@@ -1,6 +1,6 @@
 // UNREVIEWED.
-#include "platform.hpp"
-#include "svf.hpp"
+#include "../platform.hpp"
+#include "../core.hpp"
 
 struct CommandLineOptions {
   enum class Subcommand {

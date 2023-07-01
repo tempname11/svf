@@ -1,11 +1,11 @@
 // UNREVIEWED.
 #include <cstdio>
 #include <cstring>
-#include "../src/utilities.hpp"
-#include "../src/platform.hpp"
-#include "../meta/schema.hpp"
-#include "a0/schema.hpp"
-#include "a1/schema.hpp"
+#include <generated/hpp/a0.hpp>
+#include <generated/hpp/a1.hpp>
+#include <generated/hpp/meta.hpp>
+#include "../utilities.hpp"
+#include "../platform.hpp"
 
 struct MessageHeader {
   U8 magic[4];
@@ -19,7 +19,7 @@ struct MessageHeader {
 };
 
 namespace a0_binary {
-  #include "a0/schema.inc"
+  #include <generated/inc/a0.inc>
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,
@@ -28,7 +28,7 @@ namespace a0_binary {
 }
 
 namespace a1_binary {
-  #include "a1/schema.inc"
+  #include <generated/inc/a1.inc>
 
   Range<Byte> range = {
     .pointer = (Byte *) bytes,

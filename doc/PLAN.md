@@ -1,4 +1,1 @@
-- SVF format must be robust to changes.
-- So, when reading, we must check that the schema is compatible.
-- Subproblem: check binary compatibility only.
-- Modify a0/a1?
+- modify a0/a1 to cover all backward-compatible cases
