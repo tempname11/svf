@@ -165,19 +165,25 @@ add_library(svf_runtime
 #
 # Generated files.
 #
+
+set (GENERATED_H_DIR ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h)
+set (GENERATED_HPP_DIR ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp)
+file(MAKE_DIRECTORY ${GENERATED_H_DIR})
+file(MAKE_DIRECTORY ${GENERATED_HPP_DIR})
+
 function(generate_schema_files SCHEMA_NAME)
   set (TXT_NAME ${CMAKE_CURRENT_SOURCE_DIR}/schema/${SCHEMA_NAME}.txt)
-  set (HPP_NAME ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp/${SCHEMA_NAME}.hpp)
-  set (H_NAME ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h/${SCHEMA_NAME}.h)
+  set (H_NAME ${GENERATED_H_DIR}/${SCHEMA_NAME}.h)
+  set (HPP_NAME ${GENERATED_HPP_DIR}/${SCHEMA_NAME}.hpp)
   add_custom_command(
     OUTPUT ${HPP_NAME}
     COMMAND svfc cpp ${TXT_NAME} ${HPP_NAME}
-    DEPENDS svfc ${TXT_NAME}
+    DEPENDS svfc ${TXT_NAME} ${HPP_DIR}
   )
   add_custom_command(
     OUTPUT ${H_NAME}
     COMMAND svfc c ${TXT_NAME} ${H_NAME}
-    DEPENDS svfc ${TXT_NAME}
+    DEPENDS svfc ${TXT_NAME} ${H_DIR}
   )
   if (${SCHEMA_NAME} STREQUAL meta)
     add_custom_target(${SCHEMA_NAME}_hpp ALL DEPENDS ${HPP_NAME})

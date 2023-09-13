@@ -35,6 +35,14 @@ struct Array {
 };
 #endif // SVF_COMMON_TYPES_INCLUDED
 
+#ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
+#define SVF_COMMON_CPP_TRICKERY_INCLUDED
+
+template<typename T>
+struct GetSchemaFromType;
+
+#endif // SVF_COMMON_CPP_TRICKERY_INCLUDED
+
 namespace runtime {
 
 typedef SVFRT_MessageHeader MessageHeader;
@@ -75,7 +83,7 @@ ReadMessageResult<Entry> read_message(
   AllocatorFn *allocator_fn = 0,
   void *allocator_ptr = 0
 ) {
-  using SchemaDescription = svf::GetSchemaFromType<Entry>::SchemaDescription;
+  using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_ReadMessageResult result = {};
   SVFRT_read_message_implementation(
     &result,
@@ -124,7 +132,7 @@ T *read_array(
   Array<T> array,
   U32 index
 ) {
-  using SchemaDescription = svf::GetSchemaFromType<T>::SchemaDescription;
+  using SchemaDescription = typename svf::GetSchemaFromType<T>::SchemaDescription;
   auto stride = ctx->struct_strides.pointer[SchemaDescription::template PerType<T>::index];
   if (index > array.count) {
     return 0;
@@ -153,7 +161,7 @@ WriteContext<Entry> write_message_start(
   void *writer_ptr,
   WriterFn *writer_fn
 ) {
-  using SchemaDescription = svf::GetSchemaFromType<Entry>::SchemaDescription;
+  using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_WriteContext context = {};
   SVFRT_write_message_implementation(
     &context,
