@@ -1,0 +1,80 @@
+name: Main
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os-type: [Windows, Linux]
+        build-type: [Debug, Release]
+        arch-type: [x64]
+        include:
+          - os-type: Windows
+            os: windows-2022
+          - os-type: Linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - name: Run CMake and CTest
+        shell: bash
+        run: |
+          # ...
+
+          GENERATOR_FLAG=""
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            GENERATOR_FLAG="-GNinja"
+          fi
+
+          cmake \
+            -S svf_tools \
+            -B .build \
+            ${GENERATOR_FLAG} \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+
+          cmake --build .build
+          ctest --test-dir .build
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: svfc_${{ matrix.os-type }}_${{ matrix.arch-type}}_${{ matrix.build-type }}_r${{ github.run_id }}
+          path: .build/svfc*
+          if-no-files-found: error
+
+  assemble-release-package:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3
+        with:
+          path: .artifacts
+
+      - name: Assemble package
+        shell: bash
+        run: |
+          # ...
+
+          mkdir -p .package/tools/Windows_x64/
+          mkdir -p .package/tools/Linux_x64/
+          mkdir -p .package/runtime/src/
+          cp .artifacts/svfc_Windows_x64_Release_*/svfc.exe .package/tools/Windows_x64/svfc.exe
+          cp .artifacts/svfc_Linux_x64_Release_*/svfc .package/tools/Linux_x64/svfc
+          cp -r svf_runtime/src/* .package/runtime/src/
+          echo "Built at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> .package/.build-info
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: svf_release-package_r${{ github.run_id }}
+          path: .package/**/*
+          if-no-files-found: error
