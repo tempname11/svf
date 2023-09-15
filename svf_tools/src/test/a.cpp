@@ -1,7 +1,7 @@
 #include <cstdio>
 #define SVF_INCLUDE_BINARY_SCHEMA
-#include <generated/hpp/a0.hpp>
-#include <generated/hpp/a1.hpp>
+#include <generated/hpp/A0.hpp>
+#include <generated/hpp/A1.hpp>
 #include <src/svf_runtime.hpp>
 #include <src/library.hpp>
 
@@ -72,8 +72,8 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   ASSERT(target0->value == 0x1111111111111111ull);
 
   ASSERT(entry->some_struct.array.count == 2);
-  auto e0 = svf::runtime::read_array(ctx, entry->some_struct.array, 0);
-  auto e1 = svf::runtime::read_array(ctx, entry->some_struct.array, 1);
+  auto e0 = svf::runtime::read_array_element(ctx, entry->some_struct.array, 0);
+  auto e1 = svf::runtime::read_array_element(ctx, entry->some_struct.array, 1);
   ASSERT(e0 && e1);
   ASSERT(e0->value == 0x2222222222222222ull);
   ASSERT(e1->value == 0x3333333333333333ull);

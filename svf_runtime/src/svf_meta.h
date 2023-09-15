@@ -2,10 +2,19 @@
 #ifndef SVF_META_H
 #define SVF_META_H
 
+#ifdef __cplusplus
+#include <cstdint>
+#include <cstddef>
+
+extern "C" {
+#else
 #include <stdint.h>
+#include <stddef.h>
+#endif
 
 #ifndef SVF_COMMON_C_TYPES_INCLUDED
 #define SVF_COMMON_C_TYPES_INCLUDED
+#pragma pack(push, 1)
 
 typedef struct SVFRT_Pointer {
   uint32_t data_offset;
@@ -16,12 +25,14 @@ typedef struct SVFRT_Array {
   uint32_t count;
 } SVFRT_Array;
 
+#pragma pack(pop)
 #endif // SVF_COMMON_C_TYPES_INCLUDED
 
 #pragma pack(push, 1)
 
 #define SVF_META_min_read_scratch_memory_size 88
 #define SVF_META_binary_size 2133
+extern uint8_t const SVF_META_binary_array[];
 
 #ifdef SVF_INCLUDE_BINARY_SCHEMA
 uint8_t const SVF_META_binary_array[] = {
@@ -293,8 +304,6 @@ uint8_t const SVF_META_binary_array[] = {
     0x00, 0x0A, 0x00, 0x00, 0x00, 0x38, 0x02, 0x00,
     0x00, 0x02, 0x00, 0x00, 0x00
 };
-#else
-extern uint8_t const SVF_META_binary_array[];
 #endif // SVF_INCLUDE_BINARY_SCHEMA
 
 // Forward declarations.
@@ -430,5 +439,8 @@ struct SVF_META_FieldDefinition {
 };
 
 #pragma pack(pop)
+#ifdef __cplusplus
+} // extern "C"
+ #endif
 
 #endif // SVF_META_H

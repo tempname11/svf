@@ -1,8 +1,8 @@
 #include <cstdio>
 #include <cstdlib>
 #define SVF_INCLUDE_BINARY_SCHEMA
-#include <generated/hpp/b0.hpp>
-#include <generated/hpp/b1.hpp>
+#include <generated/hpp/B0.hpp>
+#include <generated/hpp/B1.hpp>
 #include <src/svf_runtime.hpp>
 #include <src/library.hpp>
 

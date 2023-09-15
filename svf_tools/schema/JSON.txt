@@ -1,0 +1,19 @@
+#name JSON
+
+Value: choice {
+  null;
+  object: Field[];
+  array: Item[];
+  string: U8[];
+  number: F64;
+  boolean: U8;
+};
+
+Field: struct {
+  name: U8[];
+  value: Value;
+};
+
+Item: struct {
+  value: Value;
+};

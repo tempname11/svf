@@ -25,11 +25,11 @@ size_t align_up(size_t value, size_t alignment) {
 
 void SVFRT_read_message_implementation(
   SVFRT_ReadMessageResult *result,
-  SVFRT_RangeU8 message_bytes,
+  SVFRT_Bytes message_bytes,
   uint64_t entry_name_hash,
   uint32_t entry_index,
-  SVFRT_RangeU8 expected_schema,
-  SVFRT_RangeU8 scratch_memory,
+  SVFRT_Bytes expected_schema,
+  SVFRT_Bytes scratch_memory,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
@@ -80,7 +80,7 @@ void SVFRT_read_message_implementation(
   }
 
   // We now have a valid schema range.
-  SVFRT_RangeU8 schema_range = {
+  SVFRT_Bytes schema_range = {
     /*.pointer =*/ message_bytes.pointer + sizeof(SVFRT_MessageHeader),
     /*.count =*/ header->schema_length,
   };
@@ -96,7 +96,7 @@ void SVFRT_read_message_implementation(
   }
 
   // We now have a valid data range.
-  SVFRT_RangeU8 data_range = {
+  SVFRT_Bytes data_range = {
     /*.pointer =*/ data_pointer,
     /*.count =*/ (size_t) (
       (message_bytes.pointer + message_bytes.count) - data_pointer
@@ -119,7 +119,7 @@ void SVFRT_read_message_implementation(
     return;
   }
 
-  SVFRT_RangeU8 final_data_range = data_range;
+  SVFRT_Bytes final_data_range = data_range;
   if (check_result.level == SVFRT_compatibility_logical) {
     // We have to convert the message.
 
@@ -130,8 +130,8 @@ void SVFRT_read_message_implementation(
 
     SVFRT_ConversionResult conversion_result = {0};
 
-    SVFRT_RangeU8 r0 = schema_range;
-    SVFRT_RangeU8 r1 = expected_schema;
+    SVFRT_Bytes r0 = schema_range;
+    SVFRT_Bytes r1 = expected_schema;
 
     // This will break when proper alignment is done. @proper-alignment
     SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));
@@ -149,7 +149,7 @@ void SVFRT_read_message_implementation(
     uint32_t entry_size = check_result.entry_size0;
 
     // This will break when proper alignment is done. @proper-alignment
-    SVFRT_RangeU8 entry_input_bytes = {
+    SVFRT_Bytes entry_input_bytes = {
       /*.pointer =*/ data_range.pointer + data_range.count - entry_size,
       /*.count =*/ entry_size,
     };
@@ -197,7 +197,7 @@ void SVFRT_write_message_implementation(
   SVFRT_WriteContext *result,
   void *writer_ptr,
   SVFRT_WriterFn *writer_fn,
-  SVFRT_RangeU8 schema_bytes,
+  SVFRT_Bytes schema_bytes,
   uint64_t entry_name_hash
 ) {
   SVFRT_MessageHeader header = {
@@ -207,7 +207,7 @@ void SVFRT_write_message_implementation(
     .entry_name_hash = entry_name_hash,
   };
 
-  SVFRT_RangeU8 header_bytes = {
+  SVFRT_Bytes header_bytes = {
     /*.pointer =*/ (uint8_t *) &header,
     /*.count =*/ sizeof(header)
   };
@@ -227,7 +227,7 @@ void SVFRT_write_message_implementation(
 
   uint8_t zeroes[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
   size_t misaligned = bytes_written % SVFRT_MESSAGE_PART_ALIGNMENT;
-  SVFRT_RangeU8 padding_range = {
+  SVFRT_Bytes padding_range = {
     /*.pointer =*/ (uint8_t *) zeroes,
     /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
   };

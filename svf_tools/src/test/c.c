@@ -4,8 +4,8 @@
 #include <assert.h>
 #define SVF_INCLUDE_BINARY_SCHEMA
 #include <src/svf_runtime.h>
-#include <generated/h/a0.h>
-#include <generated/h/a1.h>
+#include <generated/h/A0.h>
+#include <generated/h/A1.h>
 
 void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
   SVFRT_WriteContext ctx = {0};
@@ -46,9 +46,9 @@ void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
   assert(ctx.finished);
 }
 
-void test_read(SVFRT_RangeU8 input_bytes) {
+void test_read(SVFRT_Bytes input_bytes) {
   uint8_t scratch_buffer[SVF_A1_min_read_scratch_memory_size];
-  SVFRT_RangeU8 scratch_memory = { scratch_buffer, sizeof(scratch_buffer) };
+  SVFRT_Bytes scratch_memory = { scratch_buffer, sizeof(scratch_buffer) };
 
   SVFRT_ReadMessageResult read_result = {0};
   SVFRT_READ_MESSAGE(
@@ -65,15 +65,15 @@ void test_read(SVFRT_RangeU8 input_bytes) {
   assert(read_result.entry);
 
   SVFRT_ReadContext *ctx = &read_result.context;
-  SVF_A1_Entry *entry = read_result.entry;
+  SVF_A1_Entry const *entry = read_result.entry;
 
-  SVF_A1_Target *target0 = SVFRT_READ_POINTER(SVF_A1_Target, ctx, entry->pointer);
+  SVF_A1_Target const *target0 = SVFRT_READ_POINTER(SVF_A1_Target, ctx, entry->pointer);
   assert(target0);
   assert(target0->value == 0x1111111111111111ull);
 
   assert(entry->some_struct.array.count == 2);
-  SVF_A1_Target *e0 = SVFRT_READ_ARRAY(SVF_A1_Target, ctx, entry->some_struct.array, 0);
-  SVF_A1_Target *e1 = SVFRT_READ_ARRAY(SVF_A1_Target, ctx, entry->some_struct.array, 1);
+  SVF_A1_Target const *e0 = SVFRT_READ_ARRAY_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.array, 0);
+  SVF_A1_Target const *e1 = SVFRT_READ_ARRAY_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.array, 1);
   assert(e0 && e1);
   assert(e0->value == 0x2222222222222222ull);
   assert(e1->value == 0x3333333333333333ull);
@@ -82,7 +82,7 @@ void test_read(SVFRT_RangeU8 input_bytes) {
   assert(entry->some_struct.some_choice_union.target.value == 0x4444444444444444ull);
 }
 
-uint32_t file_writer(void *writer_ptr, SVFRT_RangeU8 data) {
+uint32_t file_writer(void *writer_ptr, SVFRT_Bytes data) {
   FILE *file = (FILE *) writer_ptr;
   size_t result = fwrite((void *) data.pointer, 1, data.count, file);
   return (uint32_t) result;
@@ -110,8 +110,10 @@ int main(int argc, char *argv[]) {
     fseek(file, 0, SEEK_SET);
     void *pointer = malloc(size);
     assert((size_t) size == fread(pointer, 1, size, file));
-    test_read((SVFRT_RangeU8) { pointer, size });
+    test_read((SVFRT_Bytes) { pointer, size });
     assert(ferror(file) == 0);
     assert(fclose(file) == 0);
   }
+
+  return 0;
 }

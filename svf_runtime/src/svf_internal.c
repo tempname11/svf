@@ -5,7 +5,7 @@ extern "C" {
 #endif
 
 void *SVFRT_from_pointer(
-  SVFRT_RangeU8 bytes,
+  SVFRT_Bytes bytes,
   SVFRT_Pointer pointer,
   size_t type_size
 ) {
@@ -19,7 +19,7 @@ void *SVFRT_from_pointer(
 }
 
 void *SVFRT_from_array(
-  SVFRT_RangeU8 bytes,
+  SVFRT_Bytes bytes,
   SVFRT_Array array,
   size_t type_size
 ) {

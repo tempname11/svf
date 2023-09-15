@@ -17,7 +17,7 @@
 
 typedef struct SVFRT_ConversionContext {
   SVFRT_ConversionInfo *info;
-  SVFRT_RangeU8 data_bytes;
+  SVFRT_Bytes data_bytes;
   size_t max_recursion_depth;
 
   SVFRT_RangeStructDefinition structs0;
@@ -30,7 +30,7 @@ typedef struct SVFRT_ConversionContext {
   size_t allocation_needed;
 
   // For Phase 2.
-  SVFRT_RangeU8 allocation;
+  SVFRT_Bytes allocation;
   size_t allocated_already;
 
   bool internal_error;
@@ -119,14 +119,14 @@ void SVFRT_bump_struct_contents(
   SVFRT_ConversionContext *ctx,
   size_t s0_index,
   size_t s1_index,
-  SVFRT_RangeU8 input_bytes
+  SVFRT_Bytes input_bytes
 );
 
 void SVFRT_bump_type(
   SVFRT_ConversionContext *ctx,
   SVF_META_Type_enum t0,
   SVF_META_Type_union *u0,
-  SVFRT_RangeU8 range_from,
+  SVFRT_Bytes range_from,
   uint32_t offset_from,
   SVF_META_Type_enum t1,
   SVF_META_Type_union *u1
@@ -145,7 +145,7 @@ void SVFRT_bump_type(
 
         size_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
 
-        SVFRT_RangeU8 inner_input_range = {
+        SVFRT_Bytes inner_input_range = {
           /*.pointer =*/ (uint8_t *) range_from.pointer + offset_from,
           /*.count =*/ inner_input_size,
         };
@@ -169,7 +169,7 @@ void SVFRT_bump_type(
         uint32_t inner_c1_index = u1->concrete.type_union.defined_choice.index;
 
         // @only-u8-tag
-        SVFRT_RangeU8 input_tag_bytes = {
+        SVFRT_Bytes input_tag_bytes = {
           /*.pointer =*/ range_from.pointer + offset_from,
           /*.count =*/ 1,
         };
@@ -265,7 +265,7 @@ void SVFRT_bump_type(
           return;
         }
 
-        SVFRT_RangeU8 inner_input_range = {
+        SVFRT_Bytes inner_input_range = {
           /*.pointer =*/ (uint8_t *) inner_input_data,
           /*.count =*/ inner_input_size,
         };
@@ -354,7 +354,7 @@ void SVFRT_bump_type(
         }
 
         for (size_t i = 0; i < array.count; i++) {
-          SVFRT_RangeU8 inner_range = {
+          SVFRT_Bytes inner_range = {
             /*.pointer =*/ ((uint8_t *) inner_data) + inner_size * i,
             /*.count =*/ inner_size,
           };
@@ -409,7 +409,7 @@ void SVFRT_bump_struct_contents(
   SVFRT_ConversionContext *ctx,
   size_t s0_index,
   size_t s1_index,
-  SVFRT_RangeU8 input_bytes
+  SVFRT_Bytes input_bytes
 ) {
   if (s0_index >= ctx->structs0.count) {
     ctx->internal_error = true;
@@ -462,8 +462,8 @@ void SVFRT_copy_struct(
   size_t recursion_depth,
   size_t s0_index,
   size_t s1_index,
-  SVFRT_RangeU8 input_bytes,
-  SVFRT_RangeU8 output_bytes
+  SVFRT_Bytes input_bytes,
+  SVFRT_Bytes output_bytes
 );
 
 void SVFRT_copy_type(
@@ -471,23 +471,23 @@ void SVFRT_copy_type(
   size_t recursion_depth,
   SVF_META_Type_enum t0,
   SVF_META_Type_union *u0,
-  SVFRT_RangeU8 range_from,
+  SVFRT_Bytes range_from,
   uint32_t offset_from,
   SVF_META_Type_enum t1,
   SVF_META_Type_union *u1,
-  SVFRT_RangeU8 range_to,
+  SVFRT_Bytes range_to,
   uint32_t offset_to
 );
 
 void SVFRT_copy_size(
   SVFRT_ConversionContext *ctx,
-  SVFRT_RangeU8 range_from,
+  SVFRT_Bytes range_from,
   uint32_t offset_from,
-  SVFRT_RangeU8 range_to,
+  SVFRT_Bytes range_to,
   uint32_t offset_to,
   size_t size
 ) {
-  SVFRT_RangeU8 input_bytes = {
+  SVFRT_Bytes input_bytes = {
     /*.pointer =*/ range_from.pointer + offset_from,
     /*.count =*/ size,
   };
@@ -496,7 +496,7 @@ void SVFRT_copy_size(
     return;
   }
 
-  SVFRT_RangeU8 output_bytes = {
+  SVFRT_Bytes output_bytes = {
     /*.pointer =*/ range_to.pointer + offset_to,
     /*.count =*/ size,
   };
@@ -513,11 +513,11 @@ void SVFRT_copy_concrete(
   size_t recursion_depth,
   SVF_META_ConcreteType_enum t0,
   SVF_META_ConcreteType_union *u0,
-  SVFRT_RangeU8 range_from,
+  SVFRT_Bytes range_from,
   uint32_t offset_from,
   SVF_META_ConcreteType_enum t1,
   SVF_META_ConcreteType_union *u1,
-  SVFRT_RangeU8 range_to,
+  SVFRT_Bytes range_to,
   uint32_t offset_to
 ) {
   if (recursion_depth > ctx->max_recursion_depth) {
@@ -531,7 +531,7 @@ void SVFRT_copy_concrete(
         SVF_META_StructDefinition *s0 = ctx->structs0.pointer + u0->defined_struct.index;
         SVF_META_StructDefinition *s1 = ctx->structs1.pointer + u1->defined_struct.index;
 
-        SVFRT_RangeU8 input_bytes = {
+        SVFRT_Bytes input_bytes = {
           /*.pointer =*/ range_from.pointer + offset_from,
           /*.count =*/ s0->size,
         };
@@ -540,7 +540,7 @@ void SVFRT_copy_concrete(
           return;
         }
 
-        SVFRT_RangeU8 output_bytes = {
+        SVFRT_Bytes output_bytes = {
           /*.pointer =*/ range_to.pointer + offset_to,
           /*.count =*/ s1->size,
         };
@@ -565,7 +565,7 @@ void SVFRT_copy_concrete(
 
         // First, remap the tag.
 
-        SVFRT_RangeU8 input_tag_bytes = {
+        SVFRT_Bytes input_tag_bytes = {
           /*.pointer =*/ range_from.pointer + offset_from,
           /*.count =*/ 1,
         };
@@ -574,7 +574,7 @@ void SVFRT_copy_concrete(
           return;
         }
 
-        SVFRT_RangeU8 output_tag_bytes = {
+        SVFRT_Bytes output_tag_bytes = {
           /*.pointer =*/ range_to.pointer + offset_to,
           /*.count =*/ 1,
         };
@@ -996,7 +996,7 @@ void SVFRT_copy_concrete(
 }
 
 void SVFRT_conversion_suballocate(
-  SVFRT_RangeU8 *out_result,
+  SVFRT_Bytes *out_result,
   SVFRT_ConversionContext *ctx,
   uint32_t size
 ) {
@@ -1017,11 +1017,11 @@ void SVFRT_copy_type(
   size_t recursion_depth,
   SVF_META_Type_enum t0,
   SVF_META_Type_union *u0,
-  SVFRT_RangeU8 range_from,
+  SVFRT_Bytes range_from,
   uint32_t offset_from,
   SVF_META_Type_enum t1,
   SVF_META_Type_union *u1,
-  SVFRT_RangeU8 range_to,
+  SVFRT_Bytes range_to,
   uint32_t offset_to
 ) {
   if (t0 == SVF_META_Type_concrete) {
@@ -1062,7 +1062,7 @@ void SVFRT_copy_type(
       &u1->pointer.type_union
     );
 
-    SVFRT_RangeU8 suballocation = {0};
+    SVFRT_Bytes suballocation = {0};
     SVFRT_conversion_suballocate(
       &suballocation,
       ctx,
@@ -1116,7 +1116,7 @@ void SVFRT_copy_type(
       &u1->flexible_array.element_type_union
     );
 
-    SVFRT_RangeU8 suballocation = {0};
+    SVFRT_Bytes suballocation = {0};
     SVFRT_conversion_suballocate(
       &suballocation,
       ctx,
@@ -1158,8 +1158,8 @@ void SVFRT_copy_struct(
   size_t recursion_depth,
   size_t s0_index,
   size_t s1_index,
-  SVFRT_RangeU8 input_bytes,
-  SVFRT_RangeU8 output_bytes
+  SVFRT_Bytes input_bytes,
+  SVFRT_Bytes output_bytes
 ) {
   if (s0_index >= ctx->structs0.count) {
     ctx->internal_error = true;
@@ -1214,8 +1214,8 @@ void SVFRT_copy_struct(
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
   SVFRT_ConversionInfo *info,
-  SVFRT_RangeU8 entry_input_bytes,
-  SVFRT_RangeU8 data_bytes,
+  SVFRT_Bytes entry_input_bytes,
+  SVFRT_Bytes data_bytes,
   size_t max_recursion_depth,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
@@ -1283,7 +1283,7 @@ void SVFRT_convert_message(
   // Entry is special, as it always resides at the end of the data range.
   //
   // Will break on @proper-alignment.
-  SVFRT_RangeU8 entry_output_bytes = {
+  SVFRT_Bytes entry_output_bytes = {
     /*.pointer =*/ ctx->allocation.pointer + ctx->allocation.count - s1->size,
     /*.size =*/ s1->size,
   };

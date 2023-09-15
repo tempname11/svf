@@ -8,8 +8,8 @@ typedef struct SVFRT_CheckContext {
   SVF_META_Schema* s1;
 
   // Byte ranges of the two schemas.
-  SVFRT_RangeU8 r0;
-  SVFRT_RangeU8 r1;
+  SVFRT_Bytes r0;
+  SVFRT_Bytes r1;
 
   // What do Schema 1 structs/choices match to in Schema 0?
   SVFRT_RangeU32 s1_struct_matches;
@@ -171,6 +171,7 @@ bool SVFRT_check_struct(
     // Internal error.
     return false;
   }
+  ctx->s1_struct_matches.pointer[s1_index] = s0_index;
 
   SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
   SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
@@ -254,7 +255,6 @@ bool SVFRT_check_struct(
     }
   }
 
-  ctx->s1_struct_matches.pointer[s1_index] = s0_index;
   ctx->s1_struct_strides.pointer[s1_index] = s0->size;
 
   return true;
@@ -274,6 +274,7 @@ bool SVFRT_check_choice(
     // Internal error.
     return false;
   }
+  ctx->s1_choice_matches.pointer[s1_index] = s0_index;
 
   SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
   SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
@@ -346,15 +347,14 @@ bool SVFRT_check_choice(
     }
   }
 
-  ctx->s1_choice_matches.pointer[s1_index] = s0_index;
   return true;
 }
 
 void SVFRT_check_compatibility(
   SVFRT_CompatibilityResult *result,
-  SVFRT_RangeU8 scratch_memory,
-  SVFRT_RangeU8 schema_write,
-  SVFRT_RangeU8 schema_read,
+  SVFRT_Bytes scratch_memory,
+  SVFRT_Bytes schema_write,
+  SVFRT_Bytes schema_read,
   uint64_t entry_name_hash,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_CompatibilityLevel sufficient_level
@@ -367,8 +367,8 @@ void SVFRT_check_compatibility(
     return;
   }
 
-  SVFRT_RangeU8 r0 = schema_write;
-  SVFRT_RangeU8 r1 = schema_read;
+  SVFRT_Bytes r0 = schema_write;
+  SVFRT_Bytes r1 = schema_read;
 
   // This will break when proper alignment is done. @proper-alignment
   SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));

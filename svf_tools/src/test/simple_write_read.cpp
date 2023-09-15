@@ -14,7 +14,7 @@ int main(int /*argc*/, char */*argv*/[]) {
   }
 
   auto base = vm::realign(arena, svf::runtime::MESSAGE_PART_ALIGNMENT);
-  auto writer_fn = [](void *writer_ptr, SVFRT_RangeU8 src) {
+  auto writer_fn = [](void *writer_ptr, SVFRT_Bytes src) {
     auto arena = (vm::LinearArena *) writer_ptr;
     auto dst = vm::many<U8>(arena, src.count);
     range_copy(dst, {src.pointer, src.count});

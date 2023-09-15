@@ -329,10 +329,19 @@ Bytes as_code(
   output_u8_array(ctx, in_schema->name);
   output_cstring(ctx, "_H\n");
   output_cstring(ctx, R"(
+#ifdef __cplusplus
+#include <cstdint>
+#include <cstddef>
+
+extern "C" {
+#else
 #include <stdint.h>
+#include <stddef.h>
+#endif
 
 #ifndef SVF_COMMON_C_TYPES_INCLUDED
 #define SVF_COMMON_C_TYPES_INCLUDED
+#pragma pack(push, 1)
 
 typedef struct SVFRT_Pointer {
   uint32_t data_offset;
@@ -343,6 +352,7 @@ typedef struct SVFRT_Array {
   uint32_t count;
 } SVFRT_Array;
 
+#pragma pack(pop)
 #endif // SVF_COMMON_C_TYPES_INCLUDED
 
 #pragma pack(push, 1)
@@ -359,19 +369,13 @@ typedef struct SVFRT_Array {
   output_u8_array(ctx, in_schema->name);
   output_cstring(ctx, "_binary_size ");
   output_decimal(ctx, schema_bytes.count);
-  output_cstring(ctx, "\n\n");
-
-  output_cstring(ctx, "#ifdef SVF_INCLUDE_BINARY_SCHEMA\n");
-  output_cstring(ctx, "uint8_t const SVF_");
+  output_cstring(ctx, "\nextern uint8_t const SVF_");
+  output_u8_array(ctx, in_schema->name);
+  output_cstring(ctx, "_binary_array[];\n\n#ifdef SVF_INCLUDE_BINARY_SCHEMA\nuint8_t const SVF_");
   output_u8_array(ctx, in_schema->name);
   output_cstring(ctx, "_binary_array[] = {\n");
   output_raw_bytes(ctx, schema_bytes);
-  output_cstring(ctx, "};\n#else\nextern uint8_t const SVF_");
-  output_u8_array(ctx, in_schema->name);
-  output_cstring(ctx, "_binary_array[];\n");
-  output_cstring(ctx, "#endif // SVF_INCLUDE_BINARY_SCHEMA\n");
-
-  output_cstring(ctx, "\n// Forward declarations.\n");
+  output_cstring(ctx, "};\n#endif // SVF_INCLUDE_BINARY_SCHEMA\n\n// Forward declarations.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     output_struct_declaration(ctx, it);
@@ -416,9 +420,7 @@ typedef struct SVFRT_Array {
     }
   }
 
-  output_cstring(ctx, "#pragma pack(pop)\n");
-
-  output_cstring(ctx, "\n#endif // SVF_");
+  output_cstring(ctx, "#pragma pack(pop)\n#ifdef __cplusplus\n} // extern \"C\"\n #endif\n\n#endif // SVF_");
   output_u8_array(ctx, in_schema->name);
   output_cstring(ctx, "_H\n");
 

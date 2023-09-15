@@ -29,13 +29,13 @@ typedef struct SVFRT_RangeOptionDefinition {
 } SVFRT_RangeOptionDefinition;
 
 void *SVFRT_from_pointer(
-  SVFRT_RangeU8 bytes,
+  SVFRT_Bytes bytes,
   SVFRT_Pointer pointer,
   size_t type_size
 );
 
 void *SVFRT_from_array(
-  SVFRT_RangeU8 bytes,
+  SVFRT_Bytes bytes,
   SVFRT_Array array,
   size_t type_size
 );
@@ -50,15 +50,15 @@ void *SVFRT_from_array(
 }
 
 typedef struct SVFRT_ConversionResult {
-  SVFRT_RangeU8 output_bytes;
+  SVFRT_Bytes output_bytes;
   bool success;
 } SVFRT_ConversionResult;
 
 typedef struct SVFRT_ConversionInfo {
   SVF_META_Schema *s0;
   SVF_META_Schema *s1;
-  SVFRT_RangeU8 r0;
-  SVFRT_RangeU8 r1;
+  SVFRT_Bytes r0;
+  SVFRT_Bytes r1;
   uint32_t struct_index0;
   uint32_t struct_index1;
 } SVFRT_ConversionInfo;
@@ -66,8 +66,8 @@ typedef struct SVFRT_ConversionInfo {
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
   SVFRT_ConversionInfo *info,
-  SVFRT_RangeU8 entry_input_bytes,
-  SVFRT_RangeU8 data_bytes,
+  SVFRT_Bytes entry_input_bytes,
+  SVFRT_Bytes data_bytes,
   size_t max_recursion_depth,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr

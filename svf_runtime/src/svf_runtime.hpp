@@ -23,6 +23,8 @@ using I64 = int64_t;
 using F32 = float;
 using F64 = double;
 
+#pragma pack(push, 1)
+
 template<typename T>
 struct Pointer {
   U32 data_offset;
@@ -33,6 +35,8 @@ struct Array {
   U32 data_offset;
   U32 count;
 };
+
+#pragma pack(pop)
 #endif // SVF_COMMON_TYPES_INCLUDED
 
 #ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
@@ -56,6 +60,8 @@ struct Range {
   U64 count;
 };
 
+typedef Range<U8> Bytes;
+
 typedef SVFRT_ReadContext ReadContext;
 typedef SVFRT_AllocatorFn AllocatorFn;
 
@@ -68,7 +74,7 @@ enum class CompatibilityLevel {
 
 template<typename T>
 struct ReadMessageResult {
-  T *entry;
+  T const *entry;
   void *allocation;
   CompatibilityLevel compatibility_level;
   ReadContext context;
@@ -87,17 +93,17 @@ ReadMessageResult<Entry> read_message(
   SVFRT_ReadMessageResult result = {};
   SVFRT_read_message_implementation(
     &result,
-    SVFRT_RangeU8 {
+    SVFRT_Bytes {
       /*.pointer =*/ message_bytes.pointer,
       /*.count =*/ message_bytes.count,
     },
     SchemaDescription::template PerType<Entry>::name_hash,
     SchemaDescription::template PerType<Entry>::index,
-    SVFRT_RangeU8 {
+    SVFRT_Bytes {
       /*.pointer =*/ (U8 *) SchemaDescription::schema_array,
       /*.count =*/ SchemaDescription::schema_size
     },
-    SVFRT_RangeU8 {
+    SVFRT_Bytes {
       /*.pointer =*/ scratch_memory.pointer,
       /*.count =*/ scratch_memory.count,
     },
@@ -115,7 +121,7 @@ ReadMessageResult<Entry> read_message(
 
 template<typename T>
 static inline
-T *read_pointer(
+T const *read_pointer(
   ReadContext *ctx,
   Pointer<T> pointer
 ) {
@@ -127,7 +133,21 @@ T *read_pointer(
 
 template<typename T>
 static inline
-T *read_array(
+Range<T const> read_array_raw(
+  ReadContext *ctx,
+  Array<T> array
+) {
+  // TODO: type must be primitive, check that.
+
+  if (array.data_offset + array.count * sizeof(T) > ctx->data_range.count) {
+    return {0, 0};
+  }
+  return { (T *) (ctx->data_range.pointer + array.data_offset), array.count };
+}
+
+template<typename T>
+static inline
+T const *read_array_element(
   ReadContext *ctx,
   Array<T> array,
   U32 index
@@ -183,9 +203,9 @@ template<typename T, typename E>
 static inline
 Pointer<T> write_pointer(
   WriteContext<E> *ctx,
-  T *in_pointer
+  T const *in_pointer
 ) {
-  auto bytes = SVFRT_RangeU8 {
+  auto bytes = SVFRT_Bytes {
     /*.pointer =*/ (U8 *) in_pointer,
     /*.count =*/ sizeof(T),
   };
@@ -208,7 +228,7 @@ template<typename T>
 static inline
 void write_message_end(
   WriteContext<T> *ctx,
-  T *in_pointer
+  T const *in_pointer
 ) {
   write_pointer<T, T>(ctx, in_pointer);
   if (!ctx->error) {
@@ -218,21 +238,67 @@ void write_message_end(
 
 template<typename T, typename E>
 static inline
+Array<T> write_array(
+  WriteContext<E> *ctx,
+  T const *in_pointer,
+  U32 size
+) {
+  auto bytes = SVFRT_Bytes {
+    /*.pointer =*/ (U8 *) in_pointer,
+    /*.count =*/ sizeof(T) * size,
+  };
+
+  // Will break on @proper-alignment.
+  auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
+
+  if (written != bytes.count) {
+    ctx->error = true;
+  }
+
+  auto data_offset = ctx->data_bytes_written;
+  ctx->data_bytes_written += bytes.count;
+  return {
+    /*.data_offset =*/ data_offset,
+    /*.count =*/ size,
+  };
+}
+
+template<typename T, typename E, int N>
+static inline
+Array<T> write_fixed_size_array(
+  WriteContext<E> *ctx,
+  T const (&in_array)[N]
+) {
+  return write_array(ctx, in_array, (U32) N);
+}
+
+template<typename T, typename E, int N>
+static inline
+Array<U8> write_fixed_size_array_u8(
+  WriteContext<E> *ctx,
+  T const (&in_array)[N]
+) {
+  static_assert(sizeof(T) == 1);
+  return write_array<U8>(ctx, (U8 *) in_array, (U32) N);
+}
+
+template<typename T, typename E>
+static inline
 void write_array_element(
   WriteContext<E> *ctx,
-  T *in_pointer,
-  Array<T> *in_array
+  T const *in_pointer,
+  Array<T> *inout_array
 ) {
   if (
-    in_array->count != 0 &&
-    in_array->data_offset + sizeof(T) != ctx->data_bytes_written
+    inout_array->count != 0 &&
+    inout_array->data_offset + inout_array->count * sizeof(T) != ctx->data_bytes_written
   ) {
     ctx->error = true;
     return;
   }
 
-  auto bytes = SVFRT_RangeU8 {
-    /*.pointer =*/(U8 *) in_pointer,
+  auto bytes = SVFRT_Bytes {
+    /*.pointer =*/ (U8 *) in_pointer,
     /*.count =*/ sizeof(T),
   };
 
@@ -243,10 +309,10 @@ void write_array_element(
     ctx->error = true;
   }
 
-  if (in_array->count == 0) {
-    in_array->data_offset = ctx->data_bytes_written;
+  if (inout_array->count == 0) {
+    inout_array->data_offset = ctx->data_bytes_written;
   }
-  in_array->count += 1;
+  inout_array->count += 1;
   ctx->data_bytes_written += bytes.count;
 }
 

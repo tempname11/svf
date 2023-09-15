@@ -185,20 +185,17 @@ function(generate_schema_files SCHEMA_NAME)
     COMMAND svfc c ${TXT_NAME} ${H_NAME}
     DEPENDS svfc ${TXT_NAME} ${H_DIR}
   )
-  if (${SCHEMA_NAME} STREQUAL meta)
-    add_custom_target(${SCHEMA_NAME}_hpp ALL DEPENDS ${HPP_NAME})
-    add_custom_target(${SCHEMA_NAME}_h ALL DEPENDS ${H_NAME})
-  else()
-    add_custom_target(${SCHEMA_NAME}_hpp DEPENDS ${HPP_NAME})
-    add_custom_target(${SCHEMA_NAME}_h DEPENDS ${H_NAME})
-  endif()
+  add_custom_target(schema_${SCHEMA_NAME}_hpp ALL DEPENDS ${HPP_NAME})
+  add_custom_target(schema_${SCHEMA_NAME}_h ALL DEPENDS ${H_NAME})
 endfunction(generate_schema_files)
 
-generate_schema_files(a0)
-generate_schema_files(a1)
-generate_schema_files(b0)
-generate_schema_files(b1)
-generate_schema_files(meta)
+generate_schema_files(A0)
+generate_schema_files(A1)
+generate_schema_files(B0)
+generate_schema_files(B1)
+generate_schema_files(META)
+generate_schema_files(JSON)
+generate_schema_files(Hello)
 
 #
 # `test_a`
@@ -208,8 +205,8 @@ add_executable(test_a
   src/test/simple_write_read.cpp
 )
 target_link_libraries(test_a PRIVATE svf_runtime platform)
-add_dependencies(test_a a0_hpp)
-add_dependencies(test_a a1_hpp)
+add_dependencies(test_a schema_A0_hpp)
+add_dependencies(test_a schema_A1_hpp)
 
 #
 # `test_b`
@@ -219,8 +216,8 @@ add_executable(test_b
   src/test/simple_write_read.cpp
 )
 target_link_libraries(test_b PRIVATE svf_runtime platform)
-add_dependencies(test_b b0_hpp)
-add_dependencies(test_b b1_hpp)
+add_dependencies(test_b schema_B0_hpp)
+add_dependencies(test_b schema_B1_hpp)
 
 #
 # `test_c`
@@ -229,9 +226,32 @@ add_executable(test_c
   src/test/c.c
 )
 target_link_libraries(test_c PRIVATE svf_runtime)
-add_dependencies(test_b b0_hpp)
-add_dependencies(test_c a0_h)
-add_dependencies(test_c a1_h)
+add_dependencies(test_c schema_A0_h)
+add_dependencies(test_c schema_A1_h)
+
+#
+# `test_d`
+#
+add_executable(test_json
+  src/test/json_glue.cpp
+  src/test/json_write.cpp
+  src/test/json_read.c
+)
+target_link_libraries(test_json PRIVATE svf_runtime platform)
+add_dependencies(test_json schema_JSON_hpp)
+add_dependencies(test_json schema_JSON_h)
+
+#
+# `test_hello`
+#
+add_executable(test_hello
+  src/test/hello_glue.cpp
+  src/test/hello_write.c
+  src/test/hello_read.cpp
+)
+target_link_libraries(test_hello PRIVATE svf_runtime platform)
+add_dependencies(test_hello schema_Hello_hpp)
+add_dependencies(test_hello schema_Hello_h)
 
 #
 # Tests.
@@ -239,14 +259,16 @@ add_dependencies(test_c a1_h)
 enable_testing()
 add_test(NAME meta_hpp_consistency COMMAND
   ${CMAKE_COMMAND} -E compare_files
-  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp/meta.hpp
+  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp/META.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../svf_runtime/src/svf_meta.hpp
 )
 add_test(NAME meta_h_consistency COMMAND
   ${CMAKE_COMMAND} -E compare_files
-  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h/meta.h
+  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h/META.h
   ${CMAKE_CURRENT_SOURCE_DIR}/../svf_runtime/src/svf_meta.h
 )
 add_test(NAME test_a COMMAND test_a)
 add_test(NAME test_b COMMAND test_b)
 add_test(NAME test_c COMMAND test_c)
+add_test(NAME test_json COMMAND test_json)
+add_test(NAME test_hello COMMAND test_hello)
