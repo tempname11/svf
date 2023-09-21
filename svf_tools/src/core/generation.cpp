@@ -201,7 +201,7 @@ OutputTypeResult output_type(
         &in_type->sequence.element_type,
         &out_union->sequence.element_type_enum,
         &out_union->sequence.element_type_union,
-        allow_tag,
+        false, // allow_tag
         true // force_size
       );
       result.main_size = sizeof(svf::Sequence<void>);
