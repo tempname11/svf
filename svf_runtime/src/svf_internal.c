@@ -1,4 +1,6 @@
-#include "svf_internal.h"
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_internal.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

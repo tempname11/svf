@@ -73,7 +73,10 @@ if (NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${OUR_FLAGS}")
 endif()
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+# Note: this does not work properly, as these flags are duplicated twice.
+# Once from these commands, and once from some CMake magic.
+# Need to figure it out...
+if (0) # (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(OUR_FLAGS
     -Xclang
     --dependent-lib=msvcrt
@@ -83,8 +86,14 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${OUR_FLAGS}")
   set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${OUR_FLAGS}")
 
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Xclang --dependent-lib=msvcrt")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Xclang --dependent-lib=msvcrt")
+  set(OUR_FLAGS
+    -Xclang
+    --dependent-lib=msvcrtd
+  )
+  list(JOIN OUR_FLAGS " " OUR_FLAGS)
+
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${OUR_FLAGS}")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${OUR_FLAGS}")
 endif()
 
 if (0)
@@ -153,6 +162,13 @@ add_executable(svfc
 target_link_libraries(svfc PRIVATE platform)
 
 #
+# `svfc`
+#
+add_executable(amalgamate_runtime
+  src/exe/amalgamate_runtime.cpp
+)
+
+#
 # `svf_runtime`, compiled as C.
 #
 add_library(svf_runtime
@@ -178,16 +194,36 @@ function(generate_schema_files SCHEMA_NAME)
   add_custom_command(
     OUTPUT ${HPP_NAME}
     COMMAND svfc cpp ${TXT_NAME} ${HPP_NAME}
-    DEPENDS svfc ${TXT_NAME} ${HPP_DIR}
+    DEPENDS svfc ${TXT_NAME} ${GENERATED_HPP_DIR}
   )
   add_custom_command(
     OUTPUT ${H_NAME}
     COMMAND svfc c ${TXT_NAME} ${H_NAME}
-    DEPENDS svfc ${TXT_NAME} ${H_DIR}
+    DEPENDS svfc ${TXT_NAME} ${GENERATED_H_DIR}
   )
   add_custom_target(schema_${SCHEMA_NAME}_hpp ALL DEPENDS ${HPP_NAME})
   add_custom_target(schema_${SCHEMA_NAME}_h ALL DEPENDS ${H_NAME})
 endfunction(generate_schema_files)
+
+set (SINGLE_FILE_H_NAME ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/svf.h)
+add_custom_command(
+  OUTPUT ${SINGLE_FILE_H_NAME}
+  COMMAND amalgamate_runtime ${SINGLE_FILE_H_NAME}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../svf_runtime/src/
+  DEPENDS
+    amalgamate_runtime
+    ${TXT_NAME}
+    ../svf_runtime/src/svf_runtime.h
+    ../svf_runtime/src/svf_runtime.hpp
+    ../svf_runtime/src/svf_meta.h
+    ../svf_runtime/src/svf_internal.h
+    ../svf_runtime/src/svf_stdio.h
+    ../svf_runtime/src/svf_compatibility.c
+    ../svf_runtime/src/svf_conversion.c
+    ../svf_runtime/src/svf_internal.c
+    ../svf_runtime/src/svf_runtime.c
+)
+add_custom_target(single_file_h ALL DEPENDS ${SINGLE_FILE_H_NAME})
 
 generate_schema_files(A0)
 generate_schema_files(A1)
@@ -225,7 +261,7 @@ add_dependencies(test_b schema_B1_hpp)
 add_executable(test_c
   src/test/c.c
 )
-target_link_libraries(test_c PRIVATE svf_runtime)
+add_dependencies(test_c single_file_h)
 add_dependencies(test_c schema_A0_h)
 add_dependencies(test_c schema_A1_h)
 

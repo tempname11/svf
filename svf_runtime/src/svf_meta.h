@@ -34,7 +34,7 @@ typedef struct SVFRT_Sequence {
 #define SVF_META_binary_size 2125
 extern uint8_t const SVF_META_binary_array[];
 
-#ifdef SVF_INCLUDE_BINARY_SCHEMA
+#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 uint8_t const SVF_META_binary_array[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -303,7 +303,7 @@ uint8_t const SVF_META_binary_array[] = {
     0xFF, 0x0A, 0x00, 0x00, 0x00, 0xC7, 0xFD, 0xFF,
     0xFF, 0x02, 0x00, 0x00, 0x00
 };
-#endif // SVF_INCLUDE_BINARY_SCHEMA
+#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 
 // Forward declarations.
 typedef struct SVF_META_Schema SVF_META_Schema;

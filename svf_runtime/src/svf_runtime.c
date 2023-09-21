@@ -1,8 +1,10 @@
 #include <assert.h>
 
-#include "svf_internal.h"
-#include "svf_runtime.h"
-#include "svf_meta.h"
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_internal.h"
+  #include "svf_runtime.h"
+  #include "svf_meta.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

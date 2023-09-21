@@ -1,8 +1,10 @@
 #ifndef SVF_INTERNAL_H
 #define SVF_INTERNAL_H
 
-#include "svf_runtime.h"
-#include "svf_meta.h"
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_runtime.h"
+  #include "svf_meta.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

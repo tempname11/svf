@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #undef NDEBUG // For the test in Release mode.
 #include <assert.h>
-#define SVF_INCLUDE_BINARY_SCHEMA
-#include <src/svf_runtime.h>
+
+#define SVF_IMPLEMENTATION
+#include <generated/svf.h>
 #include <generated/h/A0.h>
 #include <generated/h/A1.h>
 

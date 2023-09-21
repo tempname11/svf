@@ -369,13 +369,26 @@ typedef struct SVFRT_Sequence {
   output_u8_array(ctx, in_schema->name);
   output_cstring(ctx, "_binary_size ");
   output_decimal(ctx, schema_bytes.count);
-  output_cstring(ctx, "\nextern uint8_t const SVF_");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "extern uint8_t const SVF_");
   output_u8_array(ctx, in_schema->name);
-  output_cstring(ctx, "_binary_array[];\n\n#ifdef SVF_INCLUDE_BINARY_SCHEMA\nuint8_t const SVF_");
+  output_cstring(ctx, "_binary_array[];\n");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+
+  output_cstring(ctx, "uint8_t const SVF_");
   output_u8_array(ctx, in_schema->name);
+
   output_cstring(ctx, "_binary_array[] = {\n");
   output_raw_bytes(ctx, schema_bytes);
-  output_cstring(ctx, "};\n#endif // SVF_INCLUDE_BINARY_SCHEMA\n\n// Forward declarations.\n");
+  output_cstring(ctx, "};\n");
+
+  output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+  output_cstring(ctx, "\n");
+  output_cstring(ctx, "// Forward declarations.\n");
+
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     output_struct_declaration(ctx, it);

@@ -5,8 +5,8 @@
 
 namespace svf {
 
-#ifndef SVF_COMMON_TYPES_INCLUDED
-#define SVF_COMMON_TYPES_INCLUDED
+#ifndef SVF_COMMON_CPP_TYPES_INCLUDED
+#define SVF_COMMON_CPP_TYPES_INCLUDED
 
 using U8 = uint8_t;
 using U16 = uint16_t;
@@ -35,7 +35,7 @@ struct Sequence {
 };
 
 #pragma pack(pop)
-#endif // SVF_COMMON_TYPES_INCLUDED
+#endif // SVF_COMMON_CPP_TYPES_INCLUDED
 
 #ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
 #define SVF_COMMON_CPP_TRICKERY_INCLUDED
@@ -52,7 +52,7 @@ namespace binary {
   size_t const size = 2125;
   extern U8 const array[];
 
-#ifdef SVF_INCLUDE_BINARY_SCHEMA
+#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
   U8 const array[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -321,7 +321,7 @@ namespace binary {
     0xFF, 0x0A, 0x00, 0x00, 0x00, 0xC7, 0xFD, 0xFF,
     0xFF, 0x02, 0x00, 0x00, 0x00
   };
-#endif // SVF_INCLUDE_BINARY_SCHEMA
+#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 }
 
 // Forward declarations.

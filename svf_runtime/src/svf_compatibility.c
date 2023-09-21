@@ -1,5 +1,7 @@
-#include "svf_runtime.h"
-#include "svf_internal.h"
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_runtime.h"
+  #include "svf_internal.h"
+#endif
 
 typedef struct SVFRT_CheckContext {
   // The entry structure for both schemas. We are going to check the "backward"

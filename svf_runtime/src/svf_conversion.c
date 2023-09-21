@@ -1,11 +1,21 @@
-#ifdef __cplusplus
-  #include <cstring>
+#ifndef SVFRT_NO_LIBC
+  #ifdef __cplusplus
+    #include <cstring>
+  #else
+    #include <string.h>
+  #endif
+  #define SVFRT_MEMSET memset
+  #define SVFRT_MEMCPY memcpy
 #else
-  #include <string.h>
+  #if !defined(SVFRT_MEMSET) || !defined(SVFRT_MEMCPY)
+    #error "When compiling with SVFRT_NO_LIBC, make sure to #define SVFRT_MEMCPY/SVFRT_MEMSET."
+  #endif
 #endif
 
-#include "svf_runtime.h"
-#include "svf_internal.h"
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_runtime.h"
+  #include "svf_internal.h"
+#endif
 
 // Toggle direct unaligned access to memory when converting. This invoked
 // undefined behavior, but it should be fine on x64. Disabled to be safe, but
@@ -505,7 +515,7 @@ void SVFRT_copy_size(
     return;
   }
 
-  memcpy(output_bytes.pointer, input_bytes.pointer, size);
+  SVFRT_MEMCPY(output_bytes.pointer, input_bytes.pointer, size);
 }
 
 void SVFRT_copy_concrete(
@@ -701,7 +711,7 @@ void SVFRT_copy_concrete(
             out_value = (uint64_t) *((uint32_t *) (range_from.pointer + offset_from));
             #else
             uint32_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (uint64_t) in_value;
             #endif
 
@@ -714,7 +724,7 @@ void SVFRT_copy_concrete(
             out_value = (uint64_t) *((uint16_t *) (range_from.pointer + offset_from));
             #else
             uint16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (uint64_t) in_value;
             #endif
 
@@ -734,7 +744,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((uint64_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -749,7 +759,7 @@ void SVFRT_copy_concrete(
             out_value = (uint32_t) *((uint16_t *) (range_from.pointer + offset_from));
             #else
             uint16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (uint32_t) in_value;
             #endif
 
@@ -769,7 +779,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((uint32_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -791,7 +801,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((uint16_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -806,7 +816,7 @@ void SVFRT_copy_concrete(
             out_value = (int64_t) *((int32_t *) (range_from.pointer + offset_from));
             #else
             int32_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int64_t) in_value;
             #endif
 
@@ -819,7 +829,7 @@ void SVFRT_copy_concrete(
             out_value = (int64_t) *((int16_t *) (range_from.pointer + offset_from));
             #else
             int16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int64_t) in_value;
             #endif
 
@@ -837,7 +847,7 @@ void SVFRT_copy_concrete(
             out_value = (int64_t) *((uint32_t *) (range_from.pointer + offset_from));
             #else
             uint32_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int64_t) in_value;
             #endif
 
@@ -850,7 +860,7 @@ void SVFRT_copy_concrete(
             out_value = (int64_t) *((uint16_t *) (range_from.pointer + offset_from));
             #else
             uint16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int64_t) in_value;
             #endif
 
@@ -870,7 +880,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((int64_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -885,7 +895,7 @@ void SVFRT_copy_concrete(
             out_value = (int32_t) *((int16_t *) (range_from.pointer + offset_from));
             #else
             int16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int32_t) in_value;
             #endif
 
@@ -903,7 +913,7 @@ void SVFRT_copy_concrete(
             out_value = (int32_t) *((uint16_t *) (range_from.pointer + offset_from));
             #else
             uint16_t in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (int32_t) in_value;
             #endif
 
@@ -923,7 +933,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((int32_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -950,7 +960,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((int16_t *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -967,7 +977,7 @@ void SVFRT_copy_concrete(
             out_value = (double) *((float *) (range_from.pointer + offset_from));
             #else
             float in_value;
-            memcpy(&in_value, range_from.pointer + offset_from, sizeof(in_value));
+            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
             out_value = (double) in_value;
             #endif
 
@@ -982,7 +992,7 @@ void SVFRT_copy_concrete(
         #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
         *((double *) (range_to.pointer + offset_to)) = out_value;
         #else
-        memcpy(range_to.pointer + offset_to, &out_value, sizeof(out_value));
+        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
         #endif
 
         break;
@@ -1272,7 +1282,7 @@ void SVFRT_convert_message(
   ctx->allocation.count = ctx->allocation_needed;
 
   // Zero out the memory.
-  memset(ctx->allocation.pointer, 0, ctx->allocation.count);
+  SVFRT_MEMSET(ctx->allocation.pointer, 0, ctx->allocation.count);
 
   //
   // Phase 2: actually copy the data.

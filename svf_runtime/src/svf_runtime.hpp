@@ -1,15 +1,18 @@
-#pragma once
-#include <cstdint>
-#include "svf_runtime.h"
+#ifndef SVF_RUNTIME_HPP
+#define SVF_RUNTIME_HPP
 
-// C++ runtime, i.e. code that the end C++ program will include and link, in
-// order to work with SVF. Probably should be packaged as a single-file lib,
-// but for now, it is not.
+#ifdef __cplusplus
+
+#include <cstdint>
+
+#ifndef SVFRT_SINGLE_FILE
+  #include "svf_runtime.h"
+#endif
 
 namespace svf {
 
-#ifndef SVF_COMMON_TYPES_INCLUDED
-#define SVF_COMMON_TYPES_INCLUDED
+#ifndef SVF_COMMON_CPP_TYPES_INCLUDED
+#define SVF_COMMON_CPP_TYPES_INCLUDED
 using U8 = uint8_t;
 using U16 = uint16_t;
 using U32 = uint32_t;
@@ -37,7 +40,7 @@ struct Sequence {
 };
 
 #pragma pack(pop)
-#endif // SVF_COMMON_TYPES_INCLUDED
+#endif // SVF_COMMON_CPP_TYPES_INCLUDED
 
 #ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
 #define SVF_COMMON_CPP_TRICKERY_INCLUDED
@@ -324,3 +327,7 @@ void write_sequence_element(
 
 } // namespace runtime
 } // namespace svf
+
+#endif // __cplusplus
+
+#endif // SVF_RUNTIME_HPP

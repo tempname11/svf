@@ -48,7 +48,9 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: svfc_${{ matrix.os-type }}_${{ matrix.arch-type}}_${{ matrix.build-type }}_r${{ github.run_id }}
-          path: .build/svfc*
+          path: |
+            .build/svfc*
+            .build/custom/generated/svf.h
           if-no-files-found: error
 
   assemble-release-package:
@@ -69,8 +71,10 @@ jobs:
           mkdir -p .package/tools/Windows_x64/
           mkdir -p .package/tools/Linux_x64/
           mkdir -p .package/runtime/src/
+          mkdir -p .package/runtime/single-file
           cp .artifacts/svfc_Windows_x64_Release_*/svfc.exe .package/tools/Windows_x64/svfc.exe
           cp .artifacts/svfc_Linux_x64_Release_*/svfc .package/tools/Linux_x64/svfc
+          cp .artifacts/svfc_Linux_x64_Release_*/custom/generated/svf.h .package/runtime/single-file/
           cp -r svf_runtime/src/* .package/runtime/src/
           echo "Built at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> .package/.build-info
 
