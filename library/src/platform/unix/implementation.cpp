@@ -1,11 +1,12 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cinttypes>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <src/library.hpp>
 
 void abort_this_process(char const *message, char const *filename, UInt line) {
-  fprintf(stdout, "ASSERT(%s)\n\nat %s:%zu\n", message, filename, line);
+  fprintf(stdout, "ASSERT(%s)\n\nat %s:%" PRIu64 "\n", message, filename, line);
   fflush(stdout);
   abort();
 }

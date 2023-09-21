@@ -9,7 +9,7 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os-type: [Windows, Linux]
+        os-type: [Windows, Linux, macOS]
         build-type: [Debug, Release]
         arch-type: [x64]
         include:
@@ -17,6 +17,8 @@ jobs:
             os: windows-2022
           - os-type: Linux
             os: ubuntu-22.04
+          - os-type: macOS
+            os: macos-12
     runs-on: ${{ matrix.os }}
     steps:
       - run: git config --global core.autocrlf false

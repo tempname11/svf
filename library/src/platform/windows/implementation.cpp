@@ -1,10 +1,11 @@
 #include <cstdio>
+#include <cinttypes>
 #include <windows.h>
 #include <src/library.hpp>
 
 void abort_this_process(char const *message, char const *filename, UInt line) {
   char buffer[256];
-  snprintf(buffer, sizeof(buffer), "ASSERT(%s)\n\nat %s:%zu", message, filename, line);
+  snprintf(buffer, sizeof(buffer), "ASSERT(%s)\n\nat %s:%" PRIu64, message, filename, line);
   MessageBoxA(0, buffer, "Assertion failed", MB_OK | MB_ICONERROR);
   _set_abort_behavior( 0, _WRITE_ABORT_MSG);
   abort();

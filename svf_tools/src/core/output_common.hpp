@@ -1,6 +1,7 @@
 #pragma once
 #include <cstring>
 #include <cstdio>
+#include <cinttypes>
 #include <src/library.hpp>
 #include "../core.hpp"
 
@@ -39,7 +40,7 @@ void output_u8_hex(Ctx ctx, U8 value) {
 static inline
 void output_hex(Ctx ctx, U64 value) {
   char buffer[17]; // 16 + 1
-  auto result = snprintf(buffer, 17, "%016zX", value);
+  auto result = snprintf(buffer, 17, "%016" PRIX64, value);
   ASSERT(result == 16);
   output_cstring(ctx, buffer);
 }
@@ -47,7 +48,7 @@ void output_hex(Ctx ctx, U64 value) {
 static inline
 void output_decimal(Ctx ctx, U64 value) {
   char buffer[21]; // Python: len(str(2**64)) + 1
-  auto result = snprintf(buffer, 21, "%zu", value);
+  auto result = snprintf(buffer, 21, "%" PRIu64, value);
   ASSERT(result > 0);
   ASSERT(result < 21);
   output_cstring(ctx, buffer);

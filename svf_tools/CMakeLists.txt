@@ -3,17 +3,27 @@ project(svf_tools)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 99)
 
-if (NOT CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  # Temporary assumption.
-  message(FATAL_ERROR "Target OS must be Windows or Linux.")
+if (
+  NOT CMAKE_SYSTEM_NAME STREQUAL "Windows"
+  AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux"
+  AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin"
+)
+  message(FATAL_ERROR "Target OS must be Windows, Linux, macOS.")
 endif()
 
-if (NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  # Temporary assumption.
-  message(FATAL_ERROR "Target architecture must be x64.")
+if (
+  NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64"
+  AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"
+  AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64"
+)
+  message(FATAL_ERROR "Target architecture must be x64 or arm64.")
 endif()
 
-if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+message(${CMAKE_CXX_COMPILER_ID})
+if (
+  NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+  AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+)
   # Only support Clang for now.
   message(FATAL_ERROR "Compiler must be Clang.")
 endif()
@@ -148,7 +158,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_sources(platform
     PRIVATE
-    ../library/src/platform/linux/implementation.cpp
+    ../library/src/platform/unix/implementation.cpp
+  )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  target_sources(platform
+    PRIVATE
+    ../library/src/platform/unix/implementation.cpp
   )
 endif()
 
