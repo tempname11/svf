@@ -139,7 +139,6 @@ OutputTypeResult output_concrete_type(
         // We rely on the fact that this type has already been output.
         auto payload_size = choices.pointer[choice_index].payload_size;
         U32 tag_size = 1; // Only U8 tag supported right now. @only-u8-tag
-        ASSERT(payload_size > 0);
         return {true, payload_size, tag_size};
 
       } else {
