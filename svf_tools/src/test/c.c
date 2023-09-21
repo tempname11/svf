@@ -22,9 +22,9 @@ void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
   };
 
   SVF_A0_Entry entry = {
-    .pointer = SVFRT_WRITE_POINTER(&ctx, &target0),
+    .reference = SVFRT_WRITE_REFERENCE(&ctx, &target0),
     .some_struct = {
-      .array = {0},
+      .sequence = {0},
       .some_choice_enum = SVF_A0_SomeChoice_target,
       .some_choice_union = {
         .target = {
@@ -38,7 +38,7 @@ void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
     SVF_A0_Target target = {
       .value = (i + 2) * 0x1111111111111111ull,
     };
-    SVFRT_WRITE_ARRAY_ELEMENT(&ctx, &target, &entry.some_struct.array);
+    SVFRT_WRITE_SEQUENCE_ELEMENT(&ctx, &target, &entry.some_struct.sequence);
   }
 
   SVFRT_WRITE_MESSAGE_END(&ctx, &entry);
@@ -67,13 +67,13 @@ void test_read(SVFRT_Bytes input_bytes) {
   SVFRT_ReadContext *ctx = &read_result.context;
   SVF_A1_Entry const *entry = read_result.entry;
 
-  SVF_A1_Target const *target0 = SVFRT_READ_POINTER(SVF_A1_Target, ctx, entry->pointer);
+  SVF_A1_Target const *target0 = SVFRT_READ_REFERENCE(SVF_A1_Target, ctx, entry->reference);
   assert(target0);
   assert(target0->value == 0x1111111111111111ull);
 
-  assert(entry->some_struct.array.count == 2);
-  SVF_A1_Target const *e0 = SVFRT_READ_ARRAY_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.array, 0);
-  SVF_A1_Target const *e1 = SVFRT_READ_ARRAY_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.array, 1);
+  assert(entry->some_struct.sequence.count == 2);
+  SVF_A1_Target const *e0 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.sequence, 0);
+  SVF_A1_Target const *e1 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_A1_Target, ctx, entry->some_struct.sequence, 1);
   assert(e0 && e1);
   assert(e0->value == 0x2222222222222222ull);
   assert(e1->value == 0x3333333333333333ull);

@@ -184,8 +184,8 @@ void SVFRT_bump_type(
         SVF_META_ChoiceDefinition *c0 = ctx->choices0.pointer + inner_c0_index;
         SVF_META_ChoiceDefinition *c1 = ctx->choices1.pointer + inner_c1_index;
 
-        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
 
         if (!options0.pointer || !options1.pointer) {
           ctx->internal_error = true;
@@ -232,34 +232,34 @@ void SVFRT_bump_type(
       }
     }
   }
-  else if (t0 == SVF_META_Type_pointer) {
+  else if (t0 == SVF_META_Type_reference) {
     // Sanity check.
-    if (t1 != SVF_META_Type_pointer) {
+    if (t1 != SVF_META_Type_reference) {
       ctx->internal_error = true;
       return;
     }
 
-    if ((uint64_t) offset_from + sizeof(SVFRT_Pointer) > range_from.count) {
+    if ((uint64_t) offset_from + sizeof(SVFRT_Reference) > range_from.count) {
       ctx->data_error = true;
       return;
     }
 
-    SVFRT_Pointer in_pointer = *((SVFRT_Pointer *) (range_from.pointer + offset_from));
+    SVFRT_Reference in_reference = *((SVFRT_Reference *) (range_from.pointer + offset_from));
 
-    switch (u1->pointer.type_enum) {
+    switch (u1->reference.type_enum) {
       case SVF_META_ConcreteType_defined_struct: {
         // Sanity check.
-        if (u0->pointer.type_enum != SVF_META_ConcreteType_defined_struct) {
+        if (u0->reference.type_enum != SVF_META_ConcreteType_defined_struct) {
           ctx->internal_error = true;
           return;
         }
 
-        uint32_t inner_s0_index = u0->pointer.type_union.defined_struct.index;
-        uint32_t inner_s1_index = u1->pointer.type_union.defined_struct.index;
+        uint32_t inner_s0_index = u0->reference.type_union.defined_struct.index;
+        uint32_t inner_s1_index = u1->reference.type_union.defined_struct.index;
 
         size_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
 
-        void *inner_input_data = SVFRT_from_pointer(ctx->data_bytes, in_pointer, inner_input_size);
+        void *inner_input_data = SVFRT_from_reference(ctx->data_bytes, in_reference, inner_input_size);
         if (!inner_input_data) {
           ctx->data_error = true;
           return;
@@ -321,39 +321,39 @@ void SVFRT_bump_type(
         return;
       }
     }
-  } else if (t0 == SVF_META_Type_flexible_array) {
+  } else if (t0 == SVF_META_Type_sequence) {
     // Sanity check.
-    if (t1 != SVF_META_Type_flexible_array) {
+    if (t1 != SVF_META_Type_sequence) {
       ctx->internal_error = true;
       return;
     }
 
-    if ((uint64_t) offset_from + sizeof(SVFRT_Array) > range_from.count) {
+    if ((uint64_t) offset_from + sizeof(SVFRT_Sequence) > range_from.count) {
       ctx->data_error = true;
       return;
     }
 
-    SVFRT_Array array = *((SVFRT_Array *) (range_from.pointer + offset_from));
+    SVFRT_Sequence in_sequence = *((SVFRT_Sequence *) (range_from.pointer + offset_from));
 
-    switch (u0->flexible_array.element_type_enum) {
+    switch (u0->sequence.element_type_enum) {
       case SVF_META_ConcreteType_defined_struct: {
         // Sanity check.
-        if (u1->flexible_array.element_type_enum != SVF_META_ConcreteType_defined_struct) {
+        if (u1->sequence.element_type_enum != SVF_META_ConcreteType_defined_struct) {
           ctx->internal_error = true;
           return;
         }
 
-        uint32_t inner_s0_index = u0->flexible_array.element_type_union.defined_struct.index;
-        uint32_t inner_s1_index = u1->flexible_array.element_type_union.defined_struct.index;
+        uint32_t inner_s0_index = u0->sequence.element_type_union.defined_struct.index;
+        uint32_t inner_s1_index = u1->sequence.element_type_union.defined_struct.index;
         size_t inner_size = ctx->structs0.pointer[inner_s0_index].size;
 
-        void *inner_data = SVFRT_from_array(ctx->data_bytes, array, inner_size);
+        void *inner_data = SVFRT_from_sequence(ctx->data_bytes, in_sequence, inner_size);
         if (!inner_data) {
           ctx->data_error = true;
           return;
         }
 
-        for (size_t i = 0; i < array.count; i++) {
+        for (size_t i = 0; i < in_sequence.count; i++) {
           SVFRT_Bytes inner_range = {
             /*.pointer =*/ ((uint8_t *) inner_data) + inner_size * i,
             /*.count =*/ inner_size,
@@ -361,39 +361,39 @@ void SVFRT_bump_type(
 
           SVFRT_bump_struct_contents(ctx, inner_s0_index, inner_s1_index, inner_range);
         }
-        SVFRT_bump_structs(ctx, inner_s1_index, array.count);
+        SVFRT_bump_structs(ctx, inner_s1_index, in_sequence.count);
 
         break;
       }
       case SVF_META_ConcreteType_u8: {
-        SVFRT_bump_size(ctx, 1 * array.count);
+        SVFRT_bump_size(ctx, 1 * in_sequence.count);
       }
       case SVF_META_ConcreteType_u16: {
-        SVFRT_bump_size(ctx, 2 * array.count);
+        SVFRT_bump_size(ctx, 2 * in_sequence.count);
       }
       case SVF_META_ConcreteType_u32: {
-        SVFRT_bump_size(ctx, 4 * array.count);
+        SVFRT_bump_size(ctx, 4 * in_sequence.count);
       }
       case SVF_META_ConcreteType_u64: {
-        SVFRT_bump_size(ctx, 8 * array.count);
+        SVFRT_bump_size(ctx, 8 * in_sequence.count);
       }
       case SVF_META_ConcreteType_i8: {
-        SVFRT_bump_size(ctx, 1 * array.count);
+        SVFRT_bump_size(ctx, 1 * in_sequence.count);
       }
       case SVF_META_ConcreteType_i16: {
-        SVFRT_bump_size(ctx, 2 * array.count);
+        SVFRT_bump_size(ctx, 2 * in_sequence.count);
       }
       case SVF_META_ConcreteType_i32: {
-        SVFRT_bump_size(ctx, 4 * array.count);
+        SVFRT_bump_size(ctx, 4 * in_sequence.count);
       }
       case SVF_META_ConcreteType_i64: {
-        SVFRT_bump_size(ctx, 8 * array.count);
+        SVFRT_bump_size(ctx, 8 * in_sequence.count);
       }
       case SVF_META_ConcreteType_f32: {
-        SVFRT_bump_size(ctx, 4 * array.count);
+        SVFRT_bump_size(ctx, 4 * in_sequence.count);
       }
       case SVF_META_ConcreteType_f64: {
-        SVFRT_bump_size(ctx, 8 * array.count);
+        SVFRT_bump_size(ctx, 8 * in_sequence.count);
       }
       case SVF_META_ConcreteType_defined_choice:
       case SVF_META_ConcreteType_zero_sized:
@@ -424,14 +424,14 @@ void SVFRT_bump_struct_contents(
   SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
   if (!fields0.pointer || !fields1.pointer) {
     ctx->internal_error = true;
     return;
   }
 
-  // Go over any pointers and arrays in the intersection between s0 and s1.
+  // Go over any sequences and references in the intersection between s0 and s1.
   // Sub-structs and choices may also contain these, so recurse over them.
 
   // @Performance: N^2
@@ -586,8 +586,8 @@ void SVFRT_copy_concrete(
         // @only-u8-tag
         uint8_t input_tag = *input_tag_bytes.pointer;
 
-        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
         if (!options0.pointer || !options1.pointer) {
           ctx->internal_error = true;
           return;
@@ -1042,24 +1042,24 @@ void SVFRT_copy_type(
       range_to,
       offset_to
     );
-  } else if (t0 == SVF_META_Type_pointer) {
-    if (t1 != SVF_META_Type_pointer) {
+  } else if (t0 == SVF_META_Type_reference) {
+    if (t1 != SVF_META_Type_reference) {
       ctx->internal_error = true;
       return;
     }
 
-    if ((uint64_t) offset_from + sizeof(SVFRT_Pointer) > range_from.count) {
+    if ((uint64_t) offset_from + sizeof(SVFRT_Reference) > range_from.count) {
       ctx->data_error = true;
       return;
     }
 
-    SVFRT_Pointer in_pointer = *((SVFRT_Pointer *) (range_from.pointer + offset_from));
+    SVFRT_Reference in_reference = *((SVFRT_Reference *) (range_from.pointer + offset_from));
 
     uint32_t inner_output_size = SVFRT_get_type_size(
       ctx,
       ctx->structs1,
-      u1->pointer.type_enum,
-      &u1->pointer.type_union
+      u1->reference.type_enum,
+      &u1->reference.type_union
     );
 
     SVFRT_Bytes suballocation = {0};
@@ -1069,51 +1069,51 @@ void SVFRT_copy_type(
       inner_output_size
     );
 
-    if (range_to.count < offset_to + sizeof(SVFRT_Pointer)) {
+    if (range_to.count < offset_to + sizeof(SVFRT_Reference)) {
       ctx->internal_error = true;
       return;
     }
 
-    SVFRT_Pointer *out_pointer = (SVFRT_Pointer *) (range_to.pointer + offset_to);
-    out_pointer->data_offset = suballocation.pointer - ctx->allocation.pointer;
+    SVFRT_Reference *out_reference = (SVFRT_Reference *) (range_to.pointer + offset_to);
+    out_reference->data_offset_complement = ~(suballocation.pointer - ctx->allocation.pointer);
 
     SVFRT_copy_concrete(
       ctx,
       recursion_depth + 1,
-      u0->pointer.type_enum,
-      &u0->pointer.type_union,
+      u0->reference.type_enum,
+      &u0->reference.type_union,
       ctx->data_bytes,
-      in_pointer.data_offset,
-      u1->pointer.type_enum,
-      &u1->pointer.type_union,
+      ~in_reference.data_offset_complement,
+      u1->reference.type_enum,
+      &u1->reference.type_union,
       suballocation,
       0
     );
-  } else if (t0 == SVF_META_Type_flexible_array) {
-    if (t1 != SVF_META_Type_flexible_array) {
+  } else if (t0 == SVF_META_Type_sequence) {
+    if (t1 != SVF_META_Type_sequence) {
       ctx->internal_error = true;
       return;
     }
 
-    if ((uint64_t) offset_from + sizeof(SVFRT_Array) > range_from.count) {
+    if ((uint64_t) offset_from + sizeof(SVFRT_Sequence) > range_from.count) {
       ctx->data_error = true;
       return;
     }
 
-    SVFRT_Array in_array = *((SVFRT_Array *) (range_from.pointer + offset_from));
+    SVFRT_Sequence in_sequence = *((SVFRT_Sequence *) (range_from.pointer + offset_from));
 
     uint32_t inner_input_size = SVFRT_get_type_size(
       ctx,
       ctx->structs0,
-      u0->flexible_array.element_type_enum,
-      &u0->flexible_array.element_type_union
+      u0->sequence.element_type_enum,
+      &u0->sequence.element_type_union
     );
 
     uint32_t inner_output_size = SVFRT_get_type_size(
       ctx,
       ctx->structs1,
-      u1->flexible_array.element_type_enum,
-      &u1->flexible_array.element_type_union
+      u1->sequence.element_type_enum,
+      &u1->sequence.element_type_union
     );
 
     SVFRT_Bytes suballocation = {0};
@@ -1121,28 +1121,28 @@ void SVFRT_copy_type(
       &suballocation,
       ctx,
       // Will break on @proper-alignment.
-      inner_output_size * in_array.count
+      inner_output_size * in_sequence.count
     );
 
-    if (range_to.count < offset_to + sizeof(SVFRT_Array)) {
+    if (range_to.count < offset_to + sizeof(SVFRT_Sequence)) {
       ctx->internal_error = true;
       return;
     }
 
-    SVFRT_Array *out_array = (SVFRT_Array *) (range_to.pointer + offset_to);
-    out_array->data_offset = suballocation.pointer - ctx->allocation.pointer;
-    out_array->count = in_array.count;
+    SVFRT_Sequence *out_sequence = (SVFRT_Sequence *) (range_to.pointer + offset_to);
+    out_sequence->data_offset_complement = ~(suballocation.pointer - ctx->allocation.pointer);
+    out_sequence->count = in_sequence.count;
 
-    for (size_t i = 0; i < in_array.count; i++) {
+    for (size_t i = 0; i < in_sequence.count; i++) {
       SVFRT_copy_concrete(
         ctx,
         recursion_depth + 1,
-        u0->flexible_array.element_type_enum,
-        &u0->flexible_array.element_type_union,
+        u0->sequence.element_type_enum,
+        &u0->sequence.element_type_union,
         ctx->data_bytes,
-        in_array.data_offset + i * inner_input_size,
-        u1->flexible_array.element_type_enum,
-        &u1->flexible_array.element_type_union,
+        ~in_sequence.data_offset_complement + i * inner_input_size,
+        u1->sequence.element_type_enum,
+        &u1->sequence.element_type_union,
         suballocation,
         i * inner_output_size
       );
@@ -1174,8 +1174,8 @@ void SVFRT_copy_struct(
   SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_ARRAY(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
   if (!fields0.pointer || !fields0.pointer) {
     ctx->internal_error = true;
     return;
@@ -1220,10 +1220,10 @@ void SVFRT_convert_message(
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
 ) {
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_ARRAY(info->r0, info->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_ARRAY(info->r1, info->s1->structs, SVF_META_StructDefinition);
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_ARRAY(info->r0, info->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_ARRAY(info->r1, info->s1->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(info->r0, info->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(info->r1, info->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_SEQUENCE(info->r0, info->s0->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_SEQUENCE(info->r1, info->s1->choices, SVF_META_ChoiceDefinition);
 
   if (0
     || !structs0.pointer

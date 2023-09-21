@@ -1,12 +1,12 @@
 #name A0
 
 Entry: struct {
-  pointer: Target*;
+  reference: Target*;
   some_struct: SomeStruct;
 };
 
 SomeStruct: struct {
-  array: Target[];
+  sequence: Target[];
   some_choice: SomeChoice;
 };
 

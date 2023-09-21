@@ -22,6 +22,6 @@ void example_read(svf::runtime::Bytes bytes) {
   assert(world->current_year == 2023);
   assert(world->mechanics_enum == Hello::Mechanics_enum::quantum);
 
-  auto name = RT::read_array_raw(ctx, world->name.utf8);
+  auto name = RT::read_sequence_raw(ctx, world->name.utf8);
   assert(strncmp("The Universe", (char const *) name.pointer, name.count) == 0);
 }

@@ -38,26 +38,26 @@ struct ConcreteType {
 struct Type {
   enum class Which {
     concrete,
-    pointer,
-    flexible_array,
+    reference,
+    sequence,
   } which;
 
   struct Concrete {
     ConcreteType type;
   };
 
-  struct Pointer {
+  struct Reference {
     ConcreteType type;
   };
 
-  struct FlexibleArray {
+  struct Sequence {
     ConcreteType element_type;
   };
 
   union {
     Concrete concrete;
-    Pointer pointer;
-    FlexibleArray flexible_array;
+    Reference reference;
+    Sequence sequence;
   };
 };
 

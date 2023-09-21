@@ -22,9 +22,9 @@ void output_cstring(Ctx ctx, const char *cstr) {
 }
 
 static inline
-void output_u8_array(Ctx ctx, svf::Array<U8> array) {
-  auto out = vm::many<Byte>(ctx->dedicated_arena, array.count);
-  auto data = range_subrange(ctx->in_bytes, array.data_offset, array.count);
+void output_u8_array(Ctx ctx, svf::Sequence<U8> sequence) {
+  auto out = vm::many<Byte>(ctx->dedicated_arena, sequence.count);
+  auto data = range_subrange(ctx->in_bytes, ~sequence.data_offset_complement, sequence.count);
   range_copy(out, data);
 }
 

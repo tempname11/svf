@@ -4,32 +4,34 @@
 extern "C" {
 #endif
 
-void *SVFRT_from_pointer(
+void *SVFRT_from_reference(
   SVFRT_Bytes bytes,
-  SVFRT_Pointer pointer,
+  SVFRT_Reference reference,
   size_t type_size
 ) {
-  if (pointer.data_offset > bytes.count) {
+  uint32_t data_offset = ~reference.data_offset_complement;
+  if (data_offset > bytes.count) {
     return NULL;
   }
-  if (pointer.data_offset + type_size > bytes.count) {
+  if (data_offset + type_size > bytes.count) {
     return NULL;
   }
-  return (void *) (bytes.pointer + pointer.data_offset);
+  return (void *) (bytes.pointer + data_offset);
 }
 
-void *SVFRT_from_array(
+void *SVFRT_from_sequence(
   SVFRT_Bytes bytes,
-  SVFRT_Array array,
+  SVFRT_Sequence sequence,
   size_t type_size
 ) {
-  if (array.data_offset > bytes.count) {
+  uint32_t data_offset = ~sequence.data_offset_complement;
+  if (data_offset > bytes.count) {
     return NULL;
   }
-  if (array.data_offset + array.count * type_size > bytes.count) {
+  if (data_offset + sequence.count * type_size > bytes.count) {
     return NULL;
   }
-  return (void *) (bytes.pointer + array.data_offset);
+  return (void *) (bytes.pointer + data_offset);
 }
 
 #ifdef __cplusplus

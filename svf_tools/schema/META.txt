@@ -59,10 +59,10 @@ Type: choice {
   concrete: struct {
     type: ConcreteType;
   };
-  pointer: struct {
+  reference: struct {
     type: ConcreteType;
   };
-  flexible_array: struct {
+  sequence: struct {
     element_type: ConcreteType;
   };
 };

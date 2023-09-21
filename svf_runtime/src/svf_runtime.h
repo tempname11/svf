@@ -19,14 +19,14 @@ extern "C" {
 #define SVF_COMMON_C_TYPES_INCLUDED
 #pragma pack(push, 1)
 
-typedef struct SVFRT_Pointer {
-  uint32_t data_offset;
-} SVFRT_Pointer;
+typedef struct SVFRT_Reference {
+  uint32_t data_offset_complement;
+} SVFRT_Reference;
 
-typedef struct SVFRT_Array {
-  uint32_t data_offset;
+typedef struct SVFRT_Sequence {
+  uint32_t data_offset_complement;
   uint32_t count;
-} SVFRT_Array;
+} SVFRT_Sequence;
 
 #pragma pack(pop)
 #endif // SVF_COMMON_C_TYPES_INCLUDED
@@ -130,7 +130,7 @@ void SVFRT_write_message_implementation(
 // errors.
 
 static inline
-SVFRT_Pointer SVFRT_write_pointer(
+SVFRT_Reference SVFRT_write_reference(
   SVFRT_WriteContext *ctx,
   void *in_pointer,
   size_t size
@@ -142,11 +142,11 @@ SVFRT_Pointer SVFRT_write_pointer(
 
   if (written != bytes.count) {
     ctx->error = true;
-    SVFRT_Pointer result = {0};
+    SVFRT_Reference result = {0};
     return result;
   }
 
-  SVFRT_Pointer result = { ctx->data_bytes_written };
+  SVFRT_Reference result = { ~ctx->data_bytes_written };
 
   // TODO: Potential overflow...
   ctx->data_bytes_written += bytes.count;
@@ -154,7 +154,7 @@ SVFRT_Pointer SVFRT_write_pointer(
 }
 
 static inline
-SVFRT_Array SVFRT_write_array(
+SVFRT_Sequence SVFRT_write_sequence(
   SVFRT_WriteContext *ctx,
   void *in_pointer,
   size_t size,
@@ -167,11 +167,11 @@ SVFRT_Array SVFRT_write_array(
 
   if (written != bytes.count) {
     ctx->error = true;
-    SVFRT_Array result = {0, 0};
+    SVFRT_Sequence result = {0, 0};
     return result;
   }
 
-  SVFRT_Array result = { ctx->data_bytes_written, count };
+  SVFRT_Sequence result = { ~ctx->data_bytes_written, count };
 
   // TODO: Potential overflow...
   ctx->data_bytes_written += bytes.count;
@@ -179,15 +179,15 @@ SVFRT_Array SVFRT_write_array(
 }
 
 static inline
-void SVFRT_write_array_element(
+void SVFRT_write_sequence_element(
   SVFRT_WriteContext *ctx,
   void *in_pointer,
   size_t size,
-  SVFRT_Array *in_array
+  SVFRT_Sequence *inout_sequence
 ) {
   if (
-    in_array->count != 0 &&
-    in_array->data_offset + size != ctx->data_bytes_written
+    inout_sequence->count != 0 &&
+    ~inout_sequence->data_offset_complement + size != ctx->data_bytes_written
   ) {
     ctx->error = true;
     return;
@@ -202,12 +202,12 @@ void SVFRT_write_array_element(
     ctx->error = true;
   }
 
-  if (in_array->count == 0) {
-    in_array->data_offset = ctx->data_bytes_written;
+  if (inout_sequence->count == 0) {
+    inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
   }
 
   // TODO: Potential overflow...
-  in_array->count += 1;
+  inout_sequence->count += 1;
   ctx->data_bytes_written += bytes.count;
 }
 
@@ -217,49 +217,51 @@ void SVFRT_write_message_end(
   void *in_pointer,
   size_t size
 ) {
-  SVFRT_write_pointer(ctx, in_pointer, size);
+  SVFRT_write_reference(ctx, in_pointer, size);
   if (!ctx->error) {
     ctx->finished = true;
   }
 }
 
 static inline
-void const *SVFRT_read_pointer(
+void const *SVFRT_read_reference(
   SVFRT_ReadContext *ctx,
-  SVFRT_Pointer pointer,
+  SVFRT_Reference reference,
   size_t size
 ) {
-  if (pointer.data_offset + size > ctx->data_range.count) {
+  uint32_t data_offset = ~reference.data_offset_complement;
+  if (data_offset + size > ctx->data_range.count) {
     return NULL;
   }
-  return (void *) (ctx->data_range.pointer + pointer.data_offset);
+  return (void *) (ctx->data_range.pointer + data_offset);
 }
 
 static inline
-void const *SVFRT_read_array_raw(
+void const *SVFRT_read_sequence_raw(
   SVFRT_ReadContext *ctx,
-  SVFRT_Array array,
+  SVFRT_Sequence sequence,
   size_t size
 ) {
-  if (array.data_offset + size * array.count > ctx->data_range.count) {
+  uint32_t data_offset = ~sequence.data_offset_complement;
+  if (data_offset + size * sequence.count > ctx->data_range.count) {
     return NULL;
   }
-  return (void *) (ctx->data_range.pointer + array.data_offset);
+  return (void *) (ctx->data_range.pointer + data_offset);
 }
 
 static inline
-void const *SVFRT_read_array_element(
+void const *SVFRT_read_sequence_element(
   SVFRT_ReadContext *ctx,
-  SVFRT_Array array,
+  SVFRT_Sequence sequence,
   size_t size,
   uint32_t struct_index,
   uint32_t element_index
 ) {
   uint32_t stride = ctx->struct_strides.pointer[struct_index];
-  if (element_index > array.count) {
+  if (element_index > sequence.count) {
     return NULL;
   }
- uint32_t item_offset = array.data_offset + stride * element_index;
+ uint32_t item_offset = ~sequence.data_offset_complement + stride * element_index;
   if (item_offset + size > ctx->data_range.count) {
     return NULL;
   }
@@ -275,14 +277,14 @@ void const *SVFRT_read_array_element(
     entry_name ## _name_hash \
   )
 
-#define SVFRT_WRITE_POINTER(ctx, data_ptr) \
-  SVFRT_write_pointer((ctx), (void *) (data_ptr), sizeof(*(data_ptr)))
+#define SVFRT_WRITE_REFERENCE(ctx, data_ptr) \
+  SVFRT_write_reference((ctx), (void *) (data_ptr), sizeof(*(data_ptr)))
 
 #define SVFRT_WRITE_FIXED_SIZE_ARRAY(ctx, array) \
-  SVFRT_write_array((ctx), (void *) (array), sizeof(*(array)), sizeof(array) / sizeof(*(array)))
+  SVFRT_write_sequence((ctx), (void *) (array), sizeof(*(array)), sizeof(array) / sizeof(*(array)))
 
-#define SVFRT_WRITE_ARRAY_ELEMENT(ctx, data_ptr, array_ptr) \
-  SVFRT_write_array_element((ctx), (void *) (data_ptr), sizeof(*(data_ptr)), (array_ptr))
+#define SVFRT_WRITE_SEQUENCE_ELEMENT(ctx, data_ptr, inout_sequence) \
+  SVFRT_write_sequence_element((ctx), (void *) (data_ptr), sizeof(*(data_ptr)), (inout_sequence))
 
 #define SVFRT_WRITE_MESSAGE_END(ctx, data_ptr) \
   SVFRT_write_message_end((ctx), (void *) (data_ptr), sizeof(*(data_ptr)))
@@ -300,14 +302,14 @@ void const *SVFRT_read_array_element(
     (allocator_ptr) \
   )
 
-#define SVFRT_READ_POINTER(type_name, ctx, pointer) \
-  ((type_name const *) SVFRT_read_pointer((ctx), (pointer), sizeof(type_name)))
+#define SVFRT_READ_REFERENCE(type_name, ctx, reference) \
+  ((type_name const *) SVFRT_read_reference((ctx), (reference), sizeof(type_name)))
 
-#define SVFRT_READ_ARRAY_ELEMENT(type_name, ctx, array, element_index) \
-  ((type_name const *) SVFRT_read_array_element((ctx), (array), sizeof(type_name), type_name ## _struct_index, element_index))
+#define SVFRT_READ_SEQUENCE_ELEMENT(type_name, ctx, sequence, element_index) \
+  ((type_name const *) SVFRT_read_sequence_element((ctx), (sequence), sizeof(type_name), type_name ## _struct_index, element_index))
 
-#define SVFRT_READ_ARRAY_RAW(type_name, ctx, array) \
-  ((type_name const *) SVFRT_read_array_raw((ctx), (array), sizeof(type_name)))
+#define SVFRT_READ_SEQUENCE_RAW(type_name, ctx, sequence) \
+  ((type_name const *) SVFRT_read_sequence_raw((ctx), (sequence), sizeof(type_name)))
 
 #ifdef __cplusplus
 } // extern "C"

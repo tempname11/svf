@@ -25,7 +25,7 @@ void example_write(FILE *file) {
     JSON::Item item = {};
     item.value_enum = JSON::Value_enum::number;
     item.value_union.number = i;
-    RT::write_array_element(&ctx, &item, &fields[1].value_union.array);
+    RT::write_sequence_element(&ctx, &item, &fields[1].value_union.array);
   }
 
   JSON::Item entry = {};

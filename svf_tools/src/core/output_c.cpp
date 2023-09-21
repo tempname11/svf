@@ -35,7 +35,7 @@ void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "_union;\n");
 }
 
-void output_struct_index(Ctx ctx, svf::Array<U8> name, U32 index) {
+void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, ctx->in_schema->name);
   output_cstring(ctx, "_");
@@ -45,7 +45,7 @@ void output_struct_index(Ctx ctx, svf::Array<U8> name, U32 index) {
   output_cstring(ctx, "\n");
 }
 
-void output_name_hash(Ctx ctx, svf::Array<U8> name, U64 hash) {
+void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, ctx->in_schema->name);
   output_cstring(ctx, "_");
@@ -133,8 +133,8 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
       );
       break;
     }
-    case meta::Type_enum::pointer: {
-      output_cstring(ctx, "SVFRT_Pointer /*");
+    case meta::Type_enum::reference: {
+      output_cstring(ctx, "SVFRT_Reference /*");
       output_concrete_type_name(
         ctx,
         in_union->concrete.type_enum,
@@ -143,8 +143,8 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
       output_cstring(ctx, "*/");
       break;
     }
-    case meta::Type_enum::flexible_array: {
-      output_cstring(ctx, "SVFRT_Array /*");
+    case meta::Type_enum::sequence: {
+      output_cstring(ctx, "SVFRT_Sequence /*");
       output_concrete_type_name(
         ctx,
         in_union->concrete.type_enum,
@@ -343,14 +343,14 @@ extern "C" {
 #define SVF_COMMON_C_TYPES_INCLUDED
 #pragma pack(push, 1)
 
-typedef struct SVFRT_Pointer {
-  uint32_t data_offset;
-} SVFRT_Pointer;
+typedef struct SVFRT_Reference {
+  uint32_t data_offset_complement;
+} SVFRT_Reference;
 
-typedef struct SVFRT_Array {
-  uint32_t data_offset;
+typedef struct SVFRT_Sequence {
+  uint32_t data_offset_complement;
   uint32_t count;
-} SVFRT_Array;
+} SVFRT_Sequence;
 
 #pragma pack(pop)
 #endif // SVF_COMMON_C_TYPES_INCLUDED

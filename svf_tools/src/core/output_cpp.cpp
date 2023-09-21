@@ -21,7 +21,7 @@ void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "_union;\n");
 }
 
-void output_struct_index(Ctx ctx, svf::Array<U8> name, U32 index) {
+void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "U32 const ");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_struct_index = ");
@@ -29,7 +29,7 @@ void output_struct_index(Ctx ctx, svf::Array<U8> name, U32 index) {
   output_cstring(ctx, ";\n");
 }
 
-void output_name_hash(Ctx ctx, svf::Array<U8> name, U64 hash) {
+void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
   output_cstring(ctx, "U64 const ");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_name_hash = 0x");
@@ -109,8 +109,8 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
       );
       break;
     }
-    case meta::Type_enum::pointer: {
-      output_cstring(ctx, "Pointer<");
+    case meta::Type_enum::reference: {
+      output_cstring(ctx, "Reference<");
       output_concrete_type_name(
         ctx,
         in_union->concrete.type_enum,
@@ -119,8 +119,8 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
       output_cstring(ctx, ">");
       break;
     }
-    case meta::Type_enum::flexible_array: {
-      output_cstring(ctx, "Array<");
+    case meta::Type_enum::sequence: {
+      output_cstring(ctx, "Sequence<");
       output_concrete_type_name(
         ctx,
         in_union->concrete.type_enum,
@@ -298,13 +298,13 @@ using F64 = double;
 #pragma pack(push, 1)
 
 template<typename T>
-struct Pointer {
-  U32 data_offset;
+struct Reference {
+  U32 data_offset_complement;
 };
 
 template<typename T>
-struct Array {
-  U32 data_offset;
+struct Sequence {
+  U32 data_offset_complement;
   U32 count;
 };
 

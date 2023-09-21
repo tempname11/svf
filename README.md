@@ -47,7 +47,7 @@ String: struct {
 };
 ```
 
-Note, that the concept of a "string" is not built-in, but can be easily expressed in a schema. In this instance, UTF-8 is the chosen encoding, and expressed how you would expect — as an array of 8-bit characters.
+Note, that the concept of a "string" is not built-in, but can be easily expressed in a schema. In this instance, UTF-8 is the chosen encoding, and expressed how you would expect — as a sequence of 8-bit characters.
 
 ### Data Evolution
 

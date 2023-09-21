@@ -26,13 +26,13 @@ using F64 = double;
 #pragma pack(push, 1)
 
 template<typename T>
-struct Pointer {
-  U32 data_offset;
+struct Reference {
+  U32 data_offset_complement;
 };
 
 template<typename T>
-struct Array {
-  U32 data_offset;
+struct Sequence {
+  U32 data_offset_complement;
   U32 count;
 };
 
@@ -121,43 +121,46 @@ ReadMessageResult<Entry> read_message(
 
 template<typename T>
 static inline
-T const *read_pointer(
+T const *read_reference(
   ReadContext *ctx,
-  Pointer<T> pointer
+  Reference<T> reference
 ) {
-  if (pointer.data_offset + sizeof(T) > ctx->data_range.count) {
+  auto data_offset = ~reference.data_offset_complement;
+  if (data_offset + sizeof(T) > ctx->data_range.count) {
     return 0;
   }
-  return (T *) (ctx->data_range.pointer + pointer.data_offset);
+  return (T *) (ctx->data_range.pointer + data_offset);
 }
 
 template<typename T>
 static inline
-Range<T const> read_array_raw(
+Range<T const> read_sequence_raw(
   ReadContext *ctx,
-  Array<T> array
+  Sequence<T> sequence
 ) {
   // TODO: type must be primitive, check that.
 
-  if (array.data_offset + array.count * sizeof(T) > ctx->data_range.count) {
+  auto data_offset = ~sequence.data_offset_complement;
+
+  if (data_offset + sequence.count * sizeof(T) > ctx->data_range.count) {
     return {0, 0};
   }
-  return { (T *) (ctx->data_range.pointer + array.data_offset), array.count };
+  return { (T *) (ctx->data_range.pointer + data_offset), sequence.count };
 }
 
 template<typename T>
 static inline
-T const *read_array_element(
+T const *read_sequence_element(
   ReadContext *ctx,
-  Array<T> array,
+  Sequence<T> sequence,
   U32 index
 ) {
   using SchemaDescription = typename svf::GetSchemaFromType<T>::SchemaDescription;
   auto stride = ctx->struct_strides.pointer[SchemaDescription::template PerType<T>::index];
-  if (index > array.count) {
+  if (index > sequence.count) {
     return 0;
   }
-  auto item_offset = array.data_offset + stride * index;
+  auto item_offset = ~sequence.data_offset_complement + stride * index;
   if (item_offset + sizeof(T) > ctx->data_range.count) {
     return 0;
   }
@@ -201,7 +204,7 @@ WriteContext<Entry> write_message_start(
 
 template<typename T, typename E>
 static inline
-Pointer<T> write_pointer(
+Reference<T> write_reference(
   WriteContext<E> *ctx,
   T const *in_pointer
 ) {
@@ -218,7 +221,10 @@ Pointer<T> write_pointer(
     return {};
   }
 
-  auto result = Pointer<T> { ctx->data_bytes_written };
+  auto result = Reference<T> {
+    /*.data_offset_complement =*/ ~ctx->data_bytes_written
+  };
+
   // Potential overflow...
   ctx->data_bytes_written += bytes.count;
   return result;
@@ -230,7 +236,7 @@ void write_message_end(
   WriteContext<T> *ctx,
   T const *in_pointer
 ) {
-  write_pointer<T, T>(ctx, in_pointer);
+  write_reference<T, T>(ctx, in_pointer);
   if (!ctx->error) {
     ctx->finished = true;
   }
@@ -238,7 +244,7 @@ void write_message_end(
 
 template<typename T, typename E>
 static inline
-Array<T> write_array(
+Sequence<T> write_sequence(
   WriteContext<E> *ctx,
   T const *in_pointer,
   U32 size
@@ -258,40 +264,40 @@ Array<T> write_array(
   auto data_offset = ctx->data_bytes_written;
   ctx->data_bytes_written += bytes.count;
   return {
-    /*.data_offset =*/ data_offset,
+    /*.data_offset_complement =*/ ~data_offset,
     /*.count =*/ size,
   };
 }
 
 template<typename T, typename E, int N>
 static inline
-Array<T> write_fixed_size_array(
+Sequence<T> write_fixed_size_array(
   WriteContext<E> *ctx,
   T const (&in_array)[N]
 ) {
-  return write_array(ctx, in_array, (U32) N);
+  return write_sequence(ctx, in_array, (U32) N);
 }
 
 template<typename T, typename E, int N>
 static inline
-Array<U8> write_fixed_size_array_u8(
+Sequence<U8> write_fixed_size_array_u8(
   WriteContext<E> *ctx,
   T const (&in_array)[N]
 ) {
   static_assert(sizeof(T) == 1);
-  return write_array<U8>(ctx, (U8 *) in_array, (U32) N);
+  return write_sequence<U8>(ctx, (U8 *) in_array, (U32) N);
 }
 
 template<typename T, typename E>
 static inline
-void write_array_element(
+void write_sequence_element(
   WriteContext<E> *ctx,
   T const *in_pointer,
-  Array<T> *inout_array
+  Sequence<T> *inout_sequence
 ) {
   if (
-    inout_array->count != 0 &&
-    inout_array->data_offset + inout_array->count * sizeof(T) != ctx->data_bytes_written
+    inout_sequence->count != 0 &&
+    ~inout_sequence->data_offset_complement + inout_sequence->count * sizeof(T) != ctx->data_bytes_written
   ) {
     ctx->error = true;
     return;
@@ -309,10 +315,10 @@ void write_array_element(
     ctx->error = true;
   }
 
-  if (inout_array->count == 0) {
-    inout_array->data_offset = ctx->data_bytes_written;
+  if (inout_sequence->count == 0) {
+    inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
   }
-  inout_array->count += 1;
+  inout_sequence->count += 1;
   ctx->data_bytes_written += bytes.count;
 }
 

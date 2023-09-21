@@ -5,9 +5,9 @@
 
 template<typename T>
 inline static
-Range<T> to_range(Bytes bytes, svf::Array<T> array) {
+Range<T> to_range(Bytes bytes, svf::Sequence<T> sequence) {
   return range_from_bytes<T>(
-    range_subrange(bytes, array.data_offset, array.count * sizeof(T))
+    range_subrange(bytes, ~sequence.data_offset_complement, sequence.count * sizeof(T))
   );
 }
 

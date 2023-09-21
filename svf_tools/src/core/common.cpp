@@ -63,10 +63,10 @@ TypePluralityAndSize get_plurality(
         }
       }
     }
-    case meta::Type_enum::pointer: {
+    case meta::Type_enum::reference: {
       return { TypePlurality::one, 4 };
     }
-    case meta::Type_enum::flexible_array: {
+    case meta::Type_enum::sequence: {
       return { TypePlurality::one, 8 };
     }
     default: {

@@ -176,36 +176,36 @@ OutputTypeResult output_type(
         false // force_size
       );
     }
-    case grammar::Type::Which::pointer: {
-      *out_enum = meta::Type_enum::pointer;
+    case grammar::Type::Which::reference: {
+      *out_enum = meta::Type_enum::reference;
       auto result = output_concrete_type(
         in_root,
         structs,
         choices,
         assigned_indices,
-        &in_type->pointer.type,
-        &out_union->pointer.type_enum,
-        &out_union->pointer.type_union,
+        &in_type->reference.type,
+        &out_union->reference.type_enum,
+        &out_union->reference.type_union,
         false, // allow_tag
         true // force_size
       );
-      result.main_size = 4; // Pointers are U32.
+      result.main_size = sizeof(svf::Reference<void>);
       return result;
     }
-    case grammar::Type::Which::flexible_array: {
-      *out_enum = meta::Type_enum::flexible_array;
+    case grammar::Type::Which::sequence: {
+      *out_enum = meta::Type_enum::sequence;
       auto result = output_concrete_type(
         in_root,
         structs,
         choices,
         assigned_indices,
-        &in_type->flexible_array.element_type,
-        &out_union->flexible_array.element_type_enum,
-        &out_union->flexible_array.element_type_union,
+        &in_type->sequence.element_type,
+        &out_union->sequence.element_type_enum,
+        &out_union->sequence.element_type_union,
         allow_tag,
         true // force_size
       );
-      result.main_size = 8; // Arrays are U32 + U32.
+      result.main_size = sizeof(svf::Sequence<void>);
       return result;
     }
     default: {
@@ -381,7 +381,7 @@ Bytes as_bytes(
           *out_field = {
             .name_hash = in_field->name_hash,
             .name = {
-              .data_offset = offset_between<U32>(start, out_name.pointer),
+              .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
             },
             .offset = size_sum,
@@ -413,12 +413,12 @@ Bytes as_bytes(
         *out_struct = {
           .name_hash = in_struct->name_hash,
           .name = {
-            .data_offset = offset_between<U32>(start, out_name.pointer),
+            .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
           },
           .size = size_sum,
           .fields = {
-            .data_offset = offset_between<U32>(start, out_fields.pointer),
+            .data_offset_complement = ~offset_between<U32>(start, out_fields.pointer),
             .count = safe_int_cast<U32>(out_fields.count),
           },
         };
@@ -445,7 +445,7 @@ Bytes as_bytes(
           *out_option = {
             .name_hash = in_option->name_hash,
             .name = {
-              .data_offset = offset_between<U32>(start, out_name.pointer),
+              .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
             },
             .index = safe_int_cast<U8>(j),
@@ -476,12 +476,12 @@ Bytes as_bytes(
         *out_choice = {
           .name_hash = in_choice->name_hash,
           .name = {
-            .data_offset = offset_between<U32>(start, out_name.pointer),
+            .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
           },
           .payload_size = size_max,
           .options = {
-            .data_offset = offset_between<U32>(start, out_options.pointer),
+            .data_offset_complement = ~offset_between<U32>(start, out_options.pointer),
             .count = safe_int_cast<U32>(out_options.count),
           },
         };
@@ -498,15 +498,15 @@ Bytes as_bytes(
   *out_schema = {
     .name_hash = in_root->schema_name_hash,
     .name = {
-      .data_offset = offset_between<U32>(start, out_name.pointer),
+      .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
       .count = safe_int_cast<U32>(out_name.count),
     },
     .structs = {
-      .data_offset = offset_between<U32>(start, out_structs.pointer),
+      .data_offset_complement = ~offset_between<U32>(start, out_structs.pointer),
       .count = safe_int_cast<U32>(out_structs.count),
     },
     .choices = {
-      .data_offset = offset_between<U32>(start, out_choices.pointer),
+      .data_offset_complement = ~offset_between<U32>(start, out_choices.pointer),
       .count = safe_int_cast<U32>(out_choices.count),
     },
   };

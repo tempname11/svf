@@ -19,12 +19,12 @@ void example_read(SVFRT_Bytes bytes) {
   assert(entry->value_enum == SVF_JSON_Value_object);
   assert(entry->value_union.object.count == 2);
 
-  SVF_JSON_Field const *field0 = SVFRT_READ_ARRAY_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 0);
-  SVF_JSON_Field const *field1 = SVFRT_READ_ARRAY_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 1);
+  SVF_JSON_Field const *field0 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 0);
+  SVF_JSON_Field const *field1 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 1);
   assert(field0 && field1);
 
-  uint8_t const *name0_ptr = SVFRT_READ_ARRAY_RAW(uint8_t, ctx, field0->name);
-  uint8_t const *name1_ptr = SVFRT_READ_ARRAY_RAW(uint8_t, ctx, field1->name);
+  uint8_t const *name0_ptr = SVFRT_READ_SEQUENCE_RAW(uint8_t, ctx, field0->name);
+  uint8_t const *name1_ptr = SVFRT_READ_SEQUENCE_RAW(uint8_t, ctx, field1->name);
   assert(strncmp("hello", (char *) name0_ptr, field0->name.count) == 0);
   assert(strncmp("world", (char *) name1_ptr, field1->name.count) == 0);
 
@@ -35,7 +35,7 @@ void example_read(SVFRT_Bytes bytes) {
   assert(field1->value_union.array.count == 42);
 
   for (int i = 0; i < 42; i++) {
-    SVF_JSON_Item const *item = SVFRT_READ_ARRAY_ELEMENT(SVF_JSON_Item, ctx, field1->value_union.array, i);
+    SVF_JSON_Item const *item = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Item, ctx, field1->value_union.array, i);
     assert(item);
     assert(item->value_enum == SVF_JSON_Value_number);
     assert(item->value_union.number == i);

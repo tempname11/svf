@@ -28,25 +28,25 @@ typedef struct SVFRT_RangeOptionDefinition {
   uint64_t count;
 } SVFRT_RangeOptionDefinition;
 
-void *SVFRT_from_pointer(
+void *SVFRT_from_reference(
   SVFRT_Bytes bytes,
-  SVFRT_Pointer pointer,
+  SVFRT_Reference reference,
   size_t type_size
 );
 
-void *SVFRT_from_array(
+void *SVFRT_from_sequence(
   SVFRT_Bytes bytes,
-  SVFRT_Array array,
+  SVFRT_Sequence sequence,
   size_t type_size
 );
 
-#define SVFRT_POINTER_FROM_POINTER(bytes, pointer, type) ( \
-  SVFRT_from_pointer((bytes), (pointer), sizeof(type)), \
+#define SVFRT_POINTER_FROM_REFERENCE(bytes, reference, type) ( \
+  SVFRT_from_reference((bytes), (reference), sizeof(type)), \
 )
 
-#define SVFRT_RANGE_FROM_ARRAY(bytes, array, type) { \
-  /*.pointer = */ (type *) SVFRT_from_array((bytes), (array), sizeof(type)), \
-  /*.count = */ (array).count \
+#define SVFRT_RANGE_FROM_SEQUENCE(bytes, sequence, type) { \
+  /*.pointer = */ (type *) SVFRT_from_sequence((bytes), (sequence), sizeof(type)), \
+  /*.count = */ (sequence).count \
 }
 
 typedef struct SVFRT_ConversionResult {

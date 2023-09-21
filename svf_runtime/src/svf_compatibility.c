@@ -15,10 +15,10 @@ typedef struct SVFRT_CheckContext {
   SVFRT_RangeU32 s1_struct_matches;
   SVFRT_RangeU32 s1_choice_matches;
 
-  // What stride should be used when indexing an array of structs? With binary
+  // What stride should be used when indexing a sequence of structs? With binary
   // compatibility, it is not size of the Schema 1 struct, even though we are
   // accessing the data through it. It is actually the size of the Schema 0
-  // struct, since that's what the original array was using as the stride.
+  // struct, since that's what the original sequence was using as the stride.
   SVFRT_RangeU32 s1_struct_strides;
 
   // Lowest level seen so far. Should be >= required level.
@@ -123,23 +123,23 @@ bool check_type(
     return false;
   }
 
-  if (t0 == SVF_META_Type_pointer) {
+  if (t0 == SVF_META_Type_reference) {
     return check_concrete_type(
       ctx,
-      u0->pointer.type_enum,
-      u1->pointer.type_enum,
-      &u0->pointer.type_union,
-      &u1->pointer.type_union
+      u0->reference.type_enum,
+      u1->reference.type_enum,
+      &u0->reference.type_union,
+      &u1->reference.type_union
     );
   }
 
-  if (t0 == SVF_META_Type_flexible_array) {
+  if (t0 == SVF_META_Type_sequence) {
     return check_concrete_type(
       ctx,
-      u0->flexible_array.element_type_enum,
-      u1->flexible_array.element_type_enum,
-      &u0->flexible_array.element_type_union,
-      &u1->flexible_array.element_type_union
+      u0->sequence.element_type_enum,
+      u1->sequence.element_type_enum,
+      &u0->sequence.element_type_union,
+      &u1->sequence.element_type_union
     );
   }
 
@@ -173,8 +173,8 @@ bool SVFRT_check_struct(
   }
   ctx->s1_struct_matches.pointer[s1_index] = s0_index;
 
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
   if (!structs0.pointer || !structs1.pointer) {
     // Internal error.
     return false;
@@ -183,8 +183,8 @@ bool SVFRT_check_struct(
   SVF_META_StructDefinition *s0 = structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, s1->fields, SVF_META_FieldDefinition);
 
   if (!fields0.pointer || !fields0.pointer) {
     // Internal error.
@@ -276,8 +276,8 @@ bool SVFRT_check_choice(
   }
   ctx->s1_choice_matches.pointer[s1_index] = s0_index;
 
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
   if (!choices0.pointer || !choices1.pointer) {
     // Internal error.
     return false;
@@ -286,8 +286,8 @@ bool SVFRT_check_choice(
   SVF_META_ChoiceDefinition *c0 = choices0.pointer + s0_index;
   SVF_META_ChoiceDefinition *c1 = choices1.pointer + s1_index;
 
-  SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, c0->options, SVF_META_OptionDefinition);
-  SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, c1->options, SVF_META_OptionDefinition);
+  SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, c0->options, SVF_META_OptionDefinition);
+  SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, c1->options, SVF_META_OptionDefinition);
 
   if (!options0.pointer || !options0.pointer) {
     // Internal error.
@@ -425,8 +425,8 @@ void SVFRT_check_compatibility(
   size_t struct_index0 = (size_t) (-1);
   size_t struct_index1 = (size_t) (-1);
 
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_ARRAY(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_ARRAY(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
 
   if (!structs0.pointer || !structs1.pointer) {
     // Internal error.

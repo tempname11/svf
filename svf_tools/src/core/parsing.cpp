@@ -259,15 +259,15 @@ Type parse_type_reference(Ctx ctx) {
     }
   }
 
-  // Now, check for pointers and arrays.
+  // Now, check for sequences and references.
   skip_whitespace(ctx);
   auto byte = peek_byte(ctx);
 
   if (byte == '*') {
     ctx->state.cursor++;
     return {
-      .which = Type::Which::pointer,
-      .pointer = {
+      .which = Type::Which::reference,
+      .reference = {
         .type = concrete_type,
       },
     };
@@ -276,8 +276,8 @@ Type parse_type_reference(Ctx ctx) {
     skip_whitespace(ctx);
     skip_specific_character(ctx, ']');
     return {
-      .which = Type::Which::flexible_array,
-      .flexible_array = {
+      .which = Type::Which::sequence,
+      .sequence = {
         .element_type = concrete_type,
       },
     };
