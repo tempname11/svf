@@ -405,6 +405,9 @@ Bytes as_bytes(
             return {};
           };
         }
+        if (size_sum == 0) {
+          return {};
+        }
 
         auto out_name = vm::many<U8>(arena, in_struct->name.count);
         range_copy(out_name, in_struct->name);
