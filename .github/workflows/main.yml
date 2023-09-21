@@ -30,6 +30,7 @@ jobs:
 
           GENERATOR_FLAG=""
           if [ "$RUNNER_OS" == "Windows" ]; then
+            choco install ninja
             GENERATOR_FLAG="-GNinja"
           fi
 
