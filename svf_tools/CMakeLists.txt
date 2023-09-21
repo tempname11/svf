@@ -19,13 +19,6 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 endif()
 
 #
-# Force default compiler options.
-#
-# set(CMAKE_BUILD_TYPE Debug)
-# set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "ON")
-
-#
 # Customize build variants.
 #
 
@@ -63,7 +56,6 @@ if (NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
     -fsanitize=undefined
     -fsanitize=implicit-conversion
     -fsanitize=local-bounds
-    # -fno-sanitize=alignment
     -fsanitize-trap=undefined
     -fno-sanitize-recover=undefined
   )
@@ -76,10 +68,11 @@ endif()
 # Note: this does not work properly, as these flags are duplicated twice.
 # Once from these commands, and once from some CMake magic.
 # Need to figure it out...
-if (0) # (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(OUR_FLAGS
     -Xclang
     --dependent-lib=msvcrt
+    -fms-runtime-lib=dll
   )
   list(JOIN OUR_FLAGS " " OUR_FLAGS)
 
@@ -89,6 +82,7 @@ if (0) # (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(OUR_FLAGS
     -Xclang
     --dependent-lib=msvcrtd
+    -fms-runtime-lib=dll
   )
   list(JOIN OUR_FLAGS " " OUR_FLAGS)
 
@@ -108,6 +102,9 @@ if (0)
   message("CMAKE_C_FLAGS_RELWITHDEBINFO is ${CMAKE_C_FLAGS_RELWITHDEBINFO}")
   message("CMAKE_C_FLAGS_MINSIZEREL is ${CMAKE_C_FLAGS_MINSIZEREL}")
   message("CMAKE_C_FLAGS_CUSTOM is ${CMAKE_C_FLAGS_CUSTOM}")
+  message("CMAKE_MSVC_RUNTIME_LIBRARY is ${CMAKE_MSVC_RUNTIME_LIBRARY}")
+  message("CMAKE_C_STANDARD_LIBRARIES is ${CMAKE_C_STANDARD_LIBRARIES}")
+  message("CMAKE_CXX_STANDARD_LIBRARIES is ${CMAKE_CXX_STANDARD_LIBRARIES}")
 endif()
 
 #
@@ -120,14 +117,21 @@ include_directories(../library)
 include_directories(../svf_runtime)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  # Prevent additional flags being added automatically.
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "")
+  set(CMAKE_C_STANDARD_LIBRARIES "")
+  set(CMAKE_CXX_STANDARD_LIBRARIES "")
+
   add_compile_options(
     -D_DLL
     -D_MT
     -Xclang -gcodeview
   )
+
   add_link_options(
     -Xclang -gcodeview
   )
+
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
@@ -140,6 +144,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     PRIVATE
     ../library/src/platform/windows/implementation.cpp
   )
+  target_link_libraries(platform PRIVATE user32)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_sources(platform
     PRIVATE
@@ -261,6 +266,7 @@ add_dependencies(test_b schema_B1_hpp)
 add_executable(test_c
   src/test/c.c
 )
+target_compile_options(test_c PRIVATE)
 add_dependencies(test_c single_file_h)
 add_dependencies(test_c schema_A0_h)
 add_dependencies(test_c schema_A1_h)
