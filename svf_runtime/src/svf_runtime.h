@@ -2,10 +2,12 @@
 #define SVF_RUNTIME_H
 
 #ifdef __cplusplus
+  #include <climits>
   #include <cstddef>
   #include <cstdint>
   #include <cstdbool>
 #else
+  #include <limits.h>
   #include <stddef.h>
   #include <stdint.h>
   #include <stdbool.h>
@@ -14,6 +16,27 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if defined(__clang__) && defined(__LITTLE_ENDIAN__)
+  #define SVF_PLATFORM_LITTLE_ENDIAN 1
+#endif
+
+#ifndef SVF_PLATFORM_LITTLE_ENDIAN
+  #error "This library only supports little-endian platforms. Auto-detection failed, so if your platform is indeed little-endian, please #define SVF_PLATFORM_LITTLE_ENDIAN manually."
+#endif
+
+#if CHAR_BIT != 8
+  #error "This library only supports 8-bit bytes. What on earth are you compiling for?!"
+#endif
+
+// Use the "negative array size" trick to emulate `static_assert`. The function
+// itself is not needed, it can be discarded as long as it compiles.
+#define X(expr) (void) sizeof(int[(expr) ? 1 : -1]);
+static inline
+void SVFRT_compile_time_checks(void) {
+  X(sizeof(char) == 1);
+}
+#undef X
 
 #ifndef SVF_COMMON_C_TYPES_INCLUDED
 #define SVF_COMMON_C_TYPES_INCLUDED

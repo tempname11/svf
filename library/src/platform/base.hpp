@@ -9,7 +9,7 @@ static_assert(sizeof(size_t) == 8);
 static_assert((size_t) NULL == (size_t) 0);
 static_assert(CHAR_BIT == 8);
 
-// Additional assumption: little endian (no simple way to check it?).
+static_assert(__LITTLE_ENDIAN__); // Clang-specific.
 
 // Aliases for types we will use a lot, short and consistent.
 // Like other types, these have uppercase first letter naming.
