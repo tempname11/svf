@@ -19,7 +19,6 @@ if (
   message(FATAL_ERROR "Target architecture must be x64 or arm64.")
 endif()
 
-message(${CMAKE_CXX_COMPILER_ID})
 if (
   NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
   AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
@@ -58,7 +57,7 @@ list(JOIN OUR_FLAGS " " OUR_FLAGS)
 set(CMAKE_CXX_FLAGS_DEBUG ${OUR_FLAGS})
 set(CMAKE_C_FLAGS_DEBUG ${OUR_FLAGS})
 
-if (NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_CROSSCOMPILING)
   # Note: UBSan stopped working on Windows after some changes in this file, why?
   # lld-link: error /failifmismatch: mismatch detected for '_ITERATOR_DEBUG_LEVEL'
 
@@ -182,13 +181,6 @@ add_executable(svfc
 target_link_libraries(svfc PRIVATE platform)
 
 #
-# `svfc`
-#
-add_executable(amalgamate_runtime
-  src/exe/amalgamate_runtime.cpp
-)
-
-#
 # `svf_runtime`, compiled as C.
 #
 add_library(svf_runtime
@@ -196,6 +188,21 @@ add_library(svf_runtime
   ../svf_runtime/src/svf_runtime.c
   ../svf_runtime/src/svf_compatibility.c
   ../svf_runtime/src/svf_conversion.c
+)
+
+#
+# Everything below will only be built when compiling for the same platform as
+# the host, as it involves running freshly-built executables.
+#
+if (CMAKE_CROSSCOMPILING)
+  return()
+endif()
+
+#
+# `amalgamate_runtime`
+#
+add_executable(amalgamate_runtime
+  src/exe/amalgamate_runtime.cpp
 )
 
 #
