@@ -1,6 +1,6 @@
 # Simple, Versatile Format
 
-[![Build Status](https://github.com/tempname11/svf/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/tempname11/svf/actions/workflows/main.yml) ![Alpha](https://img.shields.io/badge/alpha-orange)
+[![Build Status](https://github.com/tempname11/svf/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/tempname11/svf/actions/workflows/main.yml?query=branch:main) ![Alpha](https://img.shields.io/badge/alpha-orange)
 
 **SVF** is a format for structured data that is focused on being both machine-friendly, and human-friendly — in that order. Currently, it's in alpha, meaning that while most of the core functionality is working, there is still a lot to be done (see [Roadmap](#roadmap)).
 

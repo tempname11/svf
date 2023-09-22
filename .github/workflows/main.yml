@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
   push:
+    branches:
+      - main
 
 jobs:
   build-and-test:
@@ -11,15 +13,17 @@ jobs:
       matrix:
         os-type: [Windows, Linux, macOS]
         build-type: [Debug, Release]
-        arch-type: [x64]
+        arch-type: [x64, arm64]
         include:
           - os-type: Windows
-            os: windows-2022
+            runner-os: windows-2022
           - os-type: Linux
-            os: ubuntu-22.04
+            runner-os: ubuntu-22.04
           - os-type: macOS
-            os: macos-12
-    runs-on: ${{ matrix.os }}
+            runner-os: macos-12
+
+    runs-on: ${{ matrix.runner-os }}
+
     steps:
       - run: git config --global core.autocrlf false
 
@@ -30,16 +34,51 @@ jobs:
         run: |
           # ...
 
-          GENERATOR_FLAG=""
+          GENERATOR_FLAGS=""
+          CROSS_FLAGS=""
+
           if [ "$RUNNER_OS" == "Windows" ]; then
             choco install ninja
-            GENERATOR_FLAG="-GNinja"
+            GENERATOR_FLAGS="-GNinja"
+
+            if [ "${{ matrix.arch-type }}" == "arm64" ]; then
+              CROSS_FLAGS="
+                -DCMAKE_SYSTEM_NAME=Windows
+                -DCMAKE_SYSTEM_PROCESSOR=arm64
+                -DCMAKE_C_COMPILER_TARGET=aarch64-windows-msvc
+                -DCMAKE_CXX_COMPILER_TARGET=aarch64-windows-msvc
+              "
+            fi
+          fi
+
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            if [ "${{ matrix.arch-type }}" == "arm64" ]; then
+              sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libstdc++-12-dev-arm64-cross
+              CROSS_FLAGS="
+                -DCMAKE_SYSTEM_NAME=Linux
+                -DCMAKE_SYSTEM_PROCESSOR=arm64
+                -DCMAKE_C_COMPILER_TARGET=aarch64-linux-gnu
+                -DCMAKE_CXX_COMPILER_TARGET=aarch64-linux-gnu
+              "
+            fi
+          fi
+
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            if [ "${{ matrix.arch-type }}" == "arm64" ]; then
+              CROSS_FLAGS="
+                -DCMAKE_SYSTEM_NAME=Darwin
+                -DCMAKE_SYSTEM_PROCESSOR=arm64
+                -DCMAKE_C_COMPILER_TARGET=aarch64-apple-darwin
+                -DCMAKE_CXX_COMPILER_TARGET=aarch64-apple-darwin
+              "
+            fi
           fi
 
           cmake \
             -S svf_tools \
             -B .build \
-            ${GENERATOR_FLAG} \
+            ${GENERATOR_FLAGS} \
+            ${CROSS_FLAGS} \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
@@ -49,10 +88,15 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: svfc_${{ matrix.os-type }}_${{ matrix.arch-type}}_${{ matrix.build-type }}_r${{ github.run_id }}
-          path: |
-            .build/svfc*
-            .build/custom/generated/svf.h
+          name: svfc_${{ matrix.os-type }}_${{ matrix.arch-type }}_${{ matrix.build-type }}_r${{ github.run_id }}
+          path: .build/svfc*
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v3
+        if: ${{ matrix.os-type == 'Linux' && matrix.arch-type == 'x64' && matrix.build-type == 'Release' }}
+        with:
+          name: svf_h_r${{ github.run_id }}
+          path: .build/custom/generated/svf.h
           if-no-files-found: error
 
   assemble-release-package:
@@ -71,13 +115,24 @@ jobs:
           # ...
 
           mkdir -p .package/tools/Windows_x64/
+          mkdir -p .package/tools/Windows_arm64/
           mkdir -p .package/tools/Linux_x64/
+          mkdir -p .package/tools/Linux_arm64/
+          mkdir -p .package/tools/macOS_x64/
+          mkdir -p .package/tools/macOS_arm64/
           mkdir -p .package/runtime/src/
-          mkdir -p .package/runtime/single-file
-          cp .artifacts/svfc_Windows_x64_Release_*/svfc.exe .package/tools/Windows_x64/svfc.exe
-          cp .artifacts/svfc_Linux_x64_Release_*/svfc .package/tools/Linux_x64/svfc
-          cp .artifacts/svfc_Linux_x64_Release_*/custom/generated/svf.h .package/runtime/single-file/
+          mkdir -p .package/runtime/single-file/
+
+          cp .artifacts/svfc_Windows_x64_Release_r*/svfc.exe .package/tools/Windows_x64/
+          cp .artifacts/svfc_Windows_arm64_Release_r*/svfc.exe .package/tools/Windows_arm64/
+          cp .artifacts/svfc_Linux_x64_Release_r*/svfc .package/tools/Linux_x64/
+          cp .artifacts/svfc_Linux_arm64_Release_r*/svfc .package/tools/Linux_arm64/
+          cp .artifacts/svfc_macOS_x64_Release_r*/svfc .package/tools/macOS_x64/
+          cp .artifacts/svfc_macOS_arm64_Release_r*/svfc .package/tools/macOS_arm64/
+
+          cp .artifacts/svf_h_r*/svf.h .package/runtime/single-file/
           cp -r svf_runtime/src/* .package/runtime/src/
+
           echo "Built at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> .package/.build-info
 
       - uses: actions/upload-artifact@v3
