@@ -209,7 +209,7 @@ bool SVFRT_check_struct(
     return false;
   }
 
-  // @Performance: N^2
+  // TODO @performance: N^2
   for (size_t i = 0; i < fields1.count; i++) {
     SVF_META_FieldDefinition *field1 = fields1.pointer + i;
 
@@ -372,7 +372,7 @@ void SVFRT_check_compatibility(
   SVFRT_Bytes r0 = schema_write;
   SVFRT_Bytes r1 = schema_read;
 
-  // This will break when proper alignment is done. @proper-alignment
+  // TODO @proper-alignment.
   SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));
   SVF_META_Schema *s1 = (SVF_META_Schema *) (r1.pointer + r1.count - sizeof(SVF_META_Schema));
 

@@ -216,7 +216,7 @@ Reference<T> write_reference(
     /*.count =*/ sizeof(T),
   };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -228,7 +228,7 @@ Reference<T> write_reference(
     /*.data_offset_complement =*/ ~ctx->data_bytes_written
   };
 
-  // Potential overflow...
+  // TODO @correctness: potential int overflow?
   ctx->data_bytes_written += bytes.count;
   return result;
 }
@@ -257,7 +257,7 @@ Sequence<T> write_sequence(
     /*.count =*/ sizeof(T) * size,
   };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -311,7 +311,7 @@ void write_sequence_element(
     /*.count =*/ sizeof(T),
   };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {

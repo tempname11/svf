@@ -1,3 +1,4 @@
+#include <src/svf_runtime.h>
 #include "common.hpp"
 
 TypePluralityAndSize get_plurality(
@@ -54,8 +55,8 @@ TypePluralityAndSize get_plurality(
           auto index = in_union->concrete.type_union.defined_choice.index;
           ASSERT(index < choices.count);
           auto payload_size = choices.pointer[index].payload_size;
-          U32 tag_size = 1; // Only U8 supported right now. @only-u8-tag
-          return { TypePlurality::enum_and_union, tag_size + payload_size };
+          // TODO @proper-alignment.
+          return { TypePlurality::enum_and_union, SVFRT_TAG_SIZE + payload_size };
         }
         default: {
           ASSERT(false);

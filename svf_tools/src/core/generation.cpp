@@ -1,11 +1,12 @@
 #include <src/library.hpp>
+#include <src/svf_runtime.h>
 #include "../core.hpp"
 
 namespace core::generation {
 
 namespace meta = svf::META;
 
-// @Performance: this should be replaced by a hash table.
+// TODO @performance: should this be replaced by a hash table?
 grammar::TopLevelDefinition *resolve_by_name_hash(
   grammar::Root *in_root,
   U64 name_hash
@@ -138,8 +139,7 @@ OutputTypeResult output_concrete_type(
 
         // We rely on the fact that this type has already been output.
         auto payload_size = choices.pointer[choice_index].payload_size;
-        U32 tag_size = 1; // Only U8 tag supported right now. @only-u8-tag
-        return {true, payload_size, tag_size};
+        return {true, payload_size, SVFRT_TAG_SIZE};
 
       } else {
         ASSERT(false);
@@ -254,7 +254,7 @@ Bytes as_bytes(
     assigned_orders.pointer[i] = UInt(-1);
   }
 
-  // @Performance: this is O(N^2) worst-case.
+  // TODO @performance: N^2.
   UInt current_order = 0;
   for (;;) {
     Bool all_ok = true;
@@ -397,7 +397,7 @@ Bytes as_bytes(
             true // allow_tag
           );
 
-          // Will break with @proper-alignment.
+          // TODO @proper-alignment.
           size_sum += result.main_size;
           size_sum += result.tag_size;
 

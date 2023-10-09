@@ -1,7 +1,7 @@
 #pragma once
 #include <src/library.hpp>
-#include "core/grammar.hpp"
 #include <src/svf_meta.hpp>
+#include "core/grammar.hpp"
 
 namespace core {
   namespace meta = svf::META;

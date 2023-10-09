@@ -176,7 +176,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
     auto field = fields.pointer + i;
 
     // We don't support custom struct layouts yet.
-    // Also, will break on @proper-alignment.
+    // TODO @proper-alignment.
     if (field->offset != size_sum) {
       return false;
     }
@@ -231,7 +231,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
     }
   }
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   if (size_sum != it->size) {
     return false;
   }
@@ -304,7 +304,7 @@ Bytes as_code(
   Bytes schema_bytes,
   validation::Result *validation_result
 ) {
-  // This will break when proper alignment is done. @proper-alignment
+  // TODO @proper-alignment.
   auto in_schema = (meta::Schema *) (
     schema_bytes.pointer +
     schema_bytes.count -

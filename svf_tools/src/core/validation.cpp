@@ -32,7 +32,7 @@ bool has_higher_dependencies(
 }
 
 Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
-  // This will break when proper alignment is done. @proper-alignment
+  // TODO @proper-alignment.
   auto in_schema = (meta::Schema *) (
     schema_bytes.pointer +
     schema_bytes.count -

@@ -64,6 +64,11 @@ typedef struct SVFRT_MessageHeader {
 
 #define SVFRT_MESSAGE_PART_ALIGNMENT 8
 
+// If tags ever become capable of being > 1 byte wide, this macro needs to be
+// removed altogether. Code that relies on it being exactly 1 byte currently,
+// needs to reference this macro.
+#define SVFRT_TAG_SIZE 1
+
 // Must allocate with alignment of at least `SVFRT_MESSAGE_PART_ALIGNMENT`.
 typedef void *(SVFRT_AllocatorFn)(void *allocate_ptr, size_t size);
 
@@ -151,7 +156,7 @@ SVFRT_Reference SVFRT_write_reference(
 ) {
   SVFRT_Bytes bytes = { (uint8_t *) in_pointer, size };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -162,7 +167,7 @@ SVFRT_Reference SVFRT_write_reference(
 
   SVFRT_Reference result = { ~ctx->data_bytes_written };
 
-  // TODO: Potential overflow...
+  // TODO: @correctness: potential int overflow?
   ctx->data_bytes_written += bytes.count;
   return result;
 }
@@ -176,7 +181,7 @@ SVFRT_Sequence SVFRT_write_sequence(
 ) {
   SVFRT_Bytes bytes = { (uint8_t *) in_pointer, size * count };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -187,7 +192,7 @@ SVFRT_Sequence SVFRT_write_sequence(
 
   SVFRT_Sequence result = { ~ctx->data_bytes_written, count };
 
-  // TODO: Potential overflow...
+  // TODO @correctness: potential int overflow?
   ctx->data_bytes_written += bytes.count;
   return result;
 }
@@ -209,7 +214,7 @@ void SVFRT_write_sequence_element(
 
   SVFRT_Bytes bytes = { (uint8_t *) in_pointer, size };
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -220,7 +225,7 @@ void SVFRT_write_sequence_element(
     inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
   }
 
-  // TODO: Potential overflow...
+  // TODO @correctness: potential int overflow?
   inout_sequence->count += 1;
   ctx->data_bytes_written += bytes.count;
 }

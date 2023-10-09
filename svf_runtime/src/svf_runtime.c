@@ -135,7 +135,7 @@ void SVFRT_read_message_implementation(
     SVFRT_Bytes r0 = schema_range;
     SVFRT_Bytes r1 = expected_schema;
 
-    // This will break when proper alignment is done. @proper-alignment
+    // TODO @proper-alignment.
     SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));
     SVF_META_Schema *s1 = (SVF_META_Schema *) (r1.pointer + r1.count - sizeof(SVF_META_Schema));
 
@@ -150,7 +150,7 @@ void SVFRT_read_message_implementation(
 
     uint32_t entry_size = check_result.entry_size0;
 
-    // This will break when proper alignment is done. @proper-alignment
+    // TODO @proper-alignment.
     SVFRT_Bytes entry_input_bytes = {
       /*.pointer =*/ data_range.pointer + data_range.count - entry_size,
       /*.count =*/ entry_size,
@@ -175,14 +175,14 @@ void SVFRT_read_message_implementation(
   }
 
   uint32_t entry_size = check_result.struct_strides.pointer[entry_index];
-  size_t entry_alignment = 1; // Will break on @proper-alignment
+  size_t entry_alignment = 1; // TODO @proper-alignment.
 
   if (final_data_range.count < entry_size) {
     // printf("Data is too small.\n");
     return;
   }
 
-  // This will break when proper alignment is done. @proper-alignment
+  // TODO @proper-alignment.
   result->compatibility_level = check_result.level;
   if (check_result.level == SVFRT_compatibility_logical) {
     result->allocation = final_data_range.pointer;

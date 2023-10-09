@@ -1,4 +1,5 @@
 #include <src/library.hpp>
+#include <src/svf_runtime.h>
 #include "../core.hpp"
 #include "common.hpp"
 #include "output_common.hpp"
@@ -151,7 +152,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
     auto field = fields.pointer + i;
 
     // We don't support custom struct layouts yet.
-    // Also, will break on @proper-alignment.
+    // TODO @proper-alignment.
     if (field->offset != size_sum) {
       return false;
     }
@@ -206,7 +207,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
     }
   }
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   if (size_sum != it->size) {
     return false;
   }
@@ -221,7 +222,8 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
 
   output_cstring(ctx, "enum class ");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_enum: U8 {\n"); // @only-u8-tag
+  static_assert(SVFRT_TAG_SIZE == 1);
+  output_cstring(ctx, "_enum: U8 {\n");
 
   auto options = to_range(ctx->in_bytes, it->options);
   UInt size_max = 0;
@@ -327,7 +329,7 @@ Bytes as_code(
   Bytes schema_bytes,
   validation::Result *validation_result
 ) {
-  // This will break when proper alignment is done. @proper-alignment
+  // TODO @proper-alignment.
   auto in_schema = (meta::Schema *) (
     schema_bytes.pointer +
     schema_bytes.count -

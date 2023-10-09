@@ -105,7 +105,7 @@ void SVFRT_bump_size(
   SVFRT_ConversionContext *ctx,
   size_t size
 ) {
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   ctx->allocation_needed += size;
 }
 
@@ -121,7 +121,7 @@ void SVFRT_bump_structs(
     return;
   }
 
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
   ctx->allocation_needed += s1->size * count;
 }
 
@@ -178,10 +178,9 @@ void SVFRT_bump_type(
         uint32_t inner_c0_index = u0->concrete.type_union.defined_choice.index;
         uint32_t inner_c1_index = u1->concrete.type_union.defined_choice.index;
 
-        // @only-u8-tag
         SVFRT_Bytes input_tag_bytes = {
           /*.pointer =*/ range_from.pointer + offset_from,
-          /*.count =*/ 1,
+          /*.count =*/ SVFRT_TAG_SIZE,
         };
 
         if (input_tag_bytes.pointer + input_tag_bytes.count > range_from.pointer + range_from.count) {
@@ -229,8 +228,7 @@ void SVFRT_bump_type(
           option0->type_enum,
           &option0->type_union,
           range_from,
-          // @only-u8-tag
-          offset_from + 1,
+          offset_from + SVFRT_TAG_SIZE,
           option1->type_enum,
           &option1->type_union
         );
@@ -444,7 +442,7 @@ void SVFRT_bump_struct_contents(
   // Go over any sequences and references in the intersection between s0 and s1.
   // Sub-structs and choices may also contain these, so recurse over them.
 
-  // @Performance: N^2
+  // @TODO @performance: N^2.
   for (size_t i = 0; i < fields0.count; i++) {
     SVF_META_FieldDefinition *field0 = fields0.pointer + i;
 
@@ -577,7 +575,7 @@ void SVFRT_copy_concrete(
 
         SVFRT_Bytes input_tag_bytes = {
           /*.pointer =*/ range_from.pointer + offset_from,
-          /*.count =*/ 1,
+          /*.count =*/ SVFRT_TAG_SIZE,
         };
         if (input_tag_bytes.pointer + input_tag_bytes.count > range_from.pointer + range_from.count) {
           ctx->internal_error = true;
@@ -586,14 +584,13 @@ void SVFRT_copy_concrete(
 
         SVFRT_Bytes output_tag_bytes = {
           /*.pointer =*/ range_to.pointer + offset_to,
-          /*.count =*/ 1,
+          /*.count =*/ SVFRT_TAG_SIZE,
         };
         if (output_tag_bytes.pointer + output_tag_bytes.count > range_to.pointer + range_to.count) {
           ctx->internal_error = true;
           return;
         }
 
-        // @only-u8-tag
         uint8_t input_tag = *input_tag_bytes.pointer;
 
         SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
@@ -633,7 +630,6 @@ void SVFRT_copy_concrete(
           return;
         }
 
-        // @only-u8-tag
         *output_tag_bytes.pointer = option1->index;
 
         SVFRT_copy_type(
@@ -642,13 +638,13 @@ void SVFRT_copy_concrete(
           option0->type_enum,
           &option0->type_union,
           range_from,
-          // @only-u8-tag @proper-alignment
-          offset_from + 1,
+          // TODO @proper-alignment.
+          offset_from + SVFRT_TAG_SIZE,
           option1->type_enum,
           &option1->type_union,
           range_to,
-          // @only-u8-tag @proper-alignment
-          offset_to + 1
+          // TODO @proper-alignment.
+          offset_to + SVFRT_TAG_SIZE
         );
 
         break;
@@ -1010,7 +1006,7 @@ void SVFRT_conversion_suballocate(
   SVFRT_ConversionContext *ctx,
   uint32_t size
 ) {
-  // Will break on @proper-alignment.
+  // TODO @proper-alignment.
 
   if (ctx->allocated_already + (uint64_t) size > ctx->allocation.count) {
     return;
@@ -1130,7 +1126,7 @@ void SVFRT_copy_type(
     SVFRT_conversion_suballocate(
       &suballocation,
       ctx,
-      // Will break on @proper-alignment.
+      // TODO @proper-alignment.
       inner_output_size * in_sequence.count
     );
 
@@ -1193,7 +1189,7 @@ void SVFRT_copy_struct(
 
   // Go over the intersection between s0 and s1.
 
-  // @Performance: N^2
+  // TODO @performance: N^2.
   for (size_t i = 0; i < fields0.count; i++) {
     SVF_META_FieldDefinition *field0 = fields0.pointer + i;
 
@@ -1292,7 +1288,7 @@ void SVFRT_convert_message(
 
   // Entry is special, as it always resides at the end of the data range.
   //
-  // Will break on @proper-alignment.
+  // TODO: @proper-alignment.
   SVFRT_Bytes entry_output_bytes = {
     /*.pointer =*/ ctx->allocation.pointer + ctx->allocation.count - s1->size,
     /*.size =*/ s1->size,
@@ -1310,7 +1306,8 @@ void SVFRT_convert_message(
   // The above call will have "allocated" memory for everything preceding the
   // entry, but also copied fields of the entry struct without marking that
   // struct's memory as allocated. This is the only thing that remains.
-  // Will break on @proper-alignment.
+  //
+  // TODO: @proper-alignment.
   ctx->allocated_already += s1->size;
 
   if (ctx->allocated_already != ctx->allocation.count) {
