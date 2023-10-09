@@ -29,15 +29,6 @@ extern "C" {
   #error "This library only supports 8-bit bytes. What on earth are you compiling for?!"
 #endif
 
-// Use the "negative array size" trick to emulate `static_assert`. The function
-// itself is not needed, it can be discarded as long as it compiles.
-#define X(expr) (void) sizeof(int[(expr) ? 1 : -1]);
-static inline
-void SVFRT_compile_time_checks(void) {
-  X(sizeof(char) == 1);
-}
-#undef X
-
 #ifndef SVF_COMMON_C_TYPES_INCLUDED
 #define SVF_COMMON_C_TYPES_INCLUDED
 #pragma pack(push, 1)
