@@ -76,8 +76,8 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
     schema::SchemaDescription::min_read_scratch_memory_size
   );
   auto read_result = svf::runtime::read_message<schema::Entry>(
-    svf::runtime::Range<U8> { input_range.pointer, input_range.count },
-    svf::runtime::Range<U8> { scratch_memory.pointer, scratch_memory.count },
+    svf::runtime::Range<U8> { input_range.pointer, (U32) input_range.count },
+    svf::runtime::Range<U8> { scratch_memory.pointer, (U32) scratch_memory.count },
     svf::runtime::CompatibilityLevel::compatibility_logical,
     malloc_adapter
   );

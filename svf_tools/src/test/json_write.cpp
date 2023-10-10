@@ -15,11 +15,11 @@ void example_write(FILE *file) {
 
   JSON::Field fields[2] = {};
 
-  fields[0].name = RT::write_fixed_size_array_u8(&ctx, "hello");
+  fields[0].name = RT::write_fixed_size_string<svf::U8>(&ctx, "hello");
   fields[0].value_enum = JSON::Value_enum::number;
   fields[0].value_union.number = 42.0;
 
-  fields[1].name = RT::write_fixed_size_array_u8(&ctx, "world");
+  fields[1].name = RT::write_fixed_size_string<svf::U8>(&ctx, "world");
   fields[1].value_enum = JSON::Value_enum::array;
   for (int i = 0; i < 42; i++) {
     JSON::Item item = {};

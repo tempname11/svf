@@ -12,42 +12,42 @@ extern "C" {
 
 typedef struct SVFRT_RangeStructDefinition {
   SVF_META_StructDefinition *pointer;
-  uint64_t count;
+  uint32_t count;
 } SVFRT_RangeStructDefinition;
 
 typedef struct SVFRT_RangeChoiceDefinition {
   SVF_META_ChoiceDefinition *pointer;
-  uint64_t count;
+  uint32_t count;
 } SVFRT_RangeChoiceDefinition;
 
 typedef struct SVFRT_RangeFieldDefinition {
   SVF_META_FieldDefinition *pointer;
-  uint64_t count;
+  uint32_t count;
 } SVFRT_RangeFieldDefinition;
 
 typedef struct SVFRT_RangeOptionDefinition {
   SVF_META_OptionDefinition *pointer;
-  uint64_t count;
+  uint32_t count;
 } SVFRT_RangeOptionDefinition;
 
-void *SVFRT_from_reference(
+void *SVFRT_internal_from_reference(
   SVFRT_Bytes bytes,
   SVFRT_Reference reference,
-  size_t type_size
+  uint32_t type_size
 );
 
-void *SVFRT_from_sequence(
+void *SVFRT_internal_from_sequence(
   SVFRT_Bytes bytes,
   SVFRT_Sequence sequence,
-  size_t type_size
+  uint32_t type_size
 );
 
-#define SVFRT_POINTER_FROM_REFERENCE(bytes, reference, type) ( \
-  SVFRT_from_reference((bytes), (reference), sizeof(type)), \
+#define SVFRT_INTERNAL_POINTER_FROM_REFERENCE(bytes, reference, type) ( \
+  SVFRT_internal_from_reference((bytes), (reference), sizeof(type)), \
 )
 
-#define SVFRT_RANGE_FROM_SEQUENCE(bytes, sequence, type) { \
-  /*.pointer = */ (type *) SVFRT_from_sequence((bytes), (sequence), sizeof(type)), \
+#define SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(bytes, sequence, type) { \
+  /*.pointer = */ (type *) SVFRT_internal_from_sequence((bytes), (sequence), sizeof(type)), \
   /*.count = */ (sequence).count \
 }
 

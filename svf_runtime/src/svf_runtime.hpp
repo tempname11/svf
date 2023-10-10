@@ -9,6 +9,10 @@
   #include "svf_runtime.h"
 #endif
 
+// Note: this file is intended to be compiled as C++11 or later.
+//
+// TODO @support: check if all popular compilers can actually build it in C++11 mode.
+
 namespace svf {
 
 #ifndef SVF_COMMON_CPP_TYPES_INCLUDED
@@ -44,29 +48,36 @@ struct Sequence {
 
 #ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
 #define SVF_COMMON_CPP_TRICKERY_INCLUDED
-
-template<typename T>
-struct GetSchemaFromType;
-
+template<typename T> struct GetSchemaFromType;
 #endif // SVF_COMMON_CPP_TRICKERY_INCLUDED
+
+template<typename T> struct IsPrimitive { using No = char; };
+template<> struct IsPrimitive<U8> { using Yes = char; };
+template<> struct IsPrimitive<U16> { using Yes = char; };
+template<> struct IsPrimitive<U32> { using Yes = char; };
+template<> struct IsPrimitive<U64> { using Yes = char; };
+template<> struct IsPrimitive<I8> { using Yes = char; };
+template<> struct IsPrimitive<I16> { using Yes = char; };
+template<> struct IsPrimitive<I32> { using Yes = char; };
+template<> struct IsPrimitive<I64> { using Yes = char; };
+template<> struct IsPrimitive<F32> { using Yes = char; };
+template<> struct IsPrimitive<F64> { using Yes = char; };
 
 namespace runtime {
 
-typedef SVFRT_MessageHeader MessageHeader;
-
 constexpr size_t MESSAGE_PART_ALIGNMENT = SVFRT_MESSAGE_PART_ALIGNMENT;
+typedef SVFRT_MessageHeader MessageHeader;
 static_assert(sizeof(MessageHeader) % MESSAGE_PART_ALIGNMENT == 0);
 
-template<typename T>
-struct Range {
+template<typename T> struct Range {
   T *pointer;
-  U64 count;
+  U32 count;
 };
 
 typedef Range<U8> Bytes;
-
 typedef SVFRT_ReadContext ReadContext;
 typedef SVFRT_AllocatorFn AllocatorFn;
+typedef SVFRT_WriterFn WriterFn;
 
 enum class CompatibilityLevel {
   compatibility_none = SVFRT_compatibility_none,
@@ -75,6 +86,8 @@ enum class CompatibilityLevel {
   compatibility_exact = SVFRT_compatibility_exact,
 };
 
+// Can't use SVFRT_ReadMessageResult directly because of slightly different
+// types, so on any changes, make sure to edit them in sync.
 template<typename T>
 struct ReadMessageResult {
   T const *entry;
@@ -82,6 +95,8 @@ struct ReadMessageResult {
   CompatibilityLevel compatibility_level;
   ReadContext context;
 };
+
+template<typename T> struct WriteContext: SVFRT_WriteContext {};
 
 template<typename Entry>
 static inline
@@ -91,7 +106,7 @@ ReadMessageResult<Entry> read_message(
   CompatibilityLevel required_level,
   AllocatorFn *allocator_fn = 0,
   void *allocator_ptr = 0
-) {
+) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_ReadMessageResult result = {};
   SVFRT_read_message_implementation(
@@ -115,10 +130,10 @@ ReadMessageResult<Entry> read_message(
     allocator_ptr
   );
   return ReadMessageResult<Entry> {
-    .entry = (Entry *) result.entry,
-    .allocation = result.allocation,
-    .compatibility_level = (CompatibilityLevel) result.compatibility_level,
-    .context = result.context,
+    /*.entry =*/ (Entry *) result.entry,
+    /*.allocation =*/ result.allocation,
+    /*.compatibility_level =*/ (CompatibilityLevel) result.compatibility_level,
+    /*.context =*/ result.context,
   };
 }
 
@@ -127,12 +142,12 @@ static inline
 T const *read_reference(
   ReadContext *ctx,
   Reference<T> reference
-) {
-  auto data_offset = ~reference.data_offset_complement;
-  if (data_offset + sizeof(T) > ctx->data_range.count) {
-    return 0;
-  }
-  return (T *) (ctx->data_range.pointer + data_offset);
+) noexcept {
+  return (T *) SVFRT_read_reference(
+    ctx,
+    SVFRT_Reference { reference.data_offset_complement },
+    sizeof(T)
+  );
 }
 
 template<typename T>
@@ -140,15 +155,17 @@ static inline
 Range<T const> read_sequence_raw(
   ReadContext *ctx,
   Sequence<T> sequence
-) {
-  // TODO: type must be primitive, check that.
+) noexcept {
+  // `T` must be primitive, see caveats for `SVFRT_read_sequence_raw`.
+  // For most other purposes, use `read_sequence_element`.
+  static_assert(sizeof(typename IsPrimitive<T>::Yes) > 0);
 
-  auto data_offset = ~sequence.data_offset_complement;
-
-  if (data_offset + sequence.count * sizeof(T) > ctx->data_range.count) {
-    return {0, 0};
-  }
-  return { (T *) (ctx->data_range.pointer + data_offset), sequence.count };
+  auto pointer = SVFRT_read_sequence_raw(
+    ctx,
+    SVFRT_Sequence { sequence.data_offset_complement, sequence.count },
+    sizeof(T)
+  );
+  return { (T const *) pointer, pointer ? sequence.count : 0 };
 }
 
 template<typename T>
@@ -156,119 +173,65 @@ static inline
 T const *read_sequence_element(
   ReadContext *ctx,
   Sequence<T> sequence,
-  U32 index
-) {
+  U32 element_index
+) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<T>::SchemaDescription;
-  auto stride = ctx->struct_strides.pointer[SchemaDescription::template PerType<T>::index];
-  if (index > sequence.count) {
-    return 0;
-  }
-  auto item_offset = ~sequence.data_offset_complement + stride * index;
-  if (item_offset + sizeof(T) > ctx->data_range.count) {
-    return 0;
-  }
-  return (T *) (ctx->data_range.pointer + item_offset);
+  return (T const *) SVFRT_read_sequence_element(
+    ctx,
+    SVFRT_Sequence { sequence.data_offset_complement, sequence.count },
+    SchemaDescription::template PerType<T>::index,
+    element_index
+  );
 }
-
-typedef SVFRT_WriterFn WriterFn;
-
-template<typename T>
-struct WriteContext {
-  void *writer_ptr;
-  WriterFn *writer_fn;
-  U32 data_bytes_written;
-  bool error;
-  bool finished;
-};
 
 template<typename Entry>
 static inline
 WriteContext<Entry> write_message_start(
   void *writer_ptr,
   WriterFn *writer_fn
-) {
+) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
-  SVFRT_WriteContext context = {};
+  WriteContext<Entry> ctx_value = {};
   SVFRT_write_message_implementation(
-    &context,
+    &ctx_value,
     writer_ptr,
     writer_fn,
     { SchemaDescription::schema_array, SchemaDescription::schema_size },
     SchemaDescription::template PerType<Entry>::name_hash
   );
-  return WriteContext<Entry> {
-    .writer_ptr = writer_ptr,
-    .writer_fn = writer_fn,
-    .data_bytes_written = context.data_bytes_written,
-    .error = context.error,
-    .finished = context.finished,
-  };
+  return ctx_value;
 }
 
 template<typename T, typename E>
 static inline
 Reference<T> write_reference(
   WriteContext<E> *ctx,
-  T const *in_pointer
-) {
-  auto bytes = SVFRT_Bytes {
-    /*.pointer =*/ (U8 *) in_pointer,
-    /*.count =*/ sizeof(T),
-  };
-
-  // TODO @proper-alignment.
-  auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
-
-  if (written != bytes.count) {
-    ctx->error = true;
-    return {};
-  }
-
-  auto result = Reference<T> {
-    /*.data_offset_complement =*/ ~ctx->data_bytes_written
-  };
-
-  // TODO @correctness: potential int overflow?
-  ctx->data_bytes_written += bytes.count;
-  return result;
+  T const *pointer
+) noexcept {
+  auto result = SVFRT_write_reference(ctx, (void *) pointer, sizeof(T));
+  return { result.data_offset_complement };
 }
 
 template<typename T>
 static inline
 void write_message_end(
   WriteContext<T> *ctx,
-  T const *in_pointer
-) {
-  write_reference<T, T>(ctx, in_pointer);
-  if (!ctx->error) {
-    ctx->finished = true;
-  }
+  T const *pointer
+) noexcept {
+  SVFRT_write_message_end(ctx, (void *) pointer, sizeof(T));
 }
 
 template<typename T, typename E>
 static inline
 Sequence<T> write_sequence(
   WriteContext<E> *ctx,
-  T const *in_pointer,
-  U32 size
-) {
-  auto bytes = SVFRT_Bytes {
-    /*.pointer =*/ (U8 *) in_pointer,
-    /*.count =*/ sizeof(T) * size,
-  };
-
-  // TODO @proper-alignment.
-  auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
-
-  if (written != bytes.count) {
-    ctx->error = true;
-  }
-
-  auto data_offset = ctx->data_bytes_written;
-  ctx->data_bytes_written += bytes.count;
+  T const *pointer,
+  U32 count
+) noexcept {
+  auto result = SVFRT_write_sequence(ctx, (void *) pointer, sizeof(T), count);
   return {
-    /*.data_offset_complement =*/ ~data_offset,
-    /*.count =*/ size,
+    /*.data_offset_complement =*/ result.data_offset_complement,
+    /*.count =*/ result.count,
   };
 }
 
@@ -276,53 +239,42 @@ template<typename T, typename E, int N>
 static inline
 Sequence<T> write_fixed_size_array(
   WriteContext<E> *ctx,
-  T const (&in_array)[N]
-) {
-  return write_sequence(ctx, in_array, (U32) N);
+  T const (&array)[N]
+) noexcept {
+  return write_sequence(ctx, (T const *) array, (U32) N);
 }
 
-template<typename T, typename E, int N>
+// Same as `write_fixed_size_array`, but with casting. Intended for use with
+// C++ string literals.
+template<typename S, typename T, typename E, int N>
 static inline
-Sequence<U8> write_fixed_size_array_u8(
+Sequence<S> write_fixed_size_string(
   WriteContext<E> *ctx,
-  T const (&in_array)[N]
-) {
-  static_assert(sizeof(T) == 1);
-  return write_sequence<U8>(ctx, (U8 *) in_array, (U32) N);
+  T const (&array)[N]
+) noexcept {
+  static_assert(sizeof(typename IsPrimitive<S>::Yes) > 0);
+  static_assert(sizeof(S) == sizeof(T));
+
+  return write_sequence(ctx, (S const *) array, (U32) N);
 }
 
 template<typename T, typename E>
 static inline
 void write_sequence_element(
   WriteContext<E> *ctx,
-  T const *in_pointer,
+  T const *pointer,
   Sequence<T> *inout_sequence
-) {
-  if (
-    inout_sequence->count != 0 &&
-    ~inout_sequence->data_offset_complement + inout_sequence->count * sizeof(T) != ctx->data_bytes_written
-  ) {
-    ctx->error = true;
-    return;
-  }
-
-  auto bytes = SVFRT_Bytes {
-    /*.pointer =*/ (U8 *) in_pointer,
-    /*.count =*/ sizeof(T),
+) noexcept {
+  // TODO: this back-and-forth conversion sure is clumsy. Improve this somehow?
+  SVFRT_Sequence sequence = {
+    /*.data_offset_complement =*/ inout_sequence->data_offset_complement,
+    /*.count =*/ inout_sequence->count,
   };
 
-  // TODO @proper-alignment.
-  auto written = ctx->writer_fn(ctx->writer_ptr, bytes);
+  SVFRT_write_sequence_element(ctx, (void *) pointer, sizeof(T), &sequence);
 
-  if (written != bytes.count) {
-    ctx->error = true;
-  }
-
-  if (inout_sequence->count == 0) {
-    inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
-  }
-  inout_sequence->count += 1;
-  ctx->data_bytes_written += bytes.count;
+  inout_sequence->data_offset_complement = sequence.data_offset_complement;
+  inout_sequence->count = sequence.count;
 }
 
 } // namespace runtime

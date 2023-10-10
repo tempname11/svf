@@ -175,8 +175,8 @@ bool SVFRT_check_struct(
   }
   ctx->s1_struct_matches.pointer[s1_index] = s0_index;
 
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
   if (!structs0.pointer || !structs1.pointer) {
     // Internal error.
     return false;
@@ -185,8 +185,8 @@ bool SVFRT_check_struct(
   SVF_META_StructDefinition *s0 = structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, s1->fields, SVF_META_FieldDefinition);
 
   if (!fields0.pointer || !fields0.pointer) {
     // Internal error.
@@ -210,11 +210,11 @@ bool SVFRT_check_struct(
   }
 
   // TODO @performance: N^2
-  for (size_t i = 0; i < fields1.count; i++) {
+  for (uint32_t i = 0; i < fields1.count; i++) {
     SVF_META_FieldDefinition *field1 = fields1.pointer + i;
 
     bool found = false;
-    for (size_t j = 0; j < fields0.count; j++) {
+    for (uint32_t j = 0; j < fields0.count; j++) {
       SVF_META_FieldDefinition *field0 = fields0.pointer + j;
 
       if (field0->name_hash == field1->name_hash) {
@@ -278,8 +278,8 @@ bool SVFRT_check_choice(
   }
   ctx->s1_choice_matches.pointer[s1_index] = s0_index;
 
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
   if (!choices0.pointer || !choices1.pointer) {
     // Internal error.
     return false;
@@ -288,8 +288,8 @@ bool SVFRT_check_choice(
   SVF_META_ChoiceDefinition *c0 = choices0.pointer + s0_index;
   SVF_META_ChoiceDefinition *c1 = choices1.pointer + s1_index;
 
-  SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, c0->options, SVF_META_OptionDefinition);
-  SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, c1->options, SVF_META_OptionDefinition);
+  SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, c0->options, SVF_META_OptionDefinition);
+  SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, c1->options, SVF_META_OptionDefinition);
 
   if (!options0.pointer || !options0.pointer) {
     // Internal error.
@@ -311,11 +311,12 @@ bool SVFRT_check_choice(
     return false;
   }
 
-  for (size_t i = 0; i < options0.count; i++) {
+  // TODO @performance: N^2
+  for (uint32_t i = 0; i < options0.count; i++) {
     SVF_META_OptionDefinition *option0 = options0.pointer + i;
 
     bool found = false;
-    for (size_t j = 0; j < options1.count; j++) {
+    for (uint32_t j = 0; j < options1.count; j++) {
       SVF_META_OptionDefinition *option1 = options1.pointer + j;
 
       if (option0->name_hash == option1->name_hash) {
@@ -353,7 +354,7 @@ bool SVFRT_check_choice(
 }
 
 void SVFRT_check_compatibility(
-  SVFRT_CompatibilityResult *result,
+  SVFRT_CompatibilityResult *out_result,
   SVFRT_Bytes scratch_memory,
   SVFRT_Bytes schema_write,
   SVFRT_Bytes schema_read,
@@ -403,11 +404,11 @@ void SVFRT_check_compatibility(
     /*.count =*/ s1->structs.count
   };
 
-  for (size_t i = 0; i < s1->structs.count; i++) {
+  for (uint32_t i = 0; i < s1->structs.count; i++) {
     s1_struct_matches.pointer[i] = (uint32_t) (-1);
     s1_struct_strides.pointer[i] = 0;
   }
-  for (size_t i = 0; i < s1->choices.count; i++) {
+  for (uint32_t i = 0; i < s1->choices.count; i++) {
     s1_choice_matches.pointer[i] = (uint32_t) (-1);
   }
 
@@ -424,32 +425,32 @@ void SVFRT_check_compatibility(
   };
   SVFRT_CheckContext *ctx = &ctx_val;
 
-  size_t struct_index0 = (size_t) (-1);
-  size_t struct_index1 = (size_t) (-1);
+  uint32_t struct_index0 = (uint32_t) (-1);
+  uint32_t struct_index1 = (uint32_t) (-1);
 
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
 
   if (!structs0.pointer || !structs1.pointer) {
     // Internal error.
     return;
   }
 
-  for (size_t i = 0; i < structs0.count; i++) {
+  for (uint32_t i = 0; i < structs0.count; i++) {
     if (structs0.pointer[i].name_hash == entry_name_hash) {
       struct_index0 = i;
       break;
     }
   }
 
-  for (size_t i = 0; i < structs1.count; i++) {
+  for (uint32_t i = 0; i < structs1.count; i++) {
     if (structs1.pointer[i].name_hash == entry_name_hash) {
       struct_index1 = i;
       break;
     }
   }
 
-  if (struct_index0 == (size_t) (-1) || struct_index1 == (size_t) (-1)) {
+  if (struct_index0 == (uint32_t) (-1) || struct_index1 == (uint32_t) (-1)) {
     // Internal error.
     return;
   }
@@ -470,9 +471,9 @@ void SVFRT_check_compatibility(
     }
   }
 
-  result->level = ctx->current_level;
-  result->struct_strides = ctx->s1_struct_strides;
-  result->entry_size0 = structs0.pointer[struct_index0].size;
-  result->entry_struct_index0 = struct_index0;
-  result->entry_struct_index1 = struct_index1;
+  out_result->level = ctx->current_level;
+  out_result->struct_strides = ctx->s1_struct_strides;
+  out_result->entry_size0 = structs0.pointer[struct_index0].size;
+  out_result->entry_struct_index0 = struct_index0;
+  out_result->entry_struct_index1 = struct_index1;
 }

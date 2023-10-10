@@ -21,11 +21,11 @@ static inline
 uint32_t SVFRT_fwrite(void *file, SVFRT_Bytes bytes) {
   size_t result = fwrite(bytes.pointer, 1, bytes.count, (FILE *) file);
   if (result != bytes.count) {
-    // Signal error
+    // Signal an error.
     return 0;
   }
   if (result > (size_t) UINT32_MAX) {
-    // Signal error
+    // Signal an error.
     return 0;
   }
   return result;

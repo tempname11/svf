@@ -193,8 +193,8 @@ void SVFRT_bump_type(
         SVF_META_ChoiceDefinition *c0 = ctx->choices0.pointer + inner_c0_index;
         SVF_META_ChoiceDefinition *c1 = ctx->choices1.pointer + inner_c1_index;
 
-        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
 
         if (!options0.pointer || !options1.pointer) {
           ctx->internal_error = true;
@@ -209,7 +209,7 @@ void SVFRT_bump_type(
         SVF_META_OptionDefinition *option0 = options0.pointer + input_tag;
         SVF_META_OptionDefinition *option1 = NULL;
 
-        for (size_t i = 0; i < options1.count; i++) {
+        for (uint32_t i = 0; i < options1.count; i++) {
           SVF_META_OptionDefinition *option = options1.pointer + i;
 
           if (option->name_hash == option0->name_hash) {
@@ -265,9 +265,9 @@ void SVFRT_bump_type(
         uint32_t inner_s0_index = u0->reference.type_union.defined_struct.index;
         uint32_t inner_s1_index = u1->reference.type_union.defined_struct.index;
 
-        size_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
+        uint32_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
 
-        void *inner_input_data = SVFRT_from_reference(ctx->data_bytes, in_reference, inner_input_size);
+        void *inner_input_data = SVFRT_internal_from_reference(ctx->data_bytes, in_reference, inner_input_size);
         if (!inner_input_data) {
           ctx->data_error = true;
           return;
@@ -355,13 +355,13 @@ void SVFRT_bump_type(
         uint32_t inner_s1_index = u1->sequence.element_type_union.defined_struct.index;
         size_t inner_size = ctx->structs0.pointer[inner_s0_index].size;
 
-        void *inner_data = SVFRT_from_sequence(ctx->data_bytes, in_sequence, inner_size);
+        void *inner_data = SVFRT_internal_from_sequence(ctx->data_bytes, in_sequence, inner_size);
         if (!inner_data) {
           ctx->data_error = true;
           return;
         }
 
-        for (size_t i = 0; i < in_sequence.count; i++) {
+        for (uint32_t i = 0; i < in_sequence.count; i++) {
           SVFRT_Bytes inner_range = {
             /*.pointer =*/ ((uint8_t *) inner_data) + inner_size * i,
             /*.count =*/ inner_size,
@@ -432,8 +432,8 @@ void SVFRT_bump_struct_contents(
   SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
   if (!fields0.pointer || !fields1.pointer) {
     ctx->internal_error = true;
     return;
@@ -443,10 +443,10 @@ void SVFRT_bump_struct_contents(
   // Sub-structs and choices may also contain these, so recurse over them.
 
   // @TODO @performance: N^2.
-  for (size_t i = 0; i < fields0.count; i++) {
+  for (uint32_t i = 0; i < fields0.count; i++) {
     SVF_META_FieldDefinition *field0 = fields0.pointer + i;
 
-    for (size_t j = 0; j < fields1.count; j++) {
+    for (uint32_t j = 0; j < fields1.count; j++) {
       SVF_META_FieldDefinition *field1 = fields1.pointer + j;
       if (field0->name_hash != field1->name_hash) {
         continue;
@@ -593,15 +593,15 @@ void SVFRT_copy_concrete(
 
         uint8_t input_tag = *input_tag_bytes.pointer;
 
-        SVFRT_RangeOptionDefinition options0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
+        SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
         if (!options0.pointer || !options1.pointer) {
           ctx->internal_error = true;
           return;
         }
 
         SVF_META_OptionDefinition *option0 = NULL;
-        for (size_t i = 0; i < options0.count; i++) {
+        for (uint32_t i = 0; i < options0.count; i++) {
           SVF_META_OptionDefinition *option = options0.pointer + i;
 
           if (option->index == input_tag) {
@@ -616,7 +616,7 @@ void SVFRT_copy_concrete(
         }
 
         SVF_META_OptionDefinition *option1 = NULL;
-        for (size_t i = 0; i < options1.count; i++) {
+        for (uint32_t i = 0; i < options1.count; i++) {
           SVF_META_OptionDefinition *option = options1.pointer + i;
 
           if (option->name_hash == option0->name_hash) {
@@ -1139,7 +1139,7 @@ void SVFRT_copy_type(
     out_sequence->data_offset_complement = ~(suballocation.pointer - ctx->allocation.pointer);
     out_sequence->count = in_sequence.count;
 
-    for (size_t i = 0; i < in_sequence.count; i++) {
+    for (uint32_t i = 0; i < in_sequence.count; i++) {
       SVFRT_copy_concrete(
         ctx,
         recursion_depth + 1,
@@ -1180,8 +1180,8 @@ void SVFRT_copy_struct(
   SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
   SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
+  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
   if (!fields0.pointer || !fields0.pointer) {
     ctx->internal_error = true;
     return;
@@ -1190,10 +1190,10 @@ void SVFRT_copy_struct(
   // Go over the intersection between s0 and s1.
 
   // TODO @performance: N^2.
-  for (size_t i = 0; i < fields0.count; i++) {
+  for (uint32_t i = 0; i < fields0.count; i++) {
     SVF_META_FieldDefinition *field0 = fields0.pointer + i;
 
-    for (size_t j = 0; j < fields1.count; j++) {
+    for (uint32_t j = 0; j < fields1.count; j++) {
       SVF_META_FieldDefinition *field1 = fields1.pointer + j;
       if (field0->name_hash != field1->name_hash) {
         continue;
@@ -1226,10 +1226,10 @@ void SVFRT_convert_message(
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
 ) {
-  SVFRT_RangeStructDefinition structs0 = SVFRT_RANGE_FROM_SEQUENCE(info->r0, info->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_RANGE_FROM_SEQUENCE(info->r1, info->s1->structs, SVF_META_StructDefinition);
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_RANGE_FROM_SEQUENCE(info->r0, info->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_RANGE_FROM_SEQUENCE(info->r1, info->s1->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r0, info->s0->structs, SVF_META_StructDefinition);
+  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r1, info->s1->structs, SVF_META_StructDefinition);
+  SVFRT_RangeChoiceDefinition choices0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r0, info->s0->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeChoiceDefinition choices1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r1, info->s1->choices, SVF_META_ChoiceDefinition);
 
   if (0
     || !structs0.pointer

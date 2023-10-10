@@ -28,7 +28,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     fseek(file, 0, SEEK_SET);
     void *pointer = malloc(size);
     ASSERT((size_t) size == fread(pointer, 1, size, file));
-    example_read(SVFRT_Bytes { (U8 *) pointer, (U64) size });
+    example_read(SVFRT_Bytes { (U8 *) pointer, (U32) size });
     ASSERT(ferror(file) == 0);
     ASSERT(fclose(file) == 0);
   }
