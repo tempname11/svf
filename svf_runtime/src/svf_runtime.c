@@ -1,5 +1,3 @@
-#include <assert.h>
-
 #ifndef SVFRT_SINGLE_FILE
   #include "svf_internal.h"
   #include "svf_runtime.h"
@@ -11,38 +9,41 @@ extern "C" {
 #endif
 
 static inline
-size_t align_down(size_t value, size_t alignment) {
+uint64_t SVFRT_align_down(uint64_t value, uint64_t alignment) {
   return value - value % alignment;
 }
 
 static inline
-size_t align_up(size_t value, size_t alignment) {
-  // Sanity check to prevent overflow.
-  assert(value + alignment > value);
-
-  return value + alignment - 1 - (value - 1) % alignment;
+uint64_t SVFRT_align_up(uint64_t value, uint64_t alignment) {
+  return SVFRT_align_down(value - 1, alignment) + alignment;
 }
 
-#define SVFRT_MAX_CONVERSION_RECURSION_DEPTH 256 // Some hopefully sane default.
-
+// TODO: error reporting (see all the `printf` placeholders). Probably should
+// just return an enum?
 void SVFRT_read_message_implementation(
-  SVFRT_ReadMessageResult *result,
+  SVFRT_ReadMessageResult *out_result,
   SVFRT_Bytes message_bytes,
   uint64_t entry_name_hash,
   uint32_t entry_index,
   SVFRT_Bytes expected_schema,
+  uint32_t work_max,
+  uint32_t max_recursion_depth,
+  uint32_t max_output_size,
   SVFRT_Bytes scratch_memory,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
 ) {
+  out_result->entry = NULL;
+  out_result->allocation = NULL;
+  out_result->compatibility_level = SVFRT_compatibility_none;
+
   if (message_bytes.count < sizeof(SVFRT_MessageHeader)) {
     // printf("Too small for an SVF header.\n");
     return;
   }
 
-  // Maybe not needed for all cases?
-  if (((size_t) message_bytes.pointer) % SVFRT_MESSAGE_PART_ALIGNMENT != 0) {
+  if (((uintptr_t) message_bytes.pointer) % SVFRT_MESSAGE_PART_ALIGNMENT != 0) {
     // printf("Header not aligned.\n");
     return;
   }
@@ -57,7 +58,8 @@ void SVFRT_read_message_implementation(
     return;
   }
 
-  // For now, versions must match exactly.
+  // For now, versions must match exactly. Version 0 is for development only and
+  // does not come with any guarantees.
   if (header->version != 0) {
     // printf("Does not match SVF version 0.\n");
     return;
@@ -65,13 +67,7 @@ void SVFRT_read_message_implementation(
 
   // Make sure the declared entry is the same as we expect.
   if (header->entry_name_hash != entry_name_hash) {
-    // printf("Does not match SVF version 0.\n");
-    return;
-  }
-
-  // Make sure the schema is in-bounds.
-  if (sizeof(SVFRT_MessageHeader) + (size_t) (header->schema_length) > message_bytes.count) {
-    // printf("Schema is not in-bounds.\n");
+    // printf("Entry name hash does not match.\n");
     return;
   }
 
@@ -81,28 +77,28 @@ void SVFRT_read_message_implementation(
     return;
   }
 
-  // We now have a valid schema range.
+  // Prevent addition overflow by casting operands to `uint64_t` first.
+  uint64_t schema_padded_end_offset = SVFRT_align_up(
+    (uint64_t) sizeof(SVFRT_MessageHeader) + (uint64_t) (header->schema_length),
+    SVFRT_MESSAGE_PART_ALIGNMENT
+  );
+
+  // Make sure the schema (and additional padding after it) is in-bounds.
+  // This also implies it is less than `UINT32_MAX`.
+  if (schema_padded_end_offset > (uint64_t) message_bytes.count) {
+    // printf("Schema is not in-bounds.\n");
+    return;
+  }
+
+  // We now have a valid schema and data ranges. The data range is implicit,
+  // from the padded end of the schema, to the end of the message.
   SVFRT_Bytes schema_range = {
     /*.pointer =*/ message_bytes.pointer + sizeof(SVFRT_MessageHeader),
     /*.count =*/ header->schema_length,
   };
-
-  uint8_t *data_pointer = (uint8_t *) align_up(
-    (size_t) (schema_range.pointer + schema_range.count),
-    SVFRT_MESSAGE_PART_ALIGNMENT
-  );
-
-  if (data_pointer >= message_bytes.pointer + message_bytes.count) {
-    // printf("No data.\n");
-    return;
-  }
-
-  // We now have a valid data range.
   SVFRT_Bytes data_range = {
-    /*.pointer =*/ data_pointer,
-    /*.count =*/ (size_t) (
-      (message_bytes.pointer + message_bytes.count) - data_pointer
-    ),
+    /*.pointer =*/ message_bytes.pointer + schema_padded_end_offset,
+    /*.count =*/ message_bytes.count - schema_padded_end_offset,
   };
 
   SVFRT_CompatibilityResult check_result = {0};
@@ -113,10 +109,11 @@ void SVFRT_read_message_implementation(
     expected_schema,
     entry_name_hash,
     required_level,
-    SVFRT_compatibility_exact
+    SVFRT_compatibility_exact,
+    work_max
   );
 
-  if (check_result.level == SVFRT_compatibility_none) {
+  if (check_result.level == 0 || check_result.error_code != 0) {
     // printf("Compatibility error.\n");
     return;
   }
@@ -132,28 +129,34 @@ void SVFRT_read_message_implementation(
 
     SVFRT_ConversionResult conversion_result = {0};
 
-    SVFRT_Bytes r0 = schema_range;
-    SVFRT_Bytes r1 = expected_schema;
+    SVFRT_Bytes unsafe_schema_src = schema_range;
+    SVFRT_Bytes schema_dst = expected_schema;
 
     // TODO @proper-alignment.
-    SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));
-    SVF_META_Schema *s1 = (SVF_META_Schema *) (r1.pointer + r1.count - sizeof(SVF_META_Schema));
+    SVF_META_Schema *unsafe_definition_src = (SVF_META_Schema *) (unsafe_schema_src.pointer + unsafe_schema_src.count - sizeof(SVF_META_Schema));
+    SVF_META_Schema *definition_dst = (SVF_META_Schema *) (schema_dst.pointer + schema_dst.count - sizeof(SVF_META_Schema));
 
     SVFRT_ConversionInfo conversion_info = {
-      .r0 = r0,
-      .r1 = r1,
-      .s0 = s0,
-      .s1 = s1,
-      .struct_index0 = check_result.entry_struct_index0,
-      .struct_index1 = check_result.entry_struct_index1,
+      .unsafe_schema_src = unsafe_schema_src,
+      .schema_dst = schema_dst,
+      .unsafe_definition_src = unsafe_definition_src,
+      .definition_dst = definition_dst,
+      .struct_index_src = check_result.entry_struct_index_src,
+      .struct_index_dst = check_result.entry_struct_index_dst,
     };
 
-    uint32_t entry_size = check_result.entry_size0;
+    uint32_t unsafe_entry_size = check_result.unsafe_entry_size_src;
 
+    if (unsafe_entry_size > data_range.count) {
+      // printf("Conversion was not successful, because...");
+      return;
+    }
+
+    // Now, `unsafe_entry_size` can be considered safe.
     // TODO @proper-alignment.
     SVFRT_Bytes entry_input_bytes = {
-      /*.pointer =*/ data_range.pointer + data_range.count - entry_size,
-      /*.count =*/ entry_size,
+      /*.pointer =*/ data_range.pointer + data_range.count - unsafe_entry_size,
+      /*.count =*/ unsafe_entry_size,
     };
 
     SVFRT_convert_message(
@@ -161,38 +164,46 @@ void SVFRT_read_message_implementation(
       &conversion_info,
       entry_input_bytes,
       data_range,
-      SVFRT_MAX_CONVERSION_RECURSION_DEPTH,
+      max_recursion_depth,
+      max_output_size,
       allocator_fn,
       allocator_ptr
     );
 
     if (!conversion_result.success) {
-      // printf("Conversion was not successful.");
+      out_result->allocation = conversion_result.output_bytes.pointer;
+      // out_result->error_code = conversion_result->error_code;
       return;
     }
 
     final_data_range = conversion_result.output_bytes;
   }
 
-  uint32_t entry_size = check_result.struct_strides.pointer[entry_index];
-  size_t entry_alignment = 1; // TODO @proper-alignment.
+  // For at least binary compatibility, this will be the size of the entry in
+  // the "from" schema. However, for logical compatibility, this will be the size
+  // of the entry in the "to" schema.
+  //
+  // This is non-obvious. See #logical-compatibility-stride-quirk.
+  uint32_t entry_size = check_result.quirky_struct_strides_dst.pointer[entry_index];
 
   if (final_data_range.count < entry_size) {
     // printf("Data is too small.\n");
     return;
   }
 
-  // TODO @proper-alignment.
-  result->compatibility_level = check_result.level;
-  if (check_result.level == SVFRT_compatibility_logical) {
-    result->allocation = final_data_range.pointer;
-  }
-  result->entry = (void *) align_down(
-    (size_t) final_data_range.pointer + final_data_range.count - entry_size,
+  uint32_t entry_alignment = 1; // TODO @proper-alignment.
+  uint32_t final_entry_offset = (uint32_t) SVFRT_align_down(
+    final_data_range.count - entry_size,
     entry_alignment
   );
-  result->context.data_range = final_data_range;
-  result->context.struct_strides = check_result.struct_strides;
+
+  out_result->entry = (void *) (final_data_range.pointer + final_entry_offset);
+  if (check_result.level == SVFRT_compatibility_logical) {
+    out_result->allocation = final_data_range.pointer;
+  }
+  out_result->compatibility_level = check_result.level;
+  out_result->context.data_range = final_data_range;
+  out_result->context.struct_strides = check_result.quirky_struct_strides_dst;
 }
 
 void SVFRT_write_message_implementation(
@@ -215,27 +226,26 @@ void SVFRT_write_message_implementation(
   };
 
   bool error = false;
-  uint32_t bytes_written = writer_fn(writer_ptr, header_bytes);
-  if (bytes_written != header_bytes.count) {
+
+  uint32_t written_header = writer_fn(writer_ptr, header_bytes);
+  if (written_header != header_bytes.count) {
     error = true;
-  } else {
-    uint32_t written = writer_fn(writer_ptr, schema_bytes);
-    if (written != schema_bytes.count) {
-      error = true;
-    } else {
-      bytes_written += written;
-    }
   }
 
-  uint8_t zeroes[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
-  size_t misaligned = bytes_written % SVFRT_MESSAGE_PART_ALIGNMENT;
-  SVFRT_Bytes padding_range = {
-    /*.pointer =*/ (uint8_t *) zeroes,
+  uint32_t written_schema = writer_fn(writer_ptr, schema_bytes);
+  if (written_schema != schema_bytes.count) {
+    error = true;
+  }
+
+  uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
+  uint32_t misaligned = written_schema % SVFRT_MESSAGE_PART_ALIGNMENT;
+  SVFRT_Bytes padding_bytes = {
+    /*.pointer =*/ (uint8_t *) zeros,
     /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
   };
   if (misaligned != 0) {
-    uint32_t written = writer_fn(writer_ptr, padding_range);
-    if (written != padding_range.count) {
+    uint32_t written_padding = writer_fn(writer_ptr, padding_bytes);
+    if (written_padding != padding_bytes.count) {
       error = true;
     }
   }
@@ -244,6 +254,7 @@ void SVFRT_write_message_implementation(
   result->writer_fn = writer_fn;
   result->data_bytes_written = 0;
   result->error = error;
+  result->finished = false;
 }
 
 #ifdef __cplusplus

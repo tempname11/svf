@@ -17,43 +17,84 @@
   #include "svf_internal.h"
 #endif
 
-// Toggle direct unaligned access to memory when converting. This invoked
-// undefined behavior, but it should be fine on x64. Disabled to be safe, but
-// left as an option.
+// !!
 //
-// When @proper-alignment is done, this might be unnecessary.
+// Important note: right now, all of the conversion code is written with the
+// assumptions, that compatibility has been successfully verified between the
+// schemas, and we can trust that the potentially unsafe src-schema is safe for
+// our purposes. These assumptions should be referenced in the code wherever they
+// are used.
+//
+// !!
 
-// #define SVFRT_DIRECT_UNALIGNED_ACCESS
+// Note on stack usage: all recursive code in this file should be tracking the
+// current recursion depth, both to prevent malicious data exploiting recursion,
+// and as an attempt to prevent stack overflow generally. Since C/C++ is woefully
+// lacking with regards to working with OS stack limits, this is an "attempt" and
+// not a real portable solution, because on some unknown platform with small stack
+// size it will still be easy to crash.
+//
+// The real solution would only be to reimplement the recursive calls with iteration,
+// which would make maintaining a custom stack necessary. This would maximize
+// the user's control, but make the API more unwieldy, probably requiring the user
+// to provide their own memory for the custom stack. This would negatively affect
+// ease-of-use, while providing no real benefit in most cases (and huge benefit in
+// a few marginal cases, of course).
+//
+// TODO (low priority until a real use case happens): Reimplement with custom
+// stack. There probably should be a (compile-time?) switch to use one
+// implementation or the other.
+
+// Note: after the conversion, the value tree will be suballocated parent-before-child,
+// i.e. the parent's suballocation bytes come before the child suballocation bytes.
+// This is contrary to how it should be, but this is never checked anywhere currently.
+//
+// The tree root (entry) is exempt from this, and is always placed at the end of
+// the allocation, because that's how the entry is always found in the data.
+//
+// TODO: The suballocations should be in the right order (reversed from what is
+
+
+// Note: #unsafe-naming-semantics.
+//
+// Just like with compatibility checks, we should be mindful of adversarial data.
+// However, it seems like in most (or all) of the code in this file we treat
+// src-schema and dst-schema roughly equally, e.g. bounds checks, index checks.
+// So, it's less clear why this naming is beneficial here.
+//
+// TODO: what would break if we treated src- and dst-schemas equally here?
+// The answer to this question would make everything more clear.
 
 typedef struct SVFRT_ConversionContext {
   SVFRT_ConversionInfo *info;
   SVFRT_Bytes data_bytes;
-  size_t max_recursion_depth;
+  uint32_t max_recursion_depth;
 
-  SVFRT_RangeStructDefinition structs0;
-  SVFRT_RangeStructDefinition structs1;
+  SVFRT_RangeStructDefinition unsafe_structs_src;
+  SVFRT_RangeStructDefinition structs_dst;
 
-  SVFRT_RangeChoiceDefinition choices0;
-  SVFRT_RangeChoiceDefinition choices1;
+  SVFRT_RangeChoiceDefinition unsafe_choices_src;
+  SVFRT_RangeChoiceDefinition choices_dst;
 
-  // For Phase 1.
-  size_t allocation_needed;
+  uint32_t total_data_size_limit_dst;
 
-  // For Phase 2.
+  // Both for Phase 1 and 2. Should be reset in-between.
+  uint32_t tally_src;
+  uint32_t tally_dst;
+
+  // For Phase 2 only.
   SVFRT_Bytes allocation;
-  size_t allocated_already;
 
-  bool internal_error;
-  bool data_error;
+  SVFRT_ErrorCode error_code;
 } SVFRT_ConversionContext;
 
-uint32_t SVFRT_get_type_size(
-  SVFRT_ConversionContext *ctx,
+// Returns 0 on an error.
+uint32_t SVFRT_conversion_get_type_size(
   SVFRT_RangeStructDefinition structs,
-  SVF_META_ConcreteType_enum t,
-  SVF_META_ConcreteType_union *u
+  SVF_META_ConcreteType_enum type_enum,
+  SVF_META_ConcreteType_union *type_union
 ) {
-  switch (t) {
+  switch (type_enum) {
     case SVF_META_ConcreteType_u8: {
       return 1;
     }
@@ -85,9 +126,8 @@ uint32_t SVFRT_get_type_size(
       return 8;
     }
     case SVF_META_ConcreteType_defined_struct: {
-      uint32_t index = u->defined_struct.index;
+      uint32_t index = type_union->defined_struct.index;
       if (index >= structs.count) {
-        ctx->internal_error = true;
         return 0;
       }
       return structs.pointer[index].size;
@@ -95,1124 +135,1036 @@ uint32_t SVFRT_get_type_size(
     case SVF_META_ConcreteType_zero_sized:
     case SVF_META_ConcreteType_defined_choice:
     default: {
-      ctx->internal_error = true;
       return 0;
     }
   }
 }
 
-void SVFRT_bump_size(
+static inline
+uint8_t SVFRT_conversion_read_uint8_t (
   SVFRT_ConversionContext *ctx,
-  size_t size
+  SVFRT_Bytes range_src,
+  uint32_t unsafe_offset_src
 ) {
-  // TODO @proper-alignment.
-  ctx->allocation_needed += size;
+  if (unsafe_offset_src + 1 > range_src.count) {
+    ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+    return 0;
+  }
+  // Can't be misaligned...
+  return *((uint8_t *) (range_src.pointer + unsafe_offset_src));
 }
 
-void SVFRT_bump_structs(
+static inline
+uint8_t SVFRT_conversion_read_int8_t (
   SVFRT_ConversionContext *ctx,
-  size_t s1_index,
-  size_t count
+  SVFRT_Bytes range_src,
+  uint32_t unsafe_offset_src
 ) {
-  SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
-
-  if (s1_index >= ctx->structs1.count) {
-    ctx->internal_error = true;
-    return;
+  if (unsafe_offset_src + 1 > range_src.count) {
+    ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+    return 0;
   }
-
-  // TODO @proper-alignment.
-  ctx->allocation_needed += s1->size * count;
+  // Can't be misaligned...
+  return *((int8_t *) (range_src.pointer + unsafe_offset_src));
 }
 
-void SVFRT_bump_struct_contents(
+#define SVFRT_INSTANTIATE_READ_TYPE(type) \
+  static inline \
+  type SVFRT_conversion_read_##type ( \
+    SVFRT_ConversionContext *ctx, \
+    SVFRT_Bytes range_src, \
+    uint32_t unsafe_offset_src \
+  ) { \
+    type value = 0; \
+    if (unsafe_offset_src + sizeof(value) > range_src.count) { \
+      ctx->error_code = SVFRT_code_conversion__data_out_of_bounds; \
+      return value; \
+    } \
+    void *pointer_src = (void *) (range_src.pointer + unsafe_offset_src); \
+    SVFRT_MEMCPY(&value, pointer_src, sizeof(value)); \
+    return value; \
+  }
+
+SVFRT_INSTANTIATE_READ_TYPE(uint32_t)
+SVFRT_INSTANTIATE_READ_TYPE(uint16_t)
+SVFRT_INSTANTIATE_READ_TYPE(int32_t)
+SVFRT_INSTANTIATE_READ_TYPE(int16_t)
+SVFRT_INSTANTIATE_READ_TYPE(float)
+
+#define SVFRT_INSTANTIATE_WRITE_TYPE(type) \
+  static inline \
+  void SVFRT_conversion_write_##type ( \
+    SVFRT_ConversionContext *ctx, \
+    SVFRT_Bytes range_dst, \
+    uint32_t offset_dst, \
+    type value \
+  ) { \
+    if (offset_dst + sizeof(value) > range_dst.count) { \
+      ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds; \
+      return; \
+    } \
+    void *pointer_dst = (void *) (range_dst.pointer + offset_dst); \
+    SVFRT_MEMCPY(pointer_dst, &value, sizeof(value)); \
+  }
+
+SVFRT_INSTANTIATE_WRITE_TYPE(uint64_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(uint32_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(uint16_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(int64_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(int32_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(int16_t)
+SVFRT_INSTANTIATE_WRITE_TYPE(double)
+
+void SVFRT_conversion_copy_exact(
   SVFRT_ConversionContext *ctx,
-  size_t s0_index,
-  size_t s1_index,
-  SVFRT_Bytes input_bytes
-);
-
-void SVFRT_bump_type(
-  SVFRT_ConversionContext *ctx,
-  SVF_META_Type_enum t0,
-  SVF_META_Type_union *u0,
-  SVFRT_Bytes range_from,
-  uint32_t offset_from,
-  SVF_META_Type_enum t1,
-  SVF_META_Type_union *u1
-) {
-  if (t0 == SVF_META_Type_concrete) {
-    // Sanity check.
-    if (t1 != SVF_META_Type_concrete) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    switch (u1->concrete.type_enum) {
-      case SVF_META_ConcreteType_defined_struct: {
-        uint32_t inner_s0_index = u0->concrete.type_union.defined_struct.index;
-        uint32_t inner_s1_index = u1->concrete.type_union.defined_struct.index;
-
-        size_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
-
-        SVFRT_Bytes inner_input_range = {
-          /*.pointer =*/ (uint8_t *) range_from.pointer + offset_from,
-          /*.count =*/ inner_input_size,
-        };
-
-        if (inner_input_range.pointer + inner_input_range.count > range_from.pointer + range_from.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVFRT_bump_struct_contents(
-          ctx,
-          inner_s0_index,
-          inner_s1_index,
-          inner_input_range
-        );
-
-        break;
-      }
-      case SVF_META_ConcreteType_defined_choice: {
-        uint32_t inner_c0_index = u0->concrete.type_union.defined_choice.index;
-        uint32_t inner_c1_index = u1->concrete.type_union.defined_choice.index;
-
-        SVFRT_Bytes input_tag_bytes = {
-          /*.pointer =*/ range_from.pointer + offset_from,
-          /*.count =*/ SVFRT_TAG_SIZE,
-        };
-
-        if (input_tag_bytes.pointer + input_tag_bytes.count > range_from.pointer + range_from.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        uint8_t input_tag = *input_tag_bytes.pointer;
-
-        SVF_META_ChoiceDefinition *c0 = ctx->choices0.pointer + inner_c0_index;
-        SVF_META_ChoiceDefinition *c1 = ctx->choices1.pointer + inner_c1_index;
-
-        SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
-
-        if (!options0.pointer || !options1.pointer) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        if (input_tag >= options0.count) {
-          ctx->data_error = true;
-          return;
-        }
-
-        SVF_META_OptionDefinition *option0 = options0.pointer + input_tag;
-        SVF_META_OptionDefinition *option1 = NULL;
-
-        for (uint32_t i = 0; i < options1.count; i++) {
-          SVF_META_OptionDefinition *option = options1.pointer + i;
-
-          if (option->name_hash == option0->name_hash) {
-            option1 = option;
-            break;
-          }
-        }
-
-        if (!option1) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVFRT_bump_type(
-          ctx,
-          option0->type_enum,
-          &option0->type_union,
-          range_from,
-          offset_from + SVFRT_TAG_SIZE,
-          option1->type_enum,
-          &option1->type_union
-        );
-
-        break;
-      }
-      default: {
-        // Do nothing.
-      }
-    }
-  }
-  else if (t0 == SVF_META_Type_reference) {
-    // Sanity check.
-    if (t1 != SVF_META_Type_reference) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    if ((uint64_t) offset_from + sizeof(SVFRT_Reference) > range_from.count) {
-      ctx->data_error = true;
-      return;
-    }
-
-    SVFRT_Reference in_reference = *((SVFRT_Reference *) (range_from.pointer + offset_from));
-
-    switch (u1->reference.type_enum) {
-      case SVF_META_ConcreteType_defined_struct: {
-        // Sanity check.
-        if (u0->reference.type_enum != SVF_META_ConcreteType_defined_struct) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        uint32_t inner_s0_index = u0->reference.type_union.defined_struct.index;
-        uint32_t inner_s1_index = u1->reference.type_union.defined_struct.index;
-
-        uint32_t inner_input_size = ctx->structs0.pointer[inner_s0_index].size;
-
-        void *inner_input_data = SVFRT_internal_from_reference(ctx->data_bytes, in_reference, inner_input_size);
-        if (!inner_input_data) {
-          ctx->data_error = true;
-          return;
-        }
-
-        SVFRT_Bytes inner_input_range = {
-          /*.pointer =*/ (uint8_t *) inner_input_data,
-          /*.count =*/ inner_input_size,
-        };
-
-        SVFRT_bump_struct_contents(ctx, inner_s0_index, inner_s1_index, inner_input_range);
-        SVFRT_bump_structs(ctx, inner_s1_index, 1);
-        break;
-      }
-      case SVF_META_ConcreteType_u8: {
-        SVFRT_bump_size(ctx, 1);
-        break;
-      }
-      case SVF_META_ConcreteType_u16: {
-        SVFRT_bump_size(ctx, 2);
-        break;
-      }
-      case SVF_META_ConcreteType_u32: {
-        SVFRT_bump_size(ctx, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_u64: {
-        SVFRT_bump_size(ctx, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_i8: {
-        SVFRT_bump_size(ctx, 1);
-        break;
-      }
-      case SVF_META_ConcreteType_i16: {
-        SVFRT_bump_size(ctx, 2);
-        break;
-      }
-      case SVF_META_ConcreteType_i32: {
-        SVFRT_bump_size(ctx, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_i64: {
-        SVFRT_bump_size(ctx, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_f32: {
-        SVFRT_bump_size(ctx, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_f64: {
-        SVFRT_bump_size(ctx, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_defined_choice:
-      case SVF_META_ConcreteType_zero_sized:
-      default: {
-        ctx->internal_error = true;
-        return;
-      }
-    }
-  } else if (t0 == SVF_META_Type_sequence) {
-    // Sanity check.
-    if (t1 != SVF_META_Type_sequence) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    if ((uint64_t) offset_from + sizeof(SVFRT_Sequence) > range_from.count) {
-      ctx->data_error = true;
-      return;
-    }
-
-    SVFRT_Sequence in_sequence = *((SVFRT_Sequence *) (range_from.pointer + offset_from));
-
-    switch (u0->sequence.element_type_enum) {
-      case SVF_META_ConcreteType_defined_struct: {
-        // Sanity check.
-        if (u1->sequence.element_type_enum != SVF_META_ConcreteType_defined_struct) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        uint32_t inner_s0_index = u0->sequence.element_type_union.defined_struct.index;
-        uint32_t inner_s1_index = u1->sequence.element_type_union.defined_struct.index;
-        size_t inner_size = ctx->structs0.pointer[inner_s0_index].size;
-
-        void *inner_data = SVFRT_internal_from_sequence(ctx->data_bytes, in_sequence, inner_size);
-        if (!inner_data) {
-          ctx->data_error = true;
-          return;
-        }
-
-        for (uint32_t i = 0; i < in_sequence.count; i++) {
-          SVFRT_Bytes inner_range = {
-            /*.pointer =*/ ((uint8_t *) inner_data) + inner_size * i,
-            /*.count =*/ inner_size,
-          };
-
-          SVFRT_bump_struct_contents(ctx, inner_s0_index, inner_s1_index, inner_range);
-        }
-        SVFRT_bump_structs(ctx, inner_s1_index, in_sequence.count);
-
-        break;
-      }
-      case SVF_META_ConcreteType_u8: {
-        SVFRT_bump_size(ctx, 1 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_u16: {
-        SVFRT_bump_size(ctx, 2 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_u32: {
-        SVFRT_bump_size(ctx, 4 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_u64: {
-        SVFRT_bump_size(ctx, 8 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_i8: {
-        SVFRT_bump_size(ctx, 1 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_i16: {
-        SVFRT_bump_size(ctx, 2 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_i32: {
-        SVFRT_bump_size(ctx, 4 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_i64: {
-        SVFRT_bump_size(ctx, 8 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_f32: {
-        SVFRT_bump_size(ctx, 4 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_f64: {
-        SVFRT_bump_size(ctx, 8 * in_sequence.count);
-      }
-      case SVF_META_ConcreteType_defined_choice:
-      case SVF_META_ConcreteType_zero_sized:
-      default: {
-        ctx->internal_error = true;
-        return;
-      }
-    }
-  }
-}
-
-void SVFRT_bump_struct_contents(
-  SVFRT_ConversionContext *ctx,
-  size_t s0_index,
-  size_t s1_index,
-  SVFRT_Bytes input_bytes
-) {
-  if (s0_index >= ctx->structs0.count) {
-    ctx->internal_error = true;
-    return;
-  }
-
-  if (s1_index >= ctx->structs1.count) {
-    ctx->internal_error = true;
-    return;
-  }
-
-  SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
-  SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
-
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
-  if (!fields0.pointer || !fields1.pointer) {
-    ctx->internal_error = true;
-    return;
-  }
-
-  // Go over any sequences and references in the intersection between s0 and s1.
-  // Sub-structs and choices may also contain these, so recurse over them.
-
-  // @TODO @performance: N^2.
-  for (uint32_t i = 0; i < fields0.count; i++) {
-    SVF_META_FieldDefinition *field0 = fields0.pointer + i;
-
-    for (uint32_t j = 0; j < fields1.count; j++) {
-      SVF_META_FieldDefinition *field1 = fields1.pointer + j;
-      if (field0->name_hash != field1->name_hash) {
-        continue;
-      }
-
-      SVFRT_bump_type(
-        ctx,
-        field0->type_enum,
-        &field0->type_union,
-        input_bytes,
-        field0->offset,
-        field1->type_enum,
-        &field1->type_union
-      );
-    }
-  }
-}
-
-void SVFRT_copy_struct(
-  SVFRT_ConversionContext *ctx,
-  size_t recursion_depth,
-  size_t s0_index,
-  size_t s1_index,
-  SVFRT_Bytes input_bytes,
-  SVFRT_Bytes output_bytes
-);
-
-void SVFRT_copy_type(
-  SVFRT_ConversionContext *ctx,
-  size_t recursion_depth,
-  SVF_META_Type_enum t0,
-  SVF_META_Type_union *u0,
-  SVFRT_Bytes range_from,
-  uint32_t offset_from,
-  SVF_META_Type_enum t1,
-  SVF_META_Type_union *u1,
-  SVFRT_Bytes range_to,
-  uint32_t offset_to
-);
-
-void SVFRT_copy_size(
-  SVFRT_ConversionContext *ctx,
-  SVFRT_Bytes range_from,
-  uint32_t offset_from,
-  SVFRT_Bytes range_to,
-  uint32_t offset_to,
-  size_t size
-) {
-  SVFRT_Bytes input_bytes = {
-    /*.pointer =*/ range_from.pointer + offset_from,
-    /*.count =*/ size,
-  };
-  if (input_bytes.pointer + input_bytes.count > range_from.pointer + range_from.count) {
-    ctx->internal_error = true;
-    return;
-  }
-
-  SVFRT_Bytes output_bytes = {
-    /*.pointer =*/ range_to.pointer + offset_to,
-    /*.count =*/ size,
-  };
-  if (output_bytes.pointer + output_bytes.count > range_to.pointer + range_to.count) {
-    ctx->internal_error = true;
-    return;
-  }
-
-  SVFRT_MEMCPY(output_bytes.pointer, input_bytes.pointer, size);
-}
-
-void SVFRT_copy_concrete(
-  SVFRT_ConversionContext *ctx,
-  size_t recursion_depth,
-  SVF_META_ConcreteType_enum t0,
-  SVF_META_ConcreteType_union *u0,
-  SVFRT_Bytes range_from,
-  uint32_t offset_from,
-  SVF_META_ConcreteType_enum t1,
-  SVF_META_ConcreteType_union *u1,
-  SVFRT_Bytes range_to,
-  uint32_t offset_to
-) {
-  if (recursion_depth > ctx->max_recursion_depth) {
-      ctx->data_error = true;
-      return;
-  }
-
-  if (t0 == t1) {
-    switch (t0) {
-      case SVF_META_ConcreteType_defined_struct: {
-        SVF_META_StructDefinition *s0 = ctx->structs0.pointer + u0->defined_struct.index;
-        SVF_META_StructDefinition *s1 = ctx->structs1.pointer + u1->defined_struct.index;
-
-        SVFRT_Bytes input_bytes = {
-          /*.pointer =*/ range_from.pointer + offset_from,
-          /*.count =*/ s0->size,
-        };
-        if (input_bytes.pointer + input_bytes.count > range_from.pointer + range_from.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVFRT_Bytes output_bytes = {
-          /*.pointer =*/ range_to.pointer + offset_to,
-          /*.count =*/ s1->size,
-        };
-        if (output_bytes.pointer + output_bytes.count > range_to.pointer + range_to.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVFRT_copy_struct(
-          ctx,
-          recursion_depth,
-          u0->defined_struct.index,
-          u1->defined_struct.index,
-          input_bytes,
-          output_bytes
-        );
-        break;
-      }
-      case SVF_META_ConcreteType_defined_choice: {
-        SVF_META_ChoiceDefinition *c0 = ctx->choices0.pointer + u0->defined_struct.index;
-        SVF_META_ChoiceDefinition *c1 = ctx->choices1.pointer + u1->defined_struct.index;
-
-        // First, remap the tag.
-
-        SVFRT_Bytes input_tag_bytes = {
-          /*.pointer =*/ range_from.pointer + offset_from,
-          /*.count =*/ SVFRT_TAG_SIZE,
-        };
-        if (input_tag_bytes.pointer + input_tag_bytes.count > range_from.pointer + range_from.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVFRT_Bytes output_tag_bytes = {
-          /*.pointer =*/ range_to.pointer + offset_to,
-          /*.count =*/ SVFRT_TAG_SIZE,
-        };
-        if (output_tag_bytes.pointer + output_tag_bytes.count > range_to.pointer + range_to.count) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        uint8_t input_tag = *input_tag_bytes.pointer;
-
-        SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, c0->options, SVF_META_OptionDefinition);
-        SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, c1->options, SVF_META_OptionDefinition);
-        if (!options0.pointer || !options1.pointer) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVF_META_OptionDefinition *option0 = NULL;
-        for (uint32_t i = 0; i < options0.count; i++) {
-          SVF_META_OptionDefinition *option = options0.pointer + i;
-
-          if (option->index == input_tag) {
-            option0 = option;
-            break;
-          }
-        }
-
-        if (!option0) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        SVF_META_OptionDefinition *option1 = NULL;
-        for (uint32_t i = 0; i < options1.count; i++) {
-          SVF_META_OptionDefinition *option = options1.pointer + i;
-
-          if (option->name_hash == option0->name_hash) {
-            option1 = option;
-            break;
-          }
-        }
-
-        if (!option1) {
-          ctx->internal_error = true;
-          return;
-        }
-
-        *output_tag_bytes.pointer = option1->index;
-
-        SVFRT_copy_type(
-          ctx,
-          recursion_depth,
-          option0->type_enum,
-          &option0->type_union,
-          range_from,
-          // TODO @proper-alignment.
-          offset_from + SVFRT_TAG_SIZE,
-          option1->type_enum,
-          &option1->type_union,
-          range_to,
-          // TODO @proper-alignment.
-          offset_to + SVFRT_TAG_SIZE
-        );
-
-        break;
-      }
-      case SVF_META_ConcreteType_u8: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 1);
-        break;
-      }
-      case SVF_META_ConcreteType_u16: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 2);
-        break;
-      }
-      case SVF_META_ConcreteType_u32: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_u64: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_i8: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 1);
-        break;
-      }
-      case SVF_META_ConcreteType_i16: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 2);
-        break;
-      }
-      case SVF_META_ConcreteType_i32: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_i64: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_f32: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 4);
-        break;
-      }
-      case SVF_META_ConcreteType_f64: {
-        SVFRT_copy_size(ctx, range_from, offset_from, range_to, offset_to, 8);
-        break;
-      }
-      case SVF_META_ConcreteType_zero_sized: {
-        // Not sure about this case.
-        ctx->internal_error = true;
-        return;
-      }
-    }
-  } else {
-    switch (t1) {
-      case SVF_META_ConcreteType_u64: {
-        uint64_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_u32: {
-            // U32 -> U64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (uint64_t) *((uint32_t *) (range_from.pointer + offset_from));
-            #else
-            uint32_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (uint64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u16: {
-            // U16 -> U64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (uint64_t) *((uint16_t *) (range_from.pointer + offset_from));
-            #else
-            uint16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (uint64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> U64. Can't be misaligned.
-            out_value = (uint64_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((uint64_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_u32: {
-        uint32_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_u16: {
-            // U16 -> U32
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (uint32_t) *((uint16_t *) (range_from.pointer + offset_from));
-            #else
-            uint16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (uint32_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> U32. Can't be misaligned.
-            out_value = (uint32_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((uint32_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_u16: {
-        uint16_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> U16. Can't be misaligned.
-            out_value = (uint16_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((uint16_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_i64: {
-        int64_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_i32: {
-            // I32 -> I64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int64_t) *((int32_t *) (range_from.pointer + offset_from));
-            #else
-            int32_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_i16: {
-            // I16 -> I64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int64_t) *((int16_t *) (range_from.pointer + offset_from));
-            #else
-            int16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_i8: {
-            // I8 -> I64. Can't be misaligned.
-            out_value = (int64_t) *((int8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          case SVF_META_ConcreteType_u32: {
-            // U32 -> I64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int64_t) *((uint32_t *) (range_from.pointer + offset_from));
-            #else
-            uint32_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u16: {
-            // U16 -> I64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int64_t) *((uint16_t *) (range_from.pointer + offset_from));
-            #else
-            uint16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int64_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> I64. Can't be misaligned.
-            out_value = (int64_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((int64_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_i32: {
-        int32_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_i16: {
-            // I16 -> I32
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int32_t) *((int16_t *) (range_from.pointer + offset_from));
-            #else
-            int16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int32_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_i8: {
-            // I8 -> I32. Can't be misaligned.
-            out_value = (int32_t) *((int8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          case SVF_META_ConcreteType_u16: {
-            // U16 -> I32
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (int32_t) *((uint16_t *) (range_from.pointer + offset_from));
-            #else
-            uint16_t in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (int32_t) in_value;
-            #endif
-
-            break;
-          }
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> I32. Can't be misaligned.
-            out_value = (int32_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((int32_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_i16: {
-        int16_t out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_i8: {
-            // I8 -> I16. Can't be misaligned.
-            out_value = (int16_t) *((int8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          case SVF_META_ConcreteType_u8: {
-            // U8 -> I16. Can't be misaligned.
-            out_value = (int16_t) *((uint8_t *) (range_from.pointer + offset_from));
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((int16_t *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      case SVF_META_ConcreteType_f64: {
-        // Note: not sure, if lossless integer -> float conversion should be
-        // allowed or not. Probably not, because the semantics are very different.
-        double out_value = 0;
-        switch (t0) {
-          case SVF_META_ConcreteType_f32: {
-            // F32 -> F64
-
-            #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-            out_value = (double) *((float *) (range_from.pointer + offset_from));
-            #else
-            float in_value;
-            SVFRT_MEMCPY(&in_value, range_from.pointer + offset_from, sizeof(in_value));
-            out_value = (double) in_value;
-            #endif
-
-            break;
-          }
-          default: {
-            ctx->internal_error = true;
-            return;
-          }
-        }
-
-        #ifdef SVFRT_DIRECT_UNALIGNED_ACCESS
-        *((double *) (range_to.pointer + offset_to)) = out_value;
-        #else
-        SVFRT_MEMCPY(range_to.pointer + offset_to, &out_value, sizeof(out_value));
-        #endif
-
-        break;
-      }
-      default: {
-        ctx->internal_error = true;
-        return;
-      }
-    }
-  }
-}
-
-void SVFRT_conversion_suballocate(
-  SVFRT_Bytes *out_result,
-  SVFRT_ConversionContext *ctx,
+  SVFRT_Bytes range_src,
+  uint32_t unsafe_offset_src,
+  SVFRT_Bytes range_dst,
+  uint32_t offset_dst,
   uint32_t size
 ) {
-  // TODO @proper-alignment.
+  if (unsafe_offset_src + size > range_src.count) {
+    ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+    return;
+  }
+  void *pointer_src = (void *) (range_src.pointer + unsafe_offset_src);
 
-  if (ctx->allocated_already + (uint64_t) size > ctx->allocation.count) {
+  if (offset_dst + size > range_dst.count) {
+    ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds;
+    return;
+  }
+  void *pointer_dst = (void *) (range_dst.pointer + offset_dst);
+
+  SVFRT_MEMCPY(pointer_dst, pointer_src, size);
+}
+
+void SVFRT_conversion_tally(
+  SVFRT_ConversionContext *ctx,
+  uint32_t unsafe_size_src,
+  uint32_t size_dst,
+  uint32_t unsafe_count,
+  SVFRT_Bytes *phase2_out_suballocation // Should be non-NULL for Phase 2.
+) {
+  // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
+  // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
+  uint64_t sum_src = (uint64_t) ctx->tally_src + (uint64_t) unsafe_size_src * (uint64_t) unsafe_count;
+  uint64_t sum_dst = (uint64_t) ctx->tally_dst + (uint64_t) size_dst * (uint64_t) unsafe_count;
+
+  if (sum_src > (uint64_t) ctx->data_bytes.count) {
+    ctx->error_code = SVFRT_code_conversion__data_aliasing_detected;
+    ctx->tally_src = UINT32_MAX;
     return;
   }
 
-  out_result->pointer = ctx->allocation.pointer + ctx->allocated_already;
-  out_result->count = (uint64_t) size;
-
-  ctx->allocated_already += size;
-}
-
-void SVFRT_copy_type(
-  SVFRT_ConversionContext *ctx,
-  size_t recursion_depth,
-  SVF_META_Type_enum t0,
-  SVF_META_Type_union *u0,
-  SVFRT_Bytes range_from,
-  uint32_t offset_from,
-  SVF_META_Type_enum t1,
-  SVF_META_Type_union *u1,
-  SVFRT_Bytes range_to,
-  uint32_t offset_to
-) {
-  if (t0 == SVF_META_Type_concrete) {
-    if (t1 != SVF_META_Type_concrete) {
-      ctx->internal_error = true;
+  if (phase2_out_suballocation) {
+    // Phase2, we have the exact allocation count here.
+    //
+    // #phase2-reasonable-dst-sum: after this value is checked, `size_dst * unsafe_count`
+    // is also proven not to overflow `uint32_t`.
+    if (sum_dst > (uint64_t) ctx->allocation.count) {
+      ctx->error_code = SVFRT_code_conversion_internal__suballocation_mismatch;
+      ctx->tally_dst = UINT32_MAX;
       return;
     }
 
-    SVFRT_copy_concrete(
-      ctx,
-      recursion_depth,
-      u0->concrete.type_enum,
-      &u0->concrete.type_union,
-      range_from,
-      offset_from,
-      u1->concrete.type_enum,
-      &u1->concrete.type_union,
-      range_to,
-      offset_to
-    );
-  } else if (t0 == SVF_META_Type_reference) {
-    if (t1 != SVF_META_Type_reference) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    if ((uint64_t) offset_from + sizeof(SVFRT_Reference) > range_from.count) {
-      ctx->data_error = true;
-      return;
-    }
-
-    SVFRT_Reference in_reference = *((SVFRT_Reference *) (range_from.pointer + offset_from));
-
-    uint32_t inner_output_size = SVFRT_get_type_size(
-      ctx,
-      ctx->structs1,
-      u1->reference.type_enum,
-      &u1->reference.type_union
-    );
-
-    SVFRT_Bytes suballocation = {0};
-    SVFRT_conversion_suballocate(
-      &suballocation,
-      ctx,
-      inner_output_size
-    );
-
-    if (range_to.count < offset_to + sizeof(SVFRT_Reference)) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    SVFRT_Reference *out_reference = (SVFRT_Reference *) (range_to.pointer + offset_to);
-    out_reference->data_offset_complement = ~(suballocation.pointer - ctx->allocation.pointer);
-
-    SVFRT_copy_concrete(
-      ctx,
-      recursion_depth + 1,
-      u0->reference.type_enum,
-      &u0->reference.type_union,
-      ctx->data_bytes,
-      ~in_reference.data_offset_complement,
-      u1->reference.type_enum,
-      &u1->reference.type_union,
-      suballocation,
-      0
-    );
-  } else if (t0 == SVF_META_Type_sequence) {
-    if (t1 != SVF_META_Type_sequence) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    if ((uint64_t) offset_from + sizeof(SVFRT_Sequence) > range_from.count) {
-      ctx->data_error = true;
-      return;
-    }
-
-    SVFRT_Sequence in_sequence = *((SVFRT_Sequence *) (range_from.pointer + offset_from));
-
-    uint32_t inner_input_size = SVFRT_get_type_size(
-      ctx,
-      ctx->structs0,
-      u0->sequence.element_type_enum,
-      &u0->sequence.element_type_union
-    );
-
-    uint32_t inner_output_size = SVFRT_get_type_size(
-      ctx,
-      ctx->structs1,
-      u1->sequence.element_type_enum,
-      &u1->sequence.element_type_union
-    );
-
-    SVFRT_Bytes suballocation = {0};
-    SVFRT_conversion_suballocate(
-      &suballocation,
-      ctx,
-      // TODO @proper-alignment.
-      inner_output_size * in_sequence.count
-    );
-
-    if (range_to.count < offset_to + sizeof(SVFRT_Sequence)) {
-      ctx->internal_error = true;
-      return;
-    }
-
-    SVFRT_Sequence *out_sequence = (SVFRT_Sequence *) (range_to.pointer + offset_to);
-    out_sequence->data_offset_complement = ~(suballocation.pointer - ctx->allocation.pointer);
-    out_sequence->count = in_sequence.count;
-
-    for (uint32_t i = 0; i < in_sequence.count; i++) {
-      SVFRT_copy_concrete(
-        ctx,
-        recursion_depth + 1,
-        u0->sequence.element_type_enum,
-        &u0->sequence.element_type_union,
-        ctx->data_bytes,
-        ~in_sequence.data_offset_complement + i * inner_input_size,
-        u1->sequence.element_type_enum,
-        &u1->sequence.element_type_union,
-        suballocation,
-        i * inner_output_size
-      );
-    }
+    // No risk of overflow, see #phase2-reasonable-dst-sum.
+    phase2_out_suballocation->count = size_dst * unsafe_count;
+    phase2_out_suballocation->pointer = ctx->allocation.pointer + ctx->tally_dst;
   } else {
-    ctx->internal_error = true;
-    return;
+    // Phase 1, we don't have the exact allocation count yet here.
+
+    if (sum_dst > (uint64_t) ctx->total_data_size_limit_dst) {
+      ctx->error_code = SVFRT_code_conversion__total_data_size_limit_exceeded;
+      ctx->tally_dst = UINT32_MAX;
+      return;
+    }
   }
+
+  // Both sums are less or equal to some `uint32_t` value, so casts are lossless.
+  ctx->tally_src = (uint32_t) sum_src;
+  ctx->tally_dst = (uint32_t) sum_dst;
 }
 
-void SVFRT_copy_struct(
+typedef struct SVFRT_Phase2_TraverseAnyType {
+  SVFRT_Bytes data_range_dst;
+  uint32_t data_offset_dst;
+} SVFRT_Phase2_TraverseAnyType;
+
+// This declaration is needed because of recursive calls during traversal.
+// `recursion_depth` should be  incremented on each call and guards against
+// runaway call stacks.
+void SVFRT_conversion_traverse_any_type(
   SVFRT_ConversionContext *ctx,
-  size_t recursion_depth,
-  size_t s0_index,
-  size_t s1_index,
-  SVFRT_Bytes input_bytes,
-  SVFRT_Bytes output_bytes
+  uint32_t recursion_depth,
+  SVFRT_Bytes data_range_src,
+  uint32_t unsafe_data_offset_src,
+  SVF_META_Type_enum unsafe_type_enum_src,
+  SVF_META_Type_union *unsafe_type_union_src,
+  SVF_META_Type_enum type_enum_dst,
+  SVF_META_Type_union *type_union_dst,
+  SVFRT_Phase2_TraverseAnyType *phase2
+);
+
+typedef struct SVFRT_Phase2_TraverseStruct {
+  SVFRT_Bytes struct_bytes_dst;
+} SVFRT_Phase2_TraverseStruct;
+
+void SVFRT_conversion_traverse_struct(
+  SVFRT_ConversionContext *ctx,
+  uint32_t recursion_depth,
+  uint32_t unsafe_struct_index_src,
+  uint32_t struct_index_dst,
+  SVFRT_Bytes struct_bytes_src,
+  SVFRT_Phase2_TraverseStruct *phase2
 ) {
-  if (s0_index >= ctx->structs0.count) {
-    ctx->internal_error = true;
+  if (unsafe_struct_index_src >= ctx->unsafe_structs_src.count) {
+    ctx->error_code = SVFRT_code_conversion__bad_schema_struct_index;
     return;
   }
 
-  if (s1_index >= ctx->structs1.count) {
-    ctx->internal_error = true;
+  if (struct_index_dst >= ctx->structs_dst.count) {
+    ctx->error_code = SVFRT_code_conversion_internal__bad_schema_struct_index;
     return;
   }
 
-  SVF_META_StructDefinition *s0 = ctx->structs0.pointer + s0_index;
-  SVF_META_StructDefinition *s1 = ctx->structs1.pointer + s1_index;
+  SVF_META_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + unsafe_struct_index_src;
+  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->info->r1, s1->fields, SVF_META_FieldDefinition);
-  if (!fields0.pointer || !fields0.pointer) {
-    ctx->internal_error = true;
+  SVFRT_RangeFieldDefinition unsafe_fields_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->info->unsafe_schema_src,
+    unsafe_definition_src->fields,
+    SVF_META_FieldDefinition
+  );
+  if (!unsafe_fields_src.pointer && unsafe_fields_src.count) {
+    ctx->error_code = SVFRT_code_conversion__bad_schema_field_index;
     return;
   }
 
-  // Go over the intersection between s0 and s1.
+  SVFRT_RangeFieldDefinition fields_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->info->schema_dst,
+    definition_dst->fields,
+    SVF_META_FieldDefinition
+  );
+  if (!fields_dst.pointer && fields_dst.count) {
+    ctx->error_code = SVFRT_code_conversion_internal__bad_schema_field_index;
+    return;
+  }
 
-  // TODO @performance: N^2.
-  for (uint32_t i = 0; i < fields0.count; i++) {
-    SVF_META_FieldDefinition *field0 = fields0.pointer + i;
+  // Go over any sequences and references in the intersection between
+  // `unsafe_definition_src` and `definition_dst`. Sub-structs and choices may
+  // also contain these, so recurse over them.
+  //
+  // Assumption: we have verified compatibility, so every dst-schema field will have
+  // exactly one corresponding src-schema field.
+  //
+  // See #compatibility-reasonable-fields.
+  //
+  // Assumption: during the compatibility check, we have gone over the "unsafe"
+  // fields and did find correspondences in a reasonable time. We should have
+  // actually built a correspondence table then, see below...
+  //
+  // TODO @performance: N^2. This looks critical, because here, worst-case data
+  // _and_ worst-case schema could lead to a time-bound, yet unexpectedly slow
+  // conversion. A table will solve everything here.
+  //
+  for (uint32_t i = 0; i < fields_dst.count; i++) {
+    SVF_META_FieldDefinition *field_dst = fields_dst.pointer + i;
 
-    for (uint32_t j = 0; j < fields1.count; j++) {
-      SVF_META_FieldDefinition *field1 = fields1.pointer + j;
-      if (field0->name_hash != field1->name_hash) {
+    bool found = false;
+
+    for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
+      SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
+
+      if (unsafe_field_src->name_hash != field_dst->name_hash) {
         continue;
       }
 
-      SVFRT_copy_type(
+      SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
+      if (phase2) {
+        phase2_inner.data_range_dst = phase2->struct_bytes_dst;
+        phase2_inner.data_offset_dst = field_dst->offset;
+      }
+
+      SVFRT_conversion_traverse_any_type(
         ctx,
         recursion_depth,
-        field0->type_enum,
-        &field0->type_union,
-        input_bytes,
-        field0->offset,
-        field1->type_enum,
-        &field1->type_union,
-        output_bytes,
-        field1->offset
+        struct_bytes_src,
+        unsafe_field_src->offset,
+        unsafe_field_src->type_enum,
+        &unsafe_field_src->type_union,
+        field_dst->type_enum,
+        &field_dst->type_union,
+        phase2 ? &phase2_inner : NULL
       );
 
+      if (ctx->error_code) {
+        // Early exit on any error.
+        return;
+      }
+
+      found = true;
       break;
+    }
+
+    if (!found) {
+      ctx->error_code = SVFRT_code_conversion_internal__schema_field_missing;
+      return;
+    }
+  }
+}
+
+typedef struct SVFRT_Phase2_TraverseConcreteType {
+  SVFRT_Bytes data_range_dst;
+  uint32_t data_offset_dst;
+} SVFRT_Phase2_TraverseConcreteType;
+
+void SVFRT_conversion_traverse_concrete_type(
+  SVFRT_ConversionContext *ctx,
+  uint32_t recursion_depth,
+  SVFRT_Bytes data_range_src,
+  uint32_t unsafe_data_offset_src,
+  SVF_META_ConcreteType_enum unsafe_type_enum_src,
+  SVF_META_ConcreteType_union *unsafe_type_union_src,
+  SVF_META_ConcreteType_enum type_enum_dst,
+  SVF_META_ConcreteType_union *type_union_dst,
+  SVFRT_Phase2_TraverseConcreteType *phase2
+) {
+  switch (type_enum_dst) {
+    case SVF_META_ConcreteType_defined_struct: {
+      // Sanity check.
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_defined_struct) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+        return;
+      }
+
+      uint32_t unsafe_struct_index_src = unsafe_type_union_src->defined_struct.index;
+      uint32_t struct_index_dst = type_union_dst->defined_struct.index;
+
+      if (unsafe_struct_index_src >= ctx->unsafe_structs_src.count) {
+        ctx->error_code = SVFRT_code_conversion__bad_schema_struct_index;
+        return;
+      }
+      uint32_t unsafe_struct_size_src = ctx->unsafe_structs_src.pointer[unsafe_struct_index_src].size;
+
+      // Prevent addition overflow by casting operands to `uint64_t` first.
+      if ((uint64_t) unsafe_data_offset_src + (uint64_t) unsafe_struct_size_src > (uint64_t) data_range_src.count) {
+        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+        return;
+      }
+
+      SVFRT_Bytes struct_bytes_src = {
+        /*.pointer =*/ (uint8_t *) data_range_src.pointer + unsafe_data_offset_src,
+        /*.count =*/ unsafe_struct_size_src
+      };
+
+      SVFRT_Phase2_TraverseStruct phase2_inner = {0};
+      if (phase2) {
+        if (struct_index_dst >= ctx->structs_dst.count) {
+          ctx->error_code = SVFRT_code_conversion_internal__bad_schema_struct_index;
+          return;
+        }
+        uint32_t struct_size_dst = ctx->structs_dst.pointer[struct_index_dst].size;
+
+        // Prevent addition overflow by casting operands to `uint64_t` first.
+        if ((uint64_t) phase2->data_offset_dst + (uint64_t) struct_size_dst > (uint64_t) phase2->data_range_dst.count) {
+          ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds;
+          return;
+        }
+
+        SVFRT_Bytes struct_bytes_dst = {
+          /*.pointer =*/ (uint8_t *) phase2->data_range_dst.pointer + phase2->data_offset_dst,
+          /*.count =*/ struct_size_dst
+        };
+
+        phase2_inner.struct_bytes_dst = struct_bytes_dst;
+      }
+
+      SVFRT_conversion_traverse_struct(
+        ctx,
+        recursion_depth,
+        unsafe_struct_index_src,
+        struct_index_dst,
+        struct_bytes_src,
+        phase2 ? &phase2_inner : NULL
+      );
+      return;
+    }
+    case SVF_META_ConcreteType_defined_choice: {
+      // Sanity check.
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_defined_choice) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+        return;
+      }
+
+      uint32_t unsafe_choice_index_src = unsafe_type_union_src->defined_choice.index;
+      uint32_t choice_index_dst = type_union_dst->defined_choice.index;
+
+      // Prevent addition overflow by casting operands to `uint64_t` first.
+      if ((uint64_t) unsafe_data_offset_src + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) data_range_src.count) {
+        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+        return;
+      }
+
+      SVFRT_Bytes choice_tag_bytes_src = {
+        /*.pointer =*/ data_range_src.pointer + unsafe_data_offset_src,
+        /*.count =*/ SVFRT_TAG_SIZE
+      };
+
+      uint8_t choice_tag = *choice_tag_bytes_src.pointer;
+
+      if (unsafe_choice_index_src >= ctx->unsafe_choices_src.count) {
+        ctx->error_code = SVFRT_code_conversion__bad_schema_choice_index;
+        return;
+      }
+      SVF_META_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + unsafe_choice_index_src;
+
+      if (choice_index_dst >= ctx->choices_dst.count) {
+        ctx->error_code = SVFRT_code_conversion_internal__bad_schema_choice_index;
+        return;
+      }
+      SVF_META_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
+
+      SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+        ctx->info->unsafe_schema_src,
+        unsafe_definition_src->options,
+        SVF_META_OptionDefinition
+      );
+      if (!unsafe_options_src.pointer && unsafe_options_src.count) {
+        ctx->error_code = SVFRT_code_conversion__bad_schema_options;
+        return;
+      }
+
+      SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+        ctx->info->schema_dst,
+        definition_dst->options,
+        SVF_META_OptionDefinition
+      );
+      if (!options_dst.pointer && options_dst.count) {
+        ctx->error_code = SVFRT_code_conversion_internal__bad_schema_options;
+        return;
+      }
+
+      // Assumption: we have done the compatibility check, which should have
+      // ensured that src-schema options are a subset of dst-schema options.
+      //
+      // See #compatibility-reasonable-options.
+      //
+      // TODO: like with struct fields, we should actually have built a
+      // correspondence table during the compatibiltiy check.
+
+      bool found_src = false;
+      bool found_dst = false;
+
+      for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
+        SVF_META_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
+
+        if (unsafe_option_src->index != choice_tag) {
+          continue;
+        }
+
+        for (uint32_t j = 0; j < options_dst.count; j++) {
+          SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
+
+          if (option_dst->name_hash != unsafe_option_src->name_hash) {
+            continue;
+          }
+
+          SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
+          if (phase2) {
+            // Make sure we can at least write the tag.
+            //
+            // Prevent addition overflow by casting operands to `uint64_t` first.
+            //
+            // In this case, it looks rather silly, as we are adding _one_. But
+            // proving an overflow can't happen is much harder that just checking.
+            if ((uint64_t) phase2->data_offset_dst + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) phase2->data_range_dst.count) {
+              ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds;
+              return;
+            }
+
+            // Write the tag.
+            // TODO @proper-alignment.
+            *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->index;
+
+            phase2_inner.data_range_dst = phase2->data_range_dst;
+
+            // TODO @proper-alignment.
+            phase2_inner.data_offset_dst = phase2->data_offset_dst + SVFRT_TAG_SIZE;
+          }
+
+          SVFRT_conversion_traverse_any_type(
+            ctx,
+            recursion_depth,
+            data_range_src,
+            unsafe_data_offset_src + SVFRT_TAG_SIZE, // TODO: @proper-alignment.
+            unsafe_option_src->type_enum,
+            &unsafe_option_src->type_union,
+            option_dst->type_enum,
+            &option_dst->type_union,
+            phase2 ? &phase2_inner : NULL
+          );
+
+          found_dst = true;
+          break;
+        }
+
+        found_src = true;
+        break;
+      }
+
+      if (!found_src) {
+        ctx->error_code = SVFRT_code_conversion__bad_choice_tag;
+        return;
+      }
+
+      if (!found_dst) {
+        ctx->error_code = SVFRT_code_conversion_internal__schema_option_missing;
+        return;
+      }
+
+      return;
+    }
+    case SVF_META_ConcreteType_zero_sized: {
+      // Sanity check. This case should only arise inside choices.
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_zero_sized) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_u64: {
+      if (!phase2) return;
+      uint64_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_u64: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(uint64_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_u32: { // U32 -> U64.
+          out_value = (uint64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u16: { // U16 -> U64.
+          out_value = (uint64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> U64.
+          out_value = (uint64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_uint64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_u32: {
+      if (!phase2) return;
+      uint32_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_u32: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(uint32_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_u16: { // U16 -> U32.
+          out_value = (uint32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> U32.
+          out_value = (uint32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_uint32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_u16: {
+      if (!phase2) return;
+      uint16_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_u16: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(uint16_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> U16.
+          out_value = (uint16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_uint16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_u8: {
+      if (!phase2) return;
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_u8) {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+        return;
+      }
+      SVFRT_conversion_copy_exact(
+        ctx,
+        data_range_src,
+        unsafe_data_offset_src,
+        phase2->data_range_dst,
+        phase2->data_offset_dst,
+        sizeof(uint8_t)
+      );
+      return;
+    }
+    case SVF_META_ConcreteType_i64: {
+      if (!phase2) return;
+      int64_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_i64: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(int64_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_i32: { // I32 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_int32_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_i16: { // I16 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_i8: { // I8 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u32: { // U32 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u16: { // U16 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> I64.
+          out_value = (int64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_int64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_i32: {
+      if (!phase2) return;
+      int32_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_i32: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(int32_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_i64: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(int64_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_i16: { // I16 -> I32.
+          out_value = (int32_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_i8: { // I8 -> I32.
+          out_value = (int32_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u16: { // U16 -> I32.
+          out_value = (int32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> I32.
+          out_value = (int32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_int32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_i16: {
+      if (!phase2) return;
+      int16_t out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_i16: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(int16_t)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_i8: { // I8 -> I16.
+          out_value = (int16_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        case SVF_META_ConcreteType_u8: { // U8 -> I16.
+          out_value = (int16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_int16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_i8: {
+      if (!phase2) return;
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_i8) {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+        return;
+      }
+      SVFRT_conversion_copy_exact(
+        ctx,
+        data_range_src,
+        unsafe_data_offset_src,
+        phase2->data_range_dst,
+        phase2->data_offset_dst,
+        sizeof(int8_t)
+      );
+      return;
+    }
+    case SVF_META_ConcreteType_f64: {
+      if (!phase2) return;
+      // Note: it is unclear, whether lossless integer -> float conversions
+      // should be allowed or not. Probably not, because the semantics are very
+      // different.
+
+      double out_value = 0;
+      switch (unsafe_type_enum_src) {
+        case SVF_META_ConcreteType_f64: { // Exact case, copy and exit.
+          SVFRT_conversion_copy_exact(
+            ctx,
+            data_range_src,
+            unsafe_data_offset_src,
+            phase2->data_range_dst,
+            phase2->data_offset_dst,
+            sizeof(double)
+          );
+          return;
+        }
+        case SVF_META_ConcreteType_f32: { // F32 -> F64.
+          out_value = (double) SVFRT_conversion_read_float(ctx, data_range_src, unsafe_data_offset_src);
+          break;
+        }
+        default: {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+          return;
+        }
+      }
+
+      SVFRT_conversion_write_double(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
+      return;
+    }
+    case SVF_META_ConcreteType_f32: {
+      if (!phase2) return;
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_f32) {
+          ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
+        return;
+      }
+      SVFRT_conversion_copy_exact(
+        ctx,
+        data_range_src,
+        unsafe_data_offset_src,
+        phase2->data_range_dst,
+        phase2->data_offset_dst,
+        sizeof(float)
+      );
+      return;
+    }
+    default: {
+      ctx->error_code = SVFRT_code_conversion__bad_type;
+      return;
+    }
+  }
+}
+
+void SVFRT_conversion_traverse_any_type(
+  SVFRT_ConversionContext *ctx,
+  uint32_t recursion_depth,
+  SVFRT_Bytes data_range_src,
+  uint32_t unsafe_data_offset_src,
+  SVF_META_Type_enum unsafe_type_enum_src,
+  SVF_META_Type_union *unsafe_type_union_src,
+  SVF_META_Type_enum type_enum_dst,
+  SVF_META_Type_union *type_union_dst,
+  SVFRT_Phase2_TraverseAnyType *phase2
+) {
+  recursion_depth += 1;
+  if (recursion_depth >= ctx->max_recursion_depth) {
+    ctx->error_code = SVFRT_code_conversion__max_recursion_depth_exceeded;
+    return;
+  }
+
+  switch (unsafe_type_enum_src) {
+    case SVF_META_Type_concrete: {
+      // Sanity check.
+      if (type_enum_dst != SVF_META_Type_concrete) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+        return;
+      }
+
+      SVFRT_Phase2_TraverseConcreteType phase2_inner = {0};
+      if (phase2) {
+        phase2_inner.data_range_dst = phase2->data_range_dst;
+        phase2_inner.data_offset_dst = phase2->data_offset_dst;
+      }
+
+      SVFRT_conversion_traverse_concrete_type(
+        ctx,
+        recursion_depth,
+        data_range_src,
+        unsafe_data_offset_src,
+        unsafe_type_union_src->concrete.type_enum,
+        &unsafe_type_union_src->concrete.type_union,
+        type_union_dst->concrete.type_enum,
+        &type_union_dst->concrete.type_union,
+        phase2 ? &phase2_inner : NULL
+      );
+
+      return;
+    }
+    case SVF_META_Type_reference: {
+      // Sanity check.
+      if (type_enum_dst != SVF_META_Type_reference) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+        return;
+      }
+
+      // Prevent addition overflow by casting operands to `uint64_t` first.
+      if ((uint64_t) unsafe_data_offset_src + (uint64_t) sizeof(SVFRT_Reference) > (uint64_t) data_range_src.count) {
+        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+        return;
+      }
+      // TODO @proper-alignment: resulting pointer might be misaligned, watch out.
+      SVFRT_Reference unsafe_representation_src = *((SVFRT_Reference *) (data_range_src.pointer + unsafe_data_offset_src));
+
+      if (unsafe_representation_src.data_offset_complement == 0) {
+        // Allow invalid references, but only if the representation is zero.
+
+        // For Phase 1, nothing needs to be done here.
+        // For Phase 2, the dst-representation is zero already, which is fine.
+        return;
+      }
+
+      uint32_t unsafe_size_src = SVFRT_conversion_get_type_size(
+        ctx->unsafe_structs_src,
+        unsafe_type_union_src->reference.type_enum,
+        &unsafe_type_union_src->reference.type_union
+      );
+      if (unsafe_size_src == 0) {
+        ctx->error_code = SVFRT_code_conversion__bad_type;
+        return;
+      }
+
+      uint32_t size_dst = SVFRT_conversion_get_type_size(
+        ctx->structs_dst,
+        type_union_dst->reference.type_enum,
+        &type_union_dst->reference.type_union
+      );
+      if (size_dst == 0) {
+        ctx->error_code = SVFRT_code_conversion_internal__bad_type;
+        return;
+      }
+
+      SVFRT_Phase2_TraverseConcreteType phase2_inner = {0};
+      SVFRT_conversion_tally(
+        ctx,
+        unsafe_size_src,
+        size_dst,
+        1,
+        phase2 ? &phase2_inner.data_range_dst : NULL
+      );
+      if (ctx->error_code) {
+        return;
+      }
+
+      // For Phase 2:
+      // `phase2_inner.data_range_dst` was filled by `SVFRT_conversion_tally`.
+      // `phase2_inner.data_offset_dst` is zero by default
+
+      SVFRT_conversion_traverse_concrete_type(
+        ctx,
+        recursion_depth,
+        ctx->data_bytes,
+        ~unsafe_representation_src.data_offset_complement,
+        unsafe_type_union_src->reference.type_enum,
+        &unsafe_type_union_src->reference.type_union,
+        type_union_dst->reference.type_enum,
+        &type_union_dst->reference.type_union,
+        phase2 ? &phase2_inner : NULL
+      );
+      return;
+    }
+    case SVF_META_Type_sequence: {
+      // Sanity check.
+      if (type_enum_dst != SVF_META_Type_sequence) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+        return;
+      }
+
+      // Prevent addition overflow by casting operands to `uint64_t` first.
+      if ((uint64_t) unsafe_data_offset_src + (uint64_t) sizeof(SVFRT_Sequence) > (uint64_t) data_range_src.count) {
+        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+        return;
+      }
+      // TODO @proper-alignment: resulting pointer might be misaligned, watch out.
+      SVFRT_Sequence unsafe_representation_src = *((SVFRT_Sequence *) (data_range_src.pointer + unsafe_data_offset_src));
+
+      // Allow invalid sequences, but only if the representation is zero.
+      if (unsafe_representation_src.data_offset_complement == 0 && unsafe_representation_src.count == 0) {
+        // For Phase 1, nothing needs to be done here.
+        // For Phase 2, the dst-representation is zero already, which is fine.
+        return;
+      }
+
+      uint32_t unsafe_size_src = SVFRT_conversion_get_type_size(
+        ctx->unsafe_structs_src,
+        unsafe_type_union_src->reference.type_enum,
+        &unsafe_type_union_src->reference.type_union
+      );
+      if (unsafe_size_src == 0) {
+        ctx->error_code = SVFRT_code_conversion__bad_type;
+        return;
+      }
+
+      uint32_t size_dst = SVFRT_conversion_get_type_size(
+        ctx->structs_dst,
+        type_union_dst->reference.type_enum,
+        &type_union_dst->reference.type_union
+      );
+      if (size_dst == 0) {
+        ctx->error_code = SVFRT_code_conversion_internal__bad_type;
+        return;
+      }
+
+      SVFRT_Phase2_TraverseConcreteType phase2_inner = {0};
+      SVFRT_conversion_tally(
+        ctx,
+        unsafe_size_src,
+        size_dst,
+        unsafe_representation_src.count,
+        phase2 ? &phase2_inner.data_range_dst : NULL
+      );
+      if (ctx->error_code) {
+        return;
+      }
+
+      for (uint32_t i = 0; i < unsafe_representation_src.count; i++) {
+        // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
+        // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
+        //
+        // Strictly speaking, it does not seem necessary to catch this, because
+        // offset checks and aliasing checks will do their job anyway, but it's
+        // just nicer to catch obvious problems early.
+        uint64_t unsafe_final_offset_src = (
+          (uint64_t) ~unsafe_representation_src.data_offset_complement +
+          (uint64_t) i * (uint64_t) unsafe_size_src
+        );
+        if (unsafe_final_offset_src > (uint64_t) UINT32_MAX) {
+          ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+          return;
+        }
+
+        if (phase2) {
+          // `phase2_inner.data_range_dst` was filled by `SVFRT_conversion_tally`.
+
+          // No overflow possible:
+          //
+          // Let `C = unsafe_representation_src.count`.  We know that `i < C`.
+          // And we know that `size_dst * C` does not overflow, because
+          // `SVFRT_conversion_tally` has succeeded, see #phase2-reasonable-dst-sum.
+          phase2_inner.data_offset_dst = size_dst * i;
+        }
+
+        SVFRT_conversion_traverse_concrete_type(
+          ctx,
+          recursion_depth,
+          ctx->data_bytes,
+          unsafe_final_offset_src,
+          unsafe_type_union_src->reference.type_enum,
+          &unsafe_type_union_src->reference.type_union,
+          type_union_dst->reference.type_enum,
+          &type_union_dst->reference.type_union,
+          phase2 ? &phase2_inner : NULL
+        );
+
+        if (ctx->error_code) {
+          // Exit early on any error. This would include any tally limit checks,
+          // so it's fine to loop even though the count might be malicious.
+          return;
+        }
+      }
+      return;
+    }
+    default: {
+      ctx->error_code = SVFRT_code_conversion__bad_schema_type_enum;
     }
   }
 }
@@ -1220,105 +1172,178 @@ void SVFRT_copy_struct(
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
   SVFRT_ConversionInfo *info,
-  SVFRT_Bytes entry_input_bytes,
+  SVFRT_Bytes entry_bytes_src, // TODO: this does not need to be a parameter?
   SVFRT_Bytes data_bytes,
-  size_t max_recursion_depth,
+  uint32_t max_recursion_depth,
+  uint32_t total_data_size_limit,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
 ) {
-  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r0, info->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r1, info->s1->structs, SVF_META_StructDefinition);
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r0, info->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(info->r1, info->s1->choices, SVF_META_ChoiceDefinition);
+  SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    info->unsafe_schema_src,
+    info->unsafe_definition_src->structs,
+    SVF_META_StructDefinition
+  );
+  if (!unsafe_structs_src.pointer && unsafe_structs_src.count) {
+    out_result->error_code = SVFRT_code_conversion__bad_schema_structs;
+    return;
+  };
 
-  if (0
-    || !structs0.pointer
-    || !structs1.pointer
-    || !choices0.pointer
-    || !choices1.pointer
-  ) {
+  SVFRT_RangeStructDefinition structs_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    info->schema_dst,
+    info->definition_dst->structs,
+    SVF_META_StructDefinition
+  );
+  if (!structs_dst.pointer && structs_dst.count) {
+    out_result->error_code = SVFRT_code_conversion_internal__bad_schema_structs;
     return;
   }
 
+  SVFRT_RangeChoiceDefinition unsafe_choices_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    info->unsafe_schema_src,
+    info->unsafe_definition_src->choices,
+    SVF_META_ChoiceDefinition
+  );
+  if (!unsafe_choices_src.pointer && unsafe_choices_src.count) {
+    out_result->error_code = SVFRT_code_conversion__bad_schema_choices;
+    return;
+  };
+
+  SVFRT_RangeChoiceDefinition choices_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    info->schema_dst,
+    info->definition_dst->choices,
+    SVF_META_ChoiceDefinition
+  );
+  if (!choices_dst.pointer && choices_dst.count) {
+    out_result->error_code = SVFRT_code_conversion_internal__bad_schema_choices;
+    return;
+  }
+
+  if (info->struct_index_src >= unsafe_structs_src.count) {
+    out_result->error_code = SVFRT_code_conversion__bad_schema_struct_index;
+    return;
+  }
+  uint32_t unsafe_entry_struct_size_src = unsafe_structs_src.pointer[info->struct_index_src].size;
+
+  if (info->struct_index_dst >= structs_dst.count) {
+    out_result->error_code = SVFRT_code_conversion_internal__bad_schema_struct_index;
+    return;
+  }
+  uint32_t entry_struct_size_dst = structs_dst.pointer[info->struct_index_dst].size;
+
   SVFRT_ConversionContext ctx_val = {0};
-  ctx_val.data_bytes = data_bytes;
   ctx_val.info = info;
+  ctx_val.data_bytes = data_bytes;
   ctx_val.max_recursion_depth = max_recursion_depth;
-  ctx_val.structs0 = structs0;
-  ctx_val.structs1 = structs1;
-  ctx_val.choices0 = choices0;
-  ctx_val.choices1 = choices1;
+  ctx_val.unsafe_structs_src = unsafe_structs_src;
+  ctx_val.structs_dst = structs_dst;
+  ctx_val.unsafe_choices_src = unsafe_choices_src;
+  ctx_val.choices_dst = choices_dst;
+  ctx_val.total_data_size_limit_dst = total_data_size_limit;
   SVFRT_ConversionContext *ctx = &ctx_val;
 
   //
   // Phase 1: calculate size needed for the allocation.
   //
 
-  SVFRT_bump_struct_contents(
+  uint32_t recursion_depth = 0;
+  SVFRT_conversion_traverse_struct(
     ctx,
-    info->struct_index0,
-    info->struct_index1,
-    entry_input_bytes
+    recursion_depth,
+    info->struct_index_src,
+    info->struct_index_dst,
+    entry_bytes_src,
+    NULL
   );
-  SVFRT_bump_structs(
-    ctx,
-    info->struct_index1,
-    1 // Single entry struct.
-  );
-
-  if (ctx->internal_error || ctx->data_error) {
+  if (ctx->error_code) {
+    out_result->error_code = ctx->error_code;
     return;
   }
 
-  void *allocated_pointer = allocator_fn(allocator_ptr, ctx->allocation_needed);
+  SVFRT_conversion_tally(
+    ctx,
+    unsafe_entry_struct_size_src,
+    entry_struct_size_dst,
+    1,
+    NULL
+  );
+  if (ctx->error_code) {
+    out_result->error_code = ctx->error_code;
+    return;
+  }
+
+  void *allocated_pointer = allocator_fn(allocator_ptr, ctx->tally_dst);
   if (!allocated_pointer) {
+    out_result->error_code = SVFRT_code_conversion__allocation_failed;
     return;
   }
+
   ctx->allocation.pointer = allocated_pointer;
-  ctx->allocation.count = ctx->allocation_needed;
+  ctx->allocation.count = ctx->tally_dst;
+  out_result->output_bytes = ctx->allocation;
 
   // Zero out the memory.
   SVFRT_MEMSET(ctx->allocation.pointer, 0, ctx->allocation.count);
+
+  // Reset tallies between the phases.
+  ctx->tally_src = 0;
+  ctx->tally_dst = 0;
+  recursion_depth = 0;
 
   //
   // Phase 2: actually copy the data.
   //
 
-  SVF_META_StructDefinition *s1 = ctx->structs1.pointer + ctx->info->struct_index1;
+  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + ctx->info->struct_index_dst;
 
   // Entry is special, as it always resides at the end of the data range.
   //
   // TODO: @proper-alignment.
-  SVFRT_Bytes entry_output_bytes = {
-    /*.pointer =*/ ctx->allocation.pointer + ctx->allocation.count - s1->size,
-    /*.size =*/ s1->size,
+  SVFRT_Bytes entry_bytes_dst = {
+    /*.pointer =*/ ctx->allocation.pointer + ctx->allocation.count - definition_dst->size,
+    /*.size =*/ definition_dst->size,
   };
 
-  SVFRT_copy_struct(
+  SVFRT_Phase2_TraverseStruct phase2 = {
+    /*.struct_bytes_dst =*/ entry_bytes_dst
+  };
+  SVFRT_conversion_traverse_struct(
     ctx,
-    0,
-    info->struct_index0,
-    info->struct_index1,
-    entry_input_bytes,
-    entry_output_bytes
+    recursion_depth,
+    info->struct_index_src,
+    info->struct_index_dst,
+    entry_bytes_src,
+    &phase2
   );
-
-  // The above call will have "allocated" memory for everything preceding the
-  // entry, but also copied fields of the entry struct without marking that
-  // struct's memory as allocated. This is the only thing that remains.
-  //
-  // TODO: @proper-alignment.
-  ctx->allocated_already += s1->size;
-
-  if (ctx->allocated_already != ctx->allocation.count) {
-    ctx->internal_error = true;
+  if (ctx->error_code) {
+    out_result->error_code = ctx->error_code;
     return;
   }
 
-  if (ctx->internal_error || ctx->data_error) {
+  SVFRT_Bytes entry_bytes_dst_alternate = {0};
+  SVFRT_conversion_tally(
+    ctx,
+    unsafe_entry_struct_size_src,
+    entry_struct_size_dst,
+    1,
+    &entry_bytes_dst_alternate
+  );
+  if (ctx->error_code) {
+    out_result->error_code = ctx->error_code;
+    return;
+  }
+
+  // Sanity checks.
+  if (
+    (entry_bytes_dst.pointer != entry_bytes_dst_alternate.pointer) ||
+    (entry_bytes_dst.count != entry_bytes_dst_alternate.count) ||
+    (ctx->tally_dst != ctx->allocation.count)
+  ) {
+    // Something went terribly wrong.
+    // TODO: should this kind of "fatal" error be separate?
+    out_result->error_code = SVFRT_code_conversion_internal__suballocation_mismatch;
     return;
   }
 
   out_result->success = true;
-  out_result->output_bytes = ctx->allocation;
 }

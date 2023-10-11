@@ -43,34 +43,38 @@ void *SVFRT_internal_from_sequence(
 );
 
 #define SVFRT_INTERNAL_POINTER_FROM_REFERENCE(bytes, reference, type) ( \
-  SVFRT_internal_from_reference((bytes), (reference), sizeof(type)), \
+  (type *) SVFRT_internal_from_reference((bytes), (reference), sizeof(type)), \
 )
 
+// Caveat: may return { NULL, count }.
+// TODO: use macro tricks to force to return { NULL, 0 } in this case?
 #define SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(bytes, sequence, type) { \
   /*.pointer = */ (type *) SVFRT_internal_from_sequence((bytes), (sequence), sizeof(type)), \
   /*.count = */ (sequence).count \
 }
 
 typedef struct SVFRT_ConversionResult {
-  SVFRT_Bytes output_bytes;
+  SVFRT_Bytes output_bytes; // Note: may refer to allocated memory even on failure.
   bool success;
+  SVFRT_ErrorCode error_code;
 } SVFRT_ConversionResult;
 
 typedef struct SVFRT_ConversionInfo {
-  SVF_META_Schema *s0;
-  SVF_META_Schema *s1;
-  SVFRT_Bytes r0;
-  SVFRT_Bytes r1;
-  uint32_t struct_index0;
-  uint32_t struct_index1;
+  SVF_META_Schema *unsafe_definition_src;
+  SVF_META_Schema *definition_dst;
+  SVFRT_Bytes unsafe_schema_src;
+  SVFRT_Bytes schema_dst;
+  uint32_t struct_index_src; // Note: no `unsafe` prefix here.
+  uint32_t struct_index_dst;
 } SVFRT_ConversionInfo;
 
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
   SVFRT_ConversionInfo *info,
-  SVFRT_Bytes entry_input_bytes,
+  SVFRT_Bytes entry_bytes_src,
   SVFRT_Bytes data_bytes,
-  size_t max_recursion_depth,
+  uint32_t max_recursion_depth,
+  uint32_t total_data_size_limit,
   SVFRT_AllocatorFn *allocator_fn,
   void *allocator_ptr
 );

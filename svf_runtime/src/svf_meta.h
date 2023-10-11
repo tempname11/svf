@@ -30,12 +30,13 @@ typedef struct SVFRT_Sequence {
 
 #pragma pack(push, 1)
 
-#define SVF_META_min_read_scratch_memory_size 88
-#define SVF_META_binary_size 2125
-extern uint8_t const SVF_META_binary_array[];
+#define SVF_META_min_read_scratch_memory_size 187
+#define SVF_META_compatibility_work_base 95
+#define SVF_META_schema_binary_size 2125
+extern uint8_t const SVF_META_schema_binary_array[];
 
 #if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
-uint8_t const SVF_META_binary_array[] = {
+uint8_t const SVF_META_schema_binary_array[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

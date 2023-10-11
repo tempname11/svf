@@ -467,9 +467,10 @@ struct SchemaDescription {
   template<typename T>
   struct PerType;
 
-  static constexpr U8 *schema_array = (U8 *) binary::array;
-  static constexpr size_t schema_size = binary::size;
-  static constexpr U64 min_read_scratch_memory_size = 88;
+  static constexpr U8 *schema_binary_array = (U8 *) binary::array;
+  static constexpr size_t schema_binary_size = binary::size;
+  static constexpr U64 min_read_scratch_memory_size = 187;
+  static constexpr U32 compatibility_work_base = 95;
 };
 
 // C++ trickery: SchemaDescription::PerType.

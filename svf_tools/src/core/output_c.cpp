@@ -367,13 +367,19 @@ typedef struct SVFRT_Sequence {
 
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, in_schema->name);
-  output_cstring(ctx, "_binary_size ");
+  output_cstring(ctx, "_compatibility_work_base ");
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes ,in_schema));
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "#define SVF_");
+  output_u8_array(ctx, in_schema->name);
+  output_cstring(ctx, "_schema_binary_size ");
   output_decimal(ctx, schema_bytes.count);
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "extern uint8_t const SVF_");
   output_u8_array(ctx, in_schema->name);
-  output_cstring(ctx, "_binary_array[];\n");
+  output_cstring(ctx, "_schema_binary_array[];\n");
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
@@ -381,7 +387,7 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "uint8_t const SVF_");
   output_u8_array(ctx, in_schema->name);
 
-  output_cstring(ctx, "_binary_array[] = {\n");
+  output_cstring(ctx, "_schema_binary_array[] = {\n");
   output_raw_bytes(ctx, schema_bytes);
   output_cstring(ctx, "};\n");
 

@@ -3,341 +3,544 @@
   #include "svf_internal.h"
 #endif
 
+// Note: #unsafe-naming-semantics.
+//
+// We are reading potentially adversarial data, and it's important to delineate,
+// which is which. "Unsafe" value in this context means that is is accessible,
+// but may contain something completely unexpected or malicious. This concerns:
+//
+// - Value types, e.g. `unsafe_index` would mean that the index itself may be
+//   out of bounds.
+//
+// - Range types, e.g. `unsafe_xs` would mean that a contiguous memory area
+//   with X-s is accessible, but the X-s themselves can be anything.
+//
+// - Pointer types, which can be dereferenced, but the value cannot be relied upon.
+//
+// For all pointers, nullability is a separate concern and is handled independedntly
+// of this.
+
+typedef struct SVFRT_IndexPair {
+  uint32_t index_src;
+  uint32_t index_dst;
+} SVFRT_IndexPair;
+// TODO: sizeof must be 8, and alignof must be 4. Check this at compile time.
+
+typedef struct SVFRT_IndexPairQueue {
+  SVFRT_IndexPair *pointer;
+  uint32_t capacity;
+  uint32_t occupied;
+} SVFRT_IndexPairQueue;
+
 typedef struct SVFRT_CheckContext {
-  // The entry structure for both schemas. We are going to check the "backward"
-  // (write Schema 0, then read Schema 1) compatibility.
-  SVF_META_Schema* s0;
-  SVF_META_Schema* s1;
+  // The root definition for both schemas.
+  SVF_META_Schema* unsafe_definition_src;
+  SVF_META_Schema* definition_dst;
 
   // Byte ranges of the two schemas.
-  SVFRT_Bytes r0;
-  SVFRT_Bytes r1;
+  SVFRT_Bytes unsafe_schema_src;
+  SVFRT_Bytes schema_dst;
 
-  // What do Schema 1 structs/choices match to in Schema 0?
-  SVFRT_RangeU32 s1_struct_matches;
-  SVFRT_RangeU32 s1_choice_matches;
+  SVFRT_RangeStructDefinition unsafe_structs_src;
+  SVFRT_RangeStructDefinition structs_dst;
+
+  SVFRT_RangeChoiceDefinition unsafe_choices_src;
+  SVFRT_RangeChoiceDefinition choices_dst;
+
+  // What do each of dst-schema structs/choices match to in src-schema?
+  SVFRT_RangeU32 dst_to_src_struct_matches;
+  SVFRT_RangeU32 dst_to_src_choice_matches;
 
   // What stride should be used when indexing a sequence of structs? With binary
-  // compatibility, it is not size of the Schema 1 struct, even though we are
-  // accessing the data through it. It is actually the size of the Schema 0
+  // compatibility, it is not size of the dst-schema struct, even though we are
+  // accessing the data through it. It is actually the size of the src-schema
   // struct, since that's what the original sequence was using as the stride.
-  SVFRT_RangeU32 s1_struct_strides;
+  SVFRT_RangeU32 unsafe_struct_strides_dst;
+
+  // Fixed-size FIFO queues in scratch memory to avoid using the real stack, and
+  // avoid any potential overflow problems.
+  SVFRT_IndexPairQueue struct_queue;
+  SVFRT_IndexPairQueue choice_queue;
 
   // Lowest level seen so far. Should be >= required level.
   SVFRT_CompatibilityLevel current_level;
 
   // Required level. We can exit early if we see that something does not match it.
   SVFRT_CompatibilityLevel required_level;
+
+  uint32_t work_max;
+  uint32_t work_done;
+
+  SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
 } SVFRT_CheckContext;
 
-bool SVFRT_check_struct(
+void SVFRT_check_add_struct(
   SVFRT_CheckContext *ctx,
-  uint32_t s0_index,
-  uint32_t s1_index
-);
-
-bool SVFRT_check_choice(
-  SVFRT_CheckContext *ctx,
-  uint32_t s0_index,
-  uint32_t s1_index
-);
-
-bool check_concrete_type(
-  SVFRT_CheckContext *ctx,
-  SVF_META_ConcreteType_enum t0,
-  SVF_META_ConcreteType_enum t1,
-  SVF_META_ConcreteType_union *u0,
-  SVF_META_ConcreteType_union *u1
+  uint32_t struct_index_src,
+  uint32_t struct_index_dst
 ) {
-  if (t0 == t1) {
-    if (t0 == SVF_META_ConcreteType_defined_struct) {
-      return SVFRT_check_struct(ctx, u0->defined_struct.index, u1->defined_struct.index);
-    } else if (t0 == SVF_META_ConcreteType_defined_choice) {
-      return SVFRT_check_choice(ctx, u0->defined_choice.index, u1->defined_choice.index);
-    }
-
-    // Other types are primitive.
-    return true;
-  }
-
-  if (ctx->required_level <= SVFRT_compatibility_logical) {
-    switch (t1) {
-      case SVF_META_ConcreteType_u16: {
-        return t0 == SVF_META_ConcreteType_u8;
-      }
-      case SVF_META_ConcreteType_u32: {
-        return (0
-          || (t0 == SVF_META_ConcreteType_u16)
-          || (t0 == SVF_META_ConcreteType_u8)
-        );
-      }
-      case SVF_META_ConcreteType_u64: {
-        return (0
-          || (t0 == SVF_META_ConcreteType_u32)
-          || (t0 == SVF_META_ConcreteType_u16)
-          || (t0 == SVF_META_ConcreteType_u8)
-        );
-      }
-      case SVF_META_ConcreteType_i16: {
-        return (0
-          || (t0 == SVF_META_ConcreteType_i8)
-          || (t0 == SVF_META_ConcreteType_u8)
-        );
-      }
-      case SVF_META_ConcreteType_i32: {
-        return (0
-          || (t0 == SVF_META_ConcreteType_i16)
-          || (t0 == SVF_META_ConcreteType_i8)
-          || (t0 == SVF_META_ConcreteType_u16)
-          || (t0 == SVF_META_ConcreteType_u8)
-        );
-      }
-      case SVF_META_ConcreteType_i64: {
-        return (0
-          || (t0 == SVF_META_ConcreteType_i32)
-          || (t0 == SVF_META_ConcreteType_i16)
-          || (t0 == SVF_META_ConcreteType_i8)
-          || (t0 == SVF_META_ConcreteType_u32)
-          || (t0 == SVF_META_ConcreteType_u16)
-          || (t0 == SVF_META_ConcreteType_u8)
-        );
-      }
-      case SVF_META_ConcreteType_f64: {
-        return t0 == SVF_META_ConcreteType_f32;
-      }
-      default: {
-        return false;
-      }
-    }
-  }
-
-  return false;
-}
-
-bool check_type(
-  SVFRT_CheckContext *ctx,
-  SVF_META_Type_enum t0,
-  SVF_META_Type_enum t1,
-  SVF_META_Type_union *u0,
-  SVF_META_Type_union *u1
-) {
-  if (t0 != t1) {
-    return false;
-  }
-
-  if (t0 == SVF_META_Type_reference) {
-    return check_concrete_type(
-      ctx,
-      u0->reference.type_enum,
-      u1->reference.type_enum,
-      &u0->reference.type_union,
-      &u1->reference.type_union
-    );
-  }
-
-  if (t0 == SVF_META_Type_sequence) {
-    return check_concrete_type(
-      ctx,
-      u0->sequence.element_type_enum,
-      u1->sequence.element_type_enum,
-      &u0->sequence.element_type_union,
-      &u1->sequence.element_type_union
-    );
-  }
-
-  if (t0 == SVF_META_Type_concrete) {
-    return check_concrete_type(
-      ctx,
-      u0->concrete.type_enum,
-      u1->concrete.type_enum,
-      &u0->concrete.type_union,
-      &u1->concrete.type_union
-    );
-  }
-
-  // Internal error.
-  return false;
-}
-
-bool SVFRT_check_struct(
-  SVFRT_CheckContext *ctx,
-  uint32_t s0_index,
-  uint32_t s1_index
-) {
-  uint32_t match = ctx->s1_struct_matches.pointer[s1_index];
-  if (match == s0_index) {
-    return true;
+  uint32_t match = ctx->dst_to_src_struct_matches.pointer[struct_index_dst];
+  if (match == struct_index_src) {
+    // We previously checked how this dst-index matches this src-index, and it
+    // was fine.
+    return;
   }
 
   if (match != (uint32_t) (-1)) {
-    // Internal error.
-    return false;
-  }
-  ctx->s1_struct_matches.pointer[s1_index] = s0_index;
-
-  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
-  if (!structs0.pointer || !structs1.pointer) {
-    // Internal error.
-    return false;
+    // We previously matched this dst-index to a different src-index, so
+    // something is wrong.
+    ctx->error_code = SVFRT_code_compatibility__struct_index_mismatch;
+    return;
   }
 
-  SVF_META_StructDefinition *s0 = structs0.pointer + s0_index;
-  SVF_META_StructDefinition *s1 = structs1.pointer + s1_index;
+  ctx->dst_to_src_struct_matches.pointer[struct_index_dst] = struct_index_src;
 
-  SVFRT_RangeFieldDefinition fields0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, s0->fields, SVF_META_FieldDefinition);
-  SVFRT_RangeFieldDefinition fields1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, s1->fields, SVF_META_FieldDefinition);
+  if (ctx->struct_queue.occupied >= ctx->struct_queue.capacity) {
+    ctx->error_code = SVFRT_code_compatibility_internal__queue_overflow;
+    return;
+  }
+  SVFRT_IndexPair *pair = ctx->struct_queue.pointer + ctx->struct_queue.occupied;
+  ctx->struct_queue.occupied++;
 
-  if (!fields0.pointer || !fields0.pointer) {
-    // Internal error.
+  pair->index_src = struct_index_src;
+  pair->index_dst = struct_index_dst;
+}
+
+void SVFRT_check_add_choice(
+  SVFRT_CheckContext *ctx,
+  uint32_t choice_index_src,
+  uint32_t choice_index_dst
+) {
+  uint32_t match = ctx->dst_to_src_choice_matches.pointer[choice_index_dst];
+  if (match == choice_index_src) {
+    // We previously checked how this dst-index matches this src-index, and it
+    // was fine.
+    return;
+  }
+
+  if (match != (uint32_t) (-1)) {
+    // We previously matched this dst-index to a different src-index, so
+    // something is wrong.
+    ctx->error_code = SVFRT_code_compatibility__choice_index_mismatch;
+    return;
+  }
+
+  ctx->dst_to_src_choice_matches.pointer[choice_index_dst] = choice_index_src;
+
+  if (ctx->choice_queue.occupied >= ctx->choice_queue.capacity) {
+    ctx->error_code = SVFRT_code_compatibility_internal__queue_overflow;
+    return;
+  }
+  SVFRT_IndexPair *pair = ctx->choice_queue.pointer + ctx->choice_queue.occupied;
+  ctx->choice_queue.occupied++;
+
+  pair->index_src = choice_index_src;
+  pair->index_dst = choice_index_dst;
+}
+
+static inline
+bool SVFRT_check_work(SVFRT_CheckContext *ctx, uint32_t work_count) {
+  ctx->work_done += work_count;
+  if (ctx->work_done > ctx->work_max) {
+    ctx->error_code = SVFRT_code_compatibility__work_max_exceeded;
     return false;
   }
 
-  // Logical compatibility: all Schema 1 fields must be present in Schema 0,
+  return true;
+}
+
+#define SVFRT_RETURN_IF_WORK_MAX(ctx, count) if (!SVFRT_check_work((ctx), (count))) { return; }
+
+// TODO: report the specific types that did not match?
+void SVFRT_check_concrete_type(
+  SVFRT_CheckContext *ctx,
+  SVF_META_ConcreteType_enum unsafe_enum_src,
+  SVF_META_ConcreteType_union *unsafe_union_src,
+  SVF_META_ConcreteType_enum enum_dst,
+  SVF_META_ConcreteType_union *union_dst
+) {
+  if (unsafe_enum_src == enum_dst) {
+    switch (enum_dst) {
+      case SVF_META_ConcreteType_defined_struct: {
+        uint32_t unsafe_src_index = unsafe_union_src->defined_struct.index;
+
+        // This guarantees that the index is valid, and is also not `UINT32_MAX`.
+        if (unsafe_src_index >= ctx->unsafe_structs_src.count) {
+          ctx->error_code = SVFRT_code_compatibility__invalid_struct_index;
+          return;
+        }
+
+        SVFRT_check_add_struct(
+          ctx,
+          unsafe_src_index,
+          union_dst->defined_struct.index
+        );
+        return;
+      }
+      case SVF_META_ConcreteType_defined_choice: {
+        uint32_t unsafe_src_index = unsafe_union_src->defined_choice.index;
+
+        // This guarantees that the index is valid, and is also not `UINT32_MAX`.
+        if (unsafe_src_index >= ctx->unsafe_choices_src.count) {
+          ctx->error_code = SVFRT_code_compatibility__invalid_choice_index;
+          return;
+        }
+
+        SVFRT_check_add_choice(
+          ctx,
+          unsafe_src_index,
+          union_dst->defined_choice.index
+        );
+        return;
+      }
+      // TODO: this is not exhaustive, but there's not much to gain from that?
+      default: {
+        // Other types are primitive, so enum equality is enough.
+        return;
+      }
+    }
+  }
+
+  if (ctx->required_level <= SVFRT_compatibility_logical) {
+    switch (enum_dst) {
+      case SVF_META_ConcreteType_u16: {
+        if (unsafe_enum_src != SVF_META_ConcreteType_u8) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_u32: {
+        if (
+          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+        ) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_u64: {
+        if (
+          (unsafe_enum_src != SVF_META_ConcreteType_u32) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+        ) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_i16: {
+        if (
+          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+        ) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_i32: {
+        if (
+          (unsafe_enum_src != SVF_META_ConcreteType_i16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+        ) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_i64: {
+        if (
+          (unsafe_enum_src != SVF_META_ConcreteType_i32) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_i16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u32) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
+          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+        ) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      case SVF_META_ConcreteType_f64: {
+        if (unsafe_enum_src != SVF_META_ConcreteType_f32) {
+          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        }
+        return;
+      }
+      // TODO: this is not exhaustive, but there's not much to gain from that?
+      default: {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+        return;
+      }
+    }
+  }
+}
+
+void SVFRT_check_type(
+  SVFRT_CheckContext *ctx,
+  SVF_META_Type_enum unsafe_enum_src,
+  SVF_META_Type_union *unsafe_union_src,
+  SVF_META_Type_enum enum_dst,
+  SVF_META_Type_union *union_dst
+) {
+  if (unsafe_enum_src != enum_dst) {
+    ctx->error_code = SVFRT_code_compatibility__type_mismatch;
+    return;
+  }
+
+  switch (enum_dst) {
+    case SVF_META_Type_reference: {
+      SVFRT_check_concrete_type(
+        ctx,
+        unsafe_union_src->reference.type_enum,
+        &unsafe_union_src->reference.type_union,
+        union_dst->reference.type_enum,
+        &union_dst->reference.type_union
+      );
+      return;
+    }
+    case SVF_META_Type_sequence: {
+      SVFRT_check_concrete_type(
+        ctx,
+        unsafe_union_src->sequence.element_type_enum,
+        &unsafe_union_src->sequence.element_type_union,
+        union_dst->sequence.element_type_enum,
+        &union_dst->sequence.element_type_union
+      );
+      return;
+    }
+    case SVF_META_Type_concrete: {
+      SVFRT_check_concrete_type(
+        ctx,
+        unsafe_union_src->concrete.type_enum,
+        &unsafe_union_src->concrete.type_union,
+        union_dst->concrete.type_enum,
+        &union_dst->concrete.type_union
+      );
+      return;
+    }
+    default: {
+      ctx->error_code = SVFRT_code_compatibility_internal__invalid_type_enum;
+      return;
+    }
+  }
+}
+
+void SVFRT_check_struct(
+  SVFRT_CheckContext *ctx,
+  uint32_t struct_index_src,
+  uint32_t struct_index_dst
+) {
+  SVF_META_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + struct_index_src;
+  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeFieldDefinition unsafe_fields_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->unsafe_schema_src,
+    unsafe_definition_src->fields,
+    SVF_META_FieldDefinition
+  );
+  if (!unsafe_fields_src.pointer && unsafe_fields_src.count) {
+    ctx->error_code = SVFRT_code_compatibility__invalid_fields;
+    return;
+  }
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeFieldDefinition fields_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->schema_dst,
+    definition_dst->fields,
+    SVF_META_FieldDefinition
+  );
+  if (!fields_dst.pointer && fields_dst.count) {
+    ctx->error_code = SVFRT_code_compatibility_internal__invalid_fields;
+    return;
+  }
+
+  // TODO: this will be more complicated with @optional-types.
+
+  // Logical compatibility: all dst-schema fields must be present in src-schema,
   // with the same `name_hash`. Their types must be logically compatible.
 
-  // Binary compatibility: all Schema 1 fields must be present in Schema 0, with
+  // Binary compatibility: all dst-schema fields must be present in src-schema, with
   // the same `name_hash` and `offset`. Their types must be binary compatible.
 
-  // Exact compatibility: all Schema 1 fields must be present in Schema 0, with
+  // Exact compatibility: all dst-schema fields must be present in src-schema, with
   // the same `name_hash` and `offset`. Their types must be exactly compatible.
   // The sizes of structs must be equal.
 
-  if (fields0.count < fields1.count) {
-    // Early exit, because we know that at least one field from Schema 1 is not
-    // present in Schema 0.
-    return false;
+  if (unsafe_fields_src.count < fields_dst.count) {
+    // Early exit, because we know that at least one field from dst-schema is not
+    // present in src-schema.
+    ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+    return;
   }
 
+  // #compatibility-reasonable-fields.
+  //
+  // #compatibility-work [2]: this is linear in respect to
+  // `unsafe_fields_src.count * fields_dst.count`.
+  //
   // TODO @performance: N^2
-  for (uint32_t i = 0; i < fields1.count; i++) {
-    SVF_META_FieldDefinition *field1 = fields1.pointer + i;
+  for (uint32_t i = 0; i < fields_dst.count; i++) {
+    SVF_META_FieldDefinition *field_dst = fields_dst.pointer + i;
+
+    // Looping over potentially adversarial data, so limit work.
+    SVFRT_RETURN_IF_WORK_MAX(ctx, unsafe_fields_src.count);
 
     bool found = false;
-    for (uint32_t j = 0; j < fields0.count; j++) {
-      SVF_META_FieldDefinition *field0 = fields0.pointer + j;
+    for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
+      SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
-      if (field0->name_hash == field1->name_hash) {
+      if (unsafe_field_src->name_hash == field_dst->name_hash) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
-          && (field0->offset != field1->offset)
+          && (unsafe_field_src->offset != field_dst->offset)
         ) {
           ctx->current_level = SVFRT_compatibility_logical;
           if (ctx->current_level < ctx->required_level) {
-            return false;
+            ctx->error_code = SVFRT_code_compatibility__field_offset_mismatch;
+            return;
           }
         }
 
-        if (!check_type(
-            ctx,
-            field0->type_enum,
-            field1->type_enum,
-            &field0->type_union,
-            &field1->type_union
-          )) {
-          return false;
+        SVFRT_check_type(
+          ctx,
+          unsafe_field_src->type_enum,
+          &unsafe_field_src->type_union,
+          field_dst->type_enum,
+          &field_dst->type_union
+        );
+
+        if (ctx->error_code) {
+          return;
         }
 
         found = true;
+        // Incorrect src-schema could have multiple fields with the same
+        // name-hash. We will simply ignore every but the first one.
+        //
+        // TODO: should this be guarded against? Can this cause trouble?
         break;
       }
     }
 
     if (!found) {
-      return false;
+      ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+      return;
     }
   }
 
   if (ctx->current_level == SVFRT_compatibility_exact) {
-    if (s0->size != s1->size) {
+    // #dst-stride-is-sane.
+    if (unsafe_definition_src->size != definition_dst->size) {
+      // Sizes do not match, downgrade to binary compatibility.
       ctx->current_level = SVFRT_compatibility_binary;
       if (ctx->current_level < ctx->required_level) {
-        return false;
+        ctx->error_code = SVFRT_code_compatibility__struct_size_mismatch;
+        return;
       }
     }
   }
 
-  ctx->s1_struct_strides.pointer[s1_index] = s0->size;
+  if (ctx->current_level == SVFRT_compatibility_binary) {
+    // #dst-stride-is-sane.
+    if (unsafe_definition_src->size < definition_dst->size) {
+      // Can't provide binary compatibility, so downgrade to logical compatibility.
+      ctx->current_level = SVFRT_compatibility_logical;
+      if (ctx->current_level < ctx->required_level) {
+        ctx->error_code = SVFRT_code_compatibility__struct_size_mismatch;
+        return;
+      }
+    }
+  }
 
-  return true;
+  ctx->unsafe_struct_strides_dst.pointer[struct_index_dst] = unsafe_definition_src->size;
 }
 
-bool SVFRT_check_choice(
+void SVFRT_check_choice(
   SVFRT_CheckContext *ctx,
-  uint32_t s0_index,
-  uint32_t s1_index
+  uint32_t choice_index_src,
+  uint32_t choice_index_dst
 ) {
-  uint32_t match = ctx->s1_choice_matches.pointer[s1_index];
-  if (match == s0_index) {
-    return true;
+  SVF_META_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + choice_index_src;
+  SVF_META_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->unsafe_schema_src,
+    unsafe_definition_src->options,
+    SVF_META_OptionDefinition
+  );
+  if (!unsafe_options_src.pointer && unsafe_options_src.count) {
+    ctx->error_code = SVFRT_code_compatibility__invalid_options;
+    return;
   }
 
-  if (match != (uint32_t) (-1)) {
-    // Internal error.
-    return false;
-  }
-  ctx->s1_choice_matches.pointer[s1_index] = s0_index;
-
-  SVFRT_RangeChoiceDefinition choices0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->choices, SVF_META_ChoiceDefinition);
-  SVFRT_RangeChoiceDefinition choices1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->choices, SVF_META_ChoiceDefinition);
-  if (!choices0.pointer || !choices1.pointer) {
-    // Internal error.
-    return false;
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->schema_dst,
+    definition_dst->options,
+    SVF_META_OptionDefinition
+  );
+  if (!options_dst.pointer && options_dst.count) {
+    ctx->error_code = SVFRT_code_compatibility_internal__invalid_options;
+    return;
   }
 
-  SVF_META_ChoiceDefinition *c0 = choices0.pointer + s0_index;
-  SVF_META_ChoiceDefinition *c1 = choices1.pointer + s1_index;
+  // TODO: this will be more complicated with @optional-types.
 
-  SVFRT_RangeOptionDefinition options0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, c0->options, SVF_META_OptionDefinition);
-  SVFRT_RangeOptionDefinition options1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, c1->options, SVF_META_OptionDefinition);
-
-  if (!options0.pointer || !options0.pointer) {
-    // Internal error.
-    return false;
-  }
-
-  // Logical compatibility: all Schema 0 fields must be present in Schema 1,
+  // Logical compatibility: all src-schema options must be present in dst-schema,
   // with the same `name_hash`. Their types must be logically compatible.
 
-  // Binary compatibility: all Schema 0 options must be present in Schema 1, with
+  // Binary compatibility: all src-schema options must be present in dst-schema, with
   // the same `name_hash` and `index`. Their types must be binary compatible.
 
-  // Exact compatibility: all Schema 0 options must be present in Schema 1, with
+  // Exact compatibility: all src-schema options must be present in dst-schema, with
   // the same `name_hash` and `index`. Their types must be exactly compatible.
 
-  if (options1.count < options0.count) {
-    // Early exit, because we know that at least one option from Schema 0 is not
-    // present in Schema 1.
-    return false;
+  if (options_dst.count < unsafe_options_src.count) {
+    // Early exit, because we know that at least one option from src-schema is not
+    // present in dst-schema.
+    ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+    return;
   }
 
+  // Unlike with structs, here we know that the total work done is bound by
+  // `options_dst.count`. So, we don't really need to limit work here, even if
+  // `unsafe_options_dst` is adversarial.
+  //
+  // #compatibility-reasonable-options.
+  //
   // TODO @performance: N^2
-  for (uint32_t i = 0; i < options0.count; i++) {
-    SVF_META_OptionDefinition *option0 = options0.pointer + i;
+  for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
+    SVF_META_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
 
     bool found = false;
-    for (uint32_t j = 0; j < options1.count; j++) {
-      SVF_META_OptionDefinition *option1 = options1.pointer + j;
+    for (uint32_t j = 0; j < options_dst.count; j++) {
+      SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
 
-      if (option0->name_hash == option1->name_hash) {
+      if (unsafe_option_src->name_hash == option_dst->name_hash) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
-          && (option0->index != option1->index)
+          && (unsafe_option_src->index != option_dst->index)
         ) {
           ctx->current_level = SVFRT_compatibility_logical;
           if (ctx->current_level < ctx->required_level) {
-            return false;
+            ctx->error_code = SVFRT_code_compatibility__option_tag_mismatch;
+            return;
           }
         }
 
-        if (!check_type(
-            ctx,
-            option0->type_enum,
-            option1->type_enum,
-            &option0->type_union,
-            &option1->type_union
-          )) {
-          return false;
+        SVFRT_check_type(
+          ctx,
+          unsafe_option_src->type_enum,
+          &unsafe_option_src->type_union,
+          option_dst->type_enum,
+          &option_dst->type_union
+        );
+
+        if (ctx->error_code) {
+          return;
         }
 
         found = true;
@@ -346,134 +549,270 @@ bool SVFRT_check_choice(
     }
 
     if (!found) {
-      return false;
+      ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+      return;
     }
   }
-
-  return true;
 }
 
 void SVFRT_check_compatibility(
   SVFRT_CompatibilityResult *out_result,
   SVFRT_Bytes scratch_memory,
-  SVFRT_Bytes schema_write,
-  SVFRT_Bytes schema_read,
+  SVFRT_Bytes unsafe_schema_src,
+  SVFRT_Bytes schema_dst,
   uint64_t entry_name_hash,
   SVFRT_CompatibilityLevel required_level,
-  SVFRT_CompatibilityLevel sufficient_level
+  SVFRT_CompatibilityLevel sufficient_level,
+  uint32_t work_max
 ) {
   if (required_level == SVFRT_compatibility_none) {
+    out_result->error_code = SVFRT_code_compatibility__required_level_is_none;
     return;
   }
 
   if (sufficient_level < required_level) {
+    out_result->error_code = SVFRT_code_compatibility__invalid_sufficient_level;
     return;
   }
-
-  SVFRT_Bytes r0 = schema_write;
-  SVFRT_Bytes r1 = schema_read;
 
   // TODO @proper-alignment.
-  SVF_META_Schema *s0 = (SVF_META_Schema *) (r0.pointer + r0.count - sizeof(SVF_META_Schema));
-  SVF_META_Schema *s1 = (SVF_META_Schema *) (r1.pointer + r1.count - sizeof(SVF_META_Schema));
+  SVF_META_Schema *unsafe_definition_src = (SVF_META_Schema *) (
+    unsafe_schema_src.pointer
+    + unsafe_schema_src.count
+    - sizeof(SVF_META_Schema)
+  );
+  SVF_META_Schema *definition_dst = (SVF_META_Schema *) (
+    schema_dst.pointer
+    + schema_dst.count
+    - sizeof(SVF_META_Schema)
+  );
 
-  size_t partitions[3] = {
-    sizeof(uint32_t) * s1->structs.count,
-    sizeof(uint32_t) * s1->choices.count,
-    sizeof(uint32_t) * s1->structs.count,
+  uint32_t scratch_misalignment = ((uintptr_t) scratch_memory.pointer) % sizeof(uint32_t);
+  uint32_t scratch_padding = scratch_misalignment ? sizeof(uint32_t) - scratch_misalignment : 0;
+
+  // See #scratch-memory-partitions.
+  size_t partitions[5] = {
+    sizeof(uint32_t) * definition_dst->structs.count, // Strides.
+    sizeof(uint32_t) * definition_dst->structs.count, // Matches.
+    sizeof(uint32_t) * definition_dst->choices.count, // Matches.
+    sizeof(SVFRT_IndexPair) * definition_dst->structs.count, // Queue.
+    sizeof(SVFRT_IndexPair) * definition_dst->choices.count  // Queue.
   };
-  size_t total_needed = (
-    partitions[0]
+
+  size_t total_scratch_needed = (
+    scratch_padding
+    + partitions[0]
     + partitions[1]
     + partitions[2]
+    + partitions[3]
+    + partitions[4]
   );
-  if (scratch_memory.count < total_needed) {
+  if (scratch_memory.count < total_scratch_needed) {
+    out_result->error_code = SVFRT_code_compatibility__not_enough_scratch_memory;
     return;
   }
 
-  SVFRT_RangeU32 s1_struct_matches = {
-    /*.pointer =*/ (uint32_t *) scratch_memory.pointer,
-    /*.count =*/ s1->structs.count
-  };
-  SVFRT_RangeU32 s1_choice_matches = {
-    /*.pointer =*/ (uint32_t *) (scratch_memory.pointer + partitions[0]),
-    /*.count =*/ s1->choices.count
-  };
-  SVFRT_RangeU32 s1_struct_strides = {
-    /*.pointer =*/ (uint32_t *) (scratch_memory.pointer + partitions[0] + partitions[1]),
-    /*.count =*/ s1->structs.count
+  uint8_t *partition_pointer = scratch_memory.pointer + scratch_padding;
+  SVFRT_RangeU32 unsafe_struct_strides_dst = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->structs.count
   };
 
-  for (uint32_t i = 0; i < s1->structs.count; i++) {
-    s1_struct_matches.pointer[i] = (uint32_t) (-1);
-    s1_struct_strides.pointer[i] = 0;
+  partition_pointer += partitions[0];
+  SVFRT_RangeU32 dst_to_src_struct_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->structs.count
+  };
+
+  partition_pointer += partitions[1];
+  SVFRT_RangeU32 dst_to_src_choice_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->choices.count
+  };
+
+  partition_pointer += partitions[2];
+  SVFRT_IndexPairQueue struct_queue_initial = {
+    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
+    /*.capacity =*/ definition_dst->structs.count,
+    /*.occupied =*/ 0
+  };
+
+  partition_pointer += partitions[3];
+  SVFRT_IndexPairQueue choice_queue_initial = {
+    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
+    /*.capacity =*/ definition_dst->choices.count,
+    /*.occupied =*/ 0
+  };
+
+  for (uint32_t i = 0; i < unsafe_struct_strides_dst.count; i++) {
+    unsafe_struct_strides_dst.pointer[i] = 0;
   }
-  for (uint32_t i = 0; i < s1->choices.count; i++) {
-    s1_choice_matches.pointer[i] = (uint32_t) (-1);
+  for (uint32_t i = 0; i < dst_to_src_struct_matches.count; i++) {
+    dst_to_src_struct_matches.pointer[i] = (uint32_t) (-1);
+  }
+  for (uint32_t i = 0; i < dst_to_src_choice_matches.count; i++) {
+    dst_to_src_choice_matches.pointer[i] = (uint32_t) (-1);
+  }
+  for (uint32_t i = 0; i < struct_queue_initial.capacity; i++) {
+    struct_queue_initial.pointer[i].index_src = (uint32_t) (-1);
+    struct_queue_initial.pointer[i].index_dst = (uint32_t) (-1);
+  }
+  for (uint32_t i = 0; i < choice_queue_initial.capacity; i++) {
+    choice_queue_initial.pointer[i].index_src = (uint32_t) (-1);
+    choice_queue_initial.pointer[i].index_dst = (uint32_t) (-1);
+  }
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    unsafe_schema_src,
+    unsafe_definition_src->structs,
+    SVF_META_StructDefinition
+  );
+  if (!unsafe_structs_src.pointer && unsafe_structs_src.count) {
+    out_result->error_code = SVFRT_code_compatibility__invalid_structs;
+    return;
+  }
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeStructDefinition structs_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    schema_dst,
+    definition_dst->structs,
+    SVF_META_StructDefinition
+  );
+  if (!structs_dst.pointer && structs_dst.count) {
+    out_result->error_code = SVFRT_code_compatibility_internal__invalid_structs;
+    return;
+  }
+
+  // Same for choices.
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeChoiceDefinition unsafe_choices_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    unsafe_schema_src,
+    unsafe_definition_src->choices,
+    SVF_META_ChoiceDefinition
+  );
+  if (!unsafe_choices_src.pointer && unsafe_choices_src.count) {
+    out_result->error_code = SVFRT_code_compatibility__invalid_choices;
+    return;
+  }
+
+  // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
+  SVFRT_RangeChoiceDefinition choices_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    schema_dst,
+    definition_dst->choices,
+    SVF_META_ChoiceDefinition
+  );
+  if (!choices_dst.pointer && choices_dst.count) {
+    out_result->error_code = SVFRT_code_compatibility_internal__invalid_choices;
+    return;
   }
 
   SVFRT_CheckContext ctx_val = {
-    .s0 = s0,
-    .s1 = s1,
-    .r0 = r0,
-    .r1 = r1,
-    .s1_struct_matches = s1_struct_matches,
-    .s1_choice_matches = s1_choice_matches,
-    .s1_struct_strides = s1_struct_strides,
+    .unsafe_definition_src = unsafe_definition_src,
+    .definition_dst = definition_dst,
+    .unsafe_schema_src = unsafe_schema_src,
+    .schema_dst = schema_dst,
+    .unsafe_structs_src = unsafe_structs_src,
+    .structs_dst = structs_dst,
+    .unsafe_choices_src = unsafe_choices_src,
+    .choices_dst = choices_dst,
+    .dst_to_src_struct_matches = dst_to_src_struct_matches,
+    .dst_to_src_choice_matches = dst_to_src_choice_matches,
+    .unsafe_struct_strides_dst = unsafe_struct_strides_dst,
+    .struct_queue = struct_queue_initial,
+    .choice_queue = choice_queue_initial,
     .current_level = sufficient_level,
-    .required_level = required_level
+    .required_level = required_level,
+    .work_max = work_max,
   };
   SVFRT_CheckContext *ctx = &ctx_val;
 
-  uint32_t struct_index0 = (uint32_t) (-1);
-  uint32_t struct_index1 = (uint32_t) (-1);
-
-  SVFRT_RangeStructDefinition structs0 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r0, ctx->s0->structs, SVF_META_StructDefinition);
-  SVFRT_RangeStructDefinition structs1 = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(ctx->r1, ctx->s1->structs, SVF_META_StructDefinition);
-
-  if (!structs0.pointer || !structs1.pointer) {
-    // Internal error.
+  // #compatibility-work [1]: this is linear in respect to
+  // `unsafe_structs_src.count`.
+  //
+  // Looping over potentially adversarial data, so limit work. Do not use the
+  // convenience macro here, because it works with `ctx`, not `out_result`.
+  if (!SVFRT_check_work(ctx, unsafe_structs_src.count)) {
+    out_result->error_code = ctx->error_code;
     return;
   }
 
-  for (uint32_t i = 0; i < structs0.count; i++) {
-    if (structs0.pointer[i].name_hash == entry_name_hash) {
-      struct_index0 = i;
+  uint32_t struct_index_src = (uint32_t) (-1);
+  for (uint32_t i = 0; i < unsafe_structs_src.count; i++) {
+    if (unsafe_structs_src.pointer[i].name_hash == entry_name_hash) {
+      struct_index_src = i;
       break;
     }
   }
 
-  for (uint32_t i = 0; i < structs1.count; i++) {
-    if (structs1.pointer[i].name_hash == entry_name_hash) {
-      struct_index1 = i;
+  uint32_t struct_index_dst = (uint32_t) (-1);
+  for (uint32_t i = 0; i < structs_dst.count; i++) {
+    if (structs_dst.pointer[i].name_hash == entry_name_hash) {
+      struct_index_dst = i;
       break;
     }
   }
 
-  if (struct_index0 == (uint32_t) (-1) || struct_index1 == (uint32_t) (-1)) {
-    // Internal error.
+  if (struct_index_src == (uint32_t) (-1) || struct_index_dst == (uint32_t) (-1)) {
+    out_result->error_code = SVFRT_code_compatibility__entry_name_hash_not_found;
     return;
   }
 
-  if (!SVFRT_check_struct(
-    ctx,
-    struct_index0,
-    struct_index1
-  )) {
-    return;
-  }
+  SVFRT_check_add_struct(ctx, struct_index_src, struct_index_dst);
 
-  if (ctx->current_level == SVFRT_compatibility_logical) {
-    // If we have logical compatibility, then we will do a conversion, so it
-    // does not make sense to store Schema 0 sizes here.
-    for (size_t i = 0; i < structs1.count; i++) {
-      ctx->s1_struct_strides.pointer[i] = structs1.pointer[i].size;
+  for (uint32_t i = 0; i < ctx->struct_queue.capacity + ctx->choice_queue.capacity; i++) {
+    if (ctx->struct_queue.occupied > 0) {
+      ctx->struct_queue.occupied--;
+      SVFRT_IndexPair pair = ctx->struct_queue.pointer[ctx->struct_queue.occupied];
+      SVFRT_check_struct(ctx, pair.index_src, pair.index_dst);
+
+      if (ctx->error_code) {
+        out_result->error_code = ctx->error_code;
+        return;
+      }
+    } else if (ctx->choice_queue.occupied > 0) {
+      ctx->choice_queue.occupied--;
+      SVFRT_IndexPair pair = ctx->choice_queue.pointer[ctx->choice_queue.occupied];
+      SVFRT_check_choice(ctx, pair.index_src, pair.index_dst);
+
+      if (ctx->error_code) {
+        out_result->error_code = ctx->error_code;
+        return;
+      }
+    } else {
+      break;
     }
+  }
+
+  if (ctx->struct_queue.occupied > 0 || ctx->choice_queue.occupied > 0) {
+    out_result->error_code = SVFRT_code_compatibility_internal__queue_unhandled;
+    return;
+  }
+
+  if (ctx->error_code) {
+    out_result->error_code = ctx->error_code;
+    return;
   }
 
   out_result->level = ctx->current_level;
-  out_result->struct_strides = ctx->s1_struct_strides;
-  out_result->entry_size0 = structs0.pointer[struct_index0].size;
-  out_result->entry_struct_index0 = struct_index0;
-  out_result->entry_struct_index1 = struct_index1;
+
+  // We drop the "unsafe" naming here, because:
+  // - for exact/binary compatibility, see #dst-stride-is-sane.
+  // - for logical compatibility, see #logical-compatibility-stride-quirk.
+  out_result->quirky_struct_strides_dst = ctx->unsafe_struct_strides_dst;
+
+  out_result->unsafe_entry_size_src = unsafe_structs_src.pointer[struct_index_src].size;
+  out_result->entry_struct_index_src = struct_index_src;
+  out_result->entry_struct_index_dst = struct_index_dst;
+
+  if (ctx->current_level == SVFRT_compatibility_logical) {
+    // #logical-compatibility-stride-quirk.
+    //
+    // If we have logical compatibility, then we will do a conversion, so it
+    // does not make sense to store src-schema sizes here. So patch them up.
+    for (size_t i = 0; i < structs_dst.count; i++) {
+      // These are actually safe here, but the naming stays...
+      out_result->quirky_struct_strides_dst.pointer[i] = structs_dst.pointer[i].size;
+    }
+  }
 }

@@ -17,7 +17,7 @@ ChoiceDefinition: struct {
 OptionDefinition: struct {
   name_hash: U64;
   name: U8[];
-  index: U8;
+  index: U8; // TODO: rename to tag.
   type: Type;
 };
 

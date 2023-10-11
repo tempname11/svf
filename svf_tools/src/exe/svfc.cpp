@@ -215,9 +215,9 @@ int main(int argc, char *argv[]) {
 
     // Align.
     {
-      uint8_t zeroes[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
+      uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
       size_t misaligned = meta::binary::size % SVFRT_MESSAGE_PART_ALIGNMENT;
-      auto result = fwrite(zeroes, 1, SVFRT_MESSAGE_PART_ALIGNMENT - misaligned, output_file);
+      auto result = fwrite(zeros, 1, SVFRT_MESSAGE_PART_ALIGNMENT - misaligned, output_file);
       if (result != SVFRT_MESSAGE_PART_ALIGNMENT - misaligned) {
         printf("Error: failed to write output.\n");
         return 1;

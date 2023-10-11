@@ -38,6 +38,7 @@ void *SVFRT_internal_from_sequence(
   if (end_offset > (uint64_t) bytes.count) {
     return NULL;
   }
+
   return (void *) (bytes.pointer + data_offset);
 }
 

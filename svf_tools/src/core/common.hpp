@@ -1,6 +1,7 @@
 #pragma once
 #include <src/library.hpp>
 #include <src/svf_meta.hpp>
+#include <src/svf_runtime.h>
 #include "../core.hpp"
 
 template<typename T>
@@ -30,9 +31,29 @@ TypePluralityAndSize get_plurality(
 );
 
 static inline
+U32 get_compatibility_work_base(Bytes schema_bytes, svf::META::Schema *in_schema) {
+  // See #compatibility-work. For the "base" we will take the scenario where
+  // the schema is checked for compatibility with one equivalent to itself.
+  //
+  uint32_t result = in_schema->structs.count; // [1]
+
+  auto the_structs = to_range(schema_bytes, in_schema->structs);
+  for (UInt i = 0; i < the_structs.count; i++) {
+    auto definition = the_structs.pointer + i;
+    result += definition->fields.count * definition->fields.count; // [2]
+  }
+
+  ASSERT((uint64_t) result * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR < UINT32_MAX);
+
+  return result;
+}
+
+static inline
 UInt get_min_read_scratch_memory_size(svf::META::Schema *in_schema) {
+  // #scratch-memory-partitions.
   return (
-    in_schema->structs.count * sizeof(U32) * 2 // index and stride
-    + in_schema->choices.count * sizeof(U32) // index
+    (sizeof(U32) - 1) // In case of misalignment.
+    + in_schema->structs.count * sizeof(U32) * 4 // Strides, matches, 2x queue.
+    + in_schema->choices.count * sizeof(U32) * 3 // Matches, 2x queue.
   );
 }

@@ -118,9 +118,12 @@ ReadMessageResult<Entry> read_message(
     SchemaDescription::template PerType<Entry>::name_hash,
     SchemaDescription::template PerType<Entry>::index,
     SVFRT_Bytes {
-      /*.pointer =*/ (U8 *) SchemaDescription::schema_array,
-      /*.count =*/ SchemaDescription::schema_size
+      /*.pointer =*/ (U8 *) SchemaDescription::schema_binary_array,
+      /*.count =*/ SchemaDescription::schema_binary_size
     },
+    SchemaDescription::compatibility_work_base * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR,
+    SVFRT_DEFAULT_MAX_RECURSION_DEPTH,
+    SVFRT_NO_SIZE_LIMIT,
     SVFRT_Bytes {
       /*.pointer =*/ scratch_memory.pointer,
       /*.count =*/ scratch_memory.count,
@@ -196,7 +199,7 @@ WriteContext<Entry> write_message_start(
     &ctx_value,
     writer_ptr,
     writer_fn,
-    { SchemaDescription::schema_array, SchemaDescription::schema_size },
+    { SchemaDescription::schema_binary_array, SchemaDescription::schema_binary_size },
     SchemaDescription::template PerType<Entry>::name_hash
   );
   return ctx_value;

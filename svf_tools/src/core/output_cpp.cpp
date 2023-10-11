@@ -424,12 +424,20 @@ Bytes as_code(
   template<typename T>
   struct PerType;
 
-  static constexpr U8 *schema_array = (U8 *) binary::array;
-  static constexpr size_t schema_size = binary::size;
-  static constexpr U64 min_read_scratch_memory_size = )"
-  );
+  static constexpr U8 *schema_binary_array = (U8 *) binary::array;
+  static constexpr size_t schema_binary_size = binary::size;)");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "  static constexpr U64 min_read_scratch_memory_size = ");
   output_decimal(ctx, get_min_read_scratch_memory_size(in_schema));
-  output_cstring(ctx, ";\n};\n\n");
+  output_cstring(ctx, ";\n");
+
+  output_cstring(ctx, "  static constexpr U32 compatibility_work_base = ");
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes, in_schema));
+  output_cstring(ctx, ";\n");
+
+  output_cstring(ctx, "};\n");
+  output_cstring(ctx, "\n");
 
   output_cstring(ctx, "// C++ trickery: SchemaDescription::PerType.\n");
 
