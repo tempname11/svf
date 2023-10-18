@@ -444,13 +444,13 @@ Bytes as_bytes(
           auto out_name = vm::many<U8>(arena, in_option->name.count);
           range_copy(out_name, in_option->name);
 
-          *out_option = {
+          *out_option = meta::OptionDefinition {
             .name_hash = in_option->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
             },
-            .index = safe_int_cast<U8>(j),
+            .tag = safe_int_cast<U8>(j),
           };
 
           auto result = output_type(
@@ -496,8 +496,8 @@ Bytes as_bytes(
   auto out_name = vm::many<U8>(arena, in_root->schema_name.count);
   range_copy(out_name, in_root->schema_name);
 
-  auto out_schema = vm::one<meta::Schema>(arena);
-  *out_schema = {
+  auto out_definition = vm::one<meta::SchemaDefinition>(arena);
+  *out_definition = meta::SchemaDefinition {
     .name_hash = in_root->schema_name_hash,
     .name = {
       .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),

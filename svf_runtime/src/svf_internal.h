@@ -59,19 +59,9 @@ typedef struct SVFRT_ConversionResult {
   SVFRT_ErrorCode error_code;
 } SVFRT_ConversionResult;
 
-typedef struct SVFRT_ConversionInfo {
-  SVF_META_Schema *unsafe_definition_src;
-  SVF_META_Schema *definition_dst;
-  SVFRT_Bytes unsafe_schema_src;
-  SVFRT_Bytes schema_dst;
-  uint32_t struct_index_src; // Note: no `unsafe` prefix here.
-  uint32_t struct_index_dst;
-} SVFRT_ConversionInfo;
-
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
-  SVFRT_ConversionInfo *info,
-  SVFRT_Bytes entry_bytes_src,
+  SVFRT_CompatibilityResult *check_result,
   SVFRT_Bytes data_bytes,
   uint32_t max_recursion_depth,
   uint32_t total_data_size_limit,

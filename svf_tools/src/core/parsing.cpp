@@ -7,6 +7,9 @@ namespace core::parsing {
 
 using namespace grammar;
 
+// TODO: check all the name hashes to not be zero. This is perhaps better suited
+// for validation than for parsing, but needs to be done anyway.
+
 // General note: the functions here try to parse optimistically, and only
 // check failure when necessary. This leads to simpler, more straightforward code.
 

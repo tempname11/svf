@@ -10,13 +10,7 @@
 
 void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
   SVFRT_WriteContext ctx = {0};
-  SVFRT_WRITE_MESSAGE_START(
-    SVF_A0,
-    SVF_A0_Entry,
-    &ctx,
-    writer_fn,
-    writer_ptr
-  );
+  SVFRT_WRITE_START(SVF_A0, SVF_A0_Entry, &ctx, writer_fn, writer_ptr);
 
   SVF_A0_Target target0 = {
     .value = 0x1111111111111111ull,
@@ -42,27 +36,19 @@ void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
     SVFRT_WRITE_SEQUENCE_ELEMENT(&ctx, &target, &entry.some_struct.sequence);
   }
 
-  SVFRT_WRITE_MESSAGE_END(&ctx, &entry);
-
+  SVFRT_WRITE_FINISH(&ctx, &entry);
   assert(ctx.finished);
 }
 
 void test_read(SVFRT_Bytes input_bytes) {
-  uint8_t scratch_buffer[SVF_A1_min_read_scratch_memory_size];
-  SVFRT_Bytes scratch_memory = { scratch_buffer, sizeof(scratch_buffer) };
+  char scratch_buffer[SVF_A1_min_read_scratch_memory_size];
+  SVFRT_Bytes scratch = { (uint8_t *) scratch_buffer, sizeof(scratch_buffer) };
 
-  SVFRT_ReadMessageResult read_result = {0};
-  SVFRT_READ_MESSAGE(
-    SVF_A1,
-    SVF_A1_Entry,
-    &read_result,
-    input_bytes,
-    scratch_memory,
-    SVFRT_compatibility_binary,
-    NULL,
-    NULL
-  );
+  SVFRT_ReadMessageResult read_result;
+  SVFRT_ReadMessageParams read_params;
+  SVFRT_SET_DEFAULT_READ_PARAMS(&read_params, SVF_A1, SVF_A1_Entry);
 
+  SVFRT_read_message(&read_params, &read_result, input_bytes, scratch);
   assert(read_result.entry);
 
   SVFRT_ReadContext *ctx = &read_result.context;

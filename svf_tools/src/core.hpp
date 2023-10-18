@@ -56,7 +56,7 @@ namespace core {
       Bytes scratch_memory,
       Bytes schema_write,
       Bytes schema_read,
-      U64 entry_name_hash
+      U64 entry_struct_name_hash
     );
   }
 }

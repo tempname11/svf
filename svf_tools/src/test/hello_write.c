@@ -8,7 +8,7 @@
 
 void example_write(FILE *file) {
   SVFRT_WriteContext ctx;
-  SVFRT_WRITE_MESSAGE_START(SVF_Hello, SVF_Hello_World, &ctx, SVFRT_fwrite, file);
+  SVFRT_WRITE_START(SVF_Hello, SVF_Hello_World, &ctx, SVFRT_fwrite, file);
 
   SVF_Hello_World world = {0};
   world.population = 8000000000;
@@ -19,6 +19,6 @@ void example_write(FILE *file) {
   char const name[] = "The Universe"; // TODO: null-termination is not what we want.
   world.name.utf8 = SVFRT_WRITE_FIXED_SIZE_ARRAY(&ctx, name);
 
-  SVFRT_WRITE_MESSAGE_END(&ctx, &world);
+  SVFRT_WRITE_FINISH(&ctx, &world);
   assert(ctx.finished);
 }

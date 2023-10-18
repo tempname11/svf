@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cinttypes>
 #define SVF_INCLUDE_BINARY_SCHEMA
 #include <generated/hpp/B0.hpp>
 #include <generated/hpp/B1.hpp>
@@ -9,7 +10,7 @@
 void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
   namespace schema = svf::B0;
 
-  auto ctx = svf::runtime::write_message_start<schema::Entry>(
+  auto ctx = svf::runtime::write_start<schema::Entry>(
     writer_ptr,
     writer_fn
   );
@@ -55,7 +56,7 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
     },
   };
 
-  svf::runtime::write_message_end(&ctx, &entry);
+  svf::runtime::write_finish(&ctx, &entry);
 
   if (!ctx.finished) {
     printf("Write was not finished.\n");
@@ -70,7 +71,6 @@ void *malloc_adapter(void */*unused*/, size_t size) {
 void test_read(vm::LinearArena *arena, Bytes input_range) {
   namespace schema = svf::B1;
 
-  vm::realign(arena);
   auto scratch_memory = vm::many<U8>(
     arena,
     schema::SchemaDescription::min_read_scratch_memory_size
@@ -83,7 +83,7 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   );
 
   if (!read_result.entry) {
-    printf("Read result is invalid.\n");
+    printf("Read result is invalid, code=%" PRIx32 ".\n", read_result.error_code);
     abort_this_process();
   }
 

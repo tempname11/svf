@@ -9,8 +9,8 @@ namespace core::output {
 
 struct OutputContext {
   vm::LinearArena *dedicated_arena;
-  meta::Schema *in_schema;
-  Bytes in_bytes;
+  meta::SchemaDefinition *schema_definition;
+  Bytes schema_bytes;
 };
 
 using Ctx = OutputContext *;
@@ -25,7 +25,7 @@ void output_cstring(Ctx ctx, const char *cstr) {
 static inline
 void output_u8_array(Ctx ctx, svf::Sequence<U8> sequence) {
   auto out = vm::many<Byte>(ctx->dedicated_arena, sequence.count);
-  auto data = range_subrange(ctx->in_bytes, ~sequence.data_offset_complement, sequence.count);
+  auto data = range_subrange(ctx->schema_bytes, ~sequence.data_offset_complement, sequence.count);
   range_copy(out, data);
 }
 
@@ -38,7 +38,7 @@ void output_u8_hex(Ctx ctx, U8 value) {
 }
 
 static inline
-void output_hex(Ctx ctx, U64 value) {
+void output_hexadecimal(Ctx ctx, U64 value) {
   char buffer[17]; // 16 + 1
   auto result = snprintf(buffer, 17, "%016" PRIX64, value);
   ASSERT(result == 16);
@@ -58,7 +58,7 @@ static inline
 void output_raw_bytes(Ctx ctx, Bytes bytes) {
   for (UInt i = 0; i < bytes.count; i+= 8) {
     UInt line_count = mini(i + 8, bytes.count) - i;
-    output_cstring(ctx, "    ");
+    output_cstring(ctx, "  ");
     for (UInt j = 0; j < line_count; j++) {
       output_cstring(ctx, "0x");
       output_u8_hex(ctx, bytes.pointer[i + j]);

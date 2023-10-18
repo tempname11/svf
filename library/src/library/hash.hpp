@@ -3,9 +3,11 @@
 #include "../platform.hpp"
 #include "range.hpp"
 
-// Note: 64 bits is not enough for all use cases.
-
 namespace hash64 {
+
+// FNV-1a.
+//
+// Note: non-cryptographic. Also, 64 bits might not be enough for all use cases.
 
 U64 const fnv_offset_basis = 14695981039346656037ull;
 U64 const fnv_prime = 1099511628211ull;
@@ -35,4 +37,4 @@ U64 from_cstr(char const *cstr) {
   return from_name({(Byte *) cstr, strlen(cstr)});
 }
 
-}
+} // namespace hash64

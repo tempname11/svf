@@ -34,7 +34,7 @@ void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
   output_cstring(ctx, "U64 const ");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_name_hash = 0x");
-  output_hex(ctx, hash);
+  output_hexadecimal(ctx, hash);
   output_cstring(ctx, "ull;\n");
 }
 
@@ -45,12 +45,12 @@ void output_concrete_type_name(
 ) {
   switch (in_enum) {
     case meta::ConcreteType_enum::defined_struct: {
-      auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
+      auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
       output_u8_array(ctx, structs.pointer[in_union->defined_struct.index].name);
       break;
     }
     case meta::ConcreteType_enum::defined_choice: {
-      auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+      auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
       output_u8_array(ctx, choices.pointer[in_union->defined_choice.index].name);
       break;
     }
@@ -137,15 +137,15 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
 }
 
 Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
-  auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
-  auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+  auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
+  auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
   output_cstring(ctx, "struct ");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, " {\n");
 
   UInt size_sum = 0;
-  auto fields = to_range(ctx->in_bytes, it->fields);
+  auto fields = to_range(ctx->schema_bytes, it->fields);
 
 
   for (UInt i = 0; i < fields.count; i++) {
@@ -217,15 +217,15 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
 }
 
 Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
-  auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
-  auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+  auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
+  auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
   output_cstring(ctx, "enum class ");
   output_u8_array(ctx, it->name);
   static_assert(SVFRT_TAG_SIZE == 1);
   output_cstring(ctx, "_enum: U8 {\n");
 
-  auto options = to_range(ctx->in_bytes, it->options);
+  auto options = to_range(ctx->schema_bytes, it->options);
   UInt size_max = 0;
 
   for (UInt i = 0; i < options.count; i++) {
@@ -233,7 +233,7 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
     output_cstring(ctx, "  ");
     output_u8_array(ctx, option->name);
     output_cstring(ctx, " = ");
-    output_decimal(ctx, safe_int_cast<U64>(option->index));
+    output_decimal(ctx, (U64) option->tag);
     output_cstring(ctx, ",\n");
   }
   output_cstring(ctx, "};\n\n");
@@ -330,27 +330,27 @@ Bytes as_code(
   validation::Result *validation_result
 ) {
   // TODO @proper-alignment.
-  auto in_schema = (meta::Schema *) (
+  auto schema_definition = (meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
-    sizeof(meta::Schema)
+    sizeof(meta::SchemaDefinition)
   );
 
   auto start = vm::realign(arena);
   OutputContext context_value = {
     .dedicated_arena = arena,
-    .in_schema = in_schema,
-    .in_bytes = schema_bytes,
+    .schema_definition = schema_definition,
+    .schema_bytes = schema_bytes,
   };
 
   auto ctx = &context_value;
-  auto structs = to_range(schema_bytes, in_schema->structs);
-  auto choices = to_range(schema_bytes, in_schema->choices);
+  auto structs = to_range(schema_bytes, schema_definition->structs);
+  auto choices = to_range(schema_bytes, schema_definition->choices);
 
   output_cstring(ctx, header);
 
   output_cstring(ctx, "namespace ");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, " {\n");
 
   output_cstring(ctx, "#pragma pack(push, 1)\n");
@@ -362,16 +362,7 @@ Bytes as_code(
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  extern U8 const array[];\n");
-  output_cstring(ctx, "\n");
-
-  output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
-
-  output_cstring(ctx, "  U8 const array[] = {\n");
-  output_raw_bytes(ctx, schema_bytes);
-  output_cstring(ctx, "  };\n");
-
-  output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
-  output_cstring(ctx, "}\n");
+  output_cstring(ctx, "} // namespace binary\n");
 
   output_cstring(ctx, "\n// Forward declarations.\n");
   for (UInt i = 0; i < structs.count; i++) {
@@ -428,13 +419,21 @@ Bytes as_code(
   static constexpr size_t schema_binary_size = binary::size;)");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "  static constexpr U64 min_read_scratch_memory_size = ");
-  output_decimal(ctx, get_min_read_scratch_memory_size(in_schema));
+  output_cstring(ctx, "  static constexpr U32 min_read_scratch_memory_size = ");
+  output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr U32 compatibility_work_base = ");
-  output_decimal(ctx, get_compatibility_work_base(schema_bytes, in_schema));
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes, schema_definition));
   output_cstring(ctx, ";\n");
+
+  output_cstring(ctx, "  static constexpr U64 name_hash = 0x");
+  output_hexadecimal(ctx, schema_definition->name_hash);
+  output_cstring(ctx, "ull;\n");
+
+  output_cstring(ctx, "  static constexpr U64 content_hash = 0x");
+  output_hexadecimal(ctx, get_content_hash(schema_bytes));
+  output_cstring(ctx, "ull;\n");
 
   output_cstring(ctx, "};\n");
   output_cstring(ctx, "\n");
@@ -454,21 +453,53 @@ Bytes as_code(
   }
 
   output_cstring(ctx, "} // namespace ");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "\n\n");
 
   output_cstring(ctx, "// C++ trickery: GetSchemaFromType.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     output_cstring(ctx, "template<>\nstruct GetSchemaFromType<");
-    output_u8_array(ctx, in_schema->name);
+    output_u8_array(ctx, schema_definition->name);
     output_cstring(ctx, "::");
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "> {\n  using SchemaDescription = ");
-    output_u8_array(ctx, in_schema->name);
+    output_u8_array(ctx, schema_definition->name);
     output_cstring(ctx, "::SchemaDescription;\n};\n\n");
   }
 
+  // Note: ".h" and ".hpp" generated files currently embed the binary schema
+  // separately, and if a program uses both for some reason, it will have to
+  // link two copies. This is a bit weird, but unlikely and relatively harmless.
+
+  output_cstring(ctx, "// Binary schema.\n");
+  output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+  output_cstring(ctx, "#ifndef SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_BINARY_INCLUDED_HPP\n");
+
+  output_cstring(ctx, "namespace ");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, " {\n");
+  output_cstring(ctx, "namespace binary {\n");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "U8 const array[] = {\n");
+  output_raw_bytes(ctx, schema_bytes);
+  output_cstring(ctx, "};\n");
+
+  output_cstring(ctx, "\n");
+  output_cstring(ctx, "} // namespace binary\n");
+  output_cstring(ctx, "} // namespace ");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "#endif // SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_BINARY_INCLUDED_HPP\n");
+  output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+
+  output_cstring(ctx, "\n");
   output_cstring(ctx, "} // namespace svf\n");
 
   auto end = arena->reserved_range.pointer + arena->waterline;

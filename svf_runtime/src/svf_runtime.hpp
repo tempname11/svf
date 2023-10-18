@@ -1,6 +1,10 @@
 #ifndef SVF_RUNTIME_HPP
 #define SVF_RUNTIME_HPP
 
+// Note: this file is intended to be compiled as C++11 or later.
+//
+// TODO @support: check if all popular compilers can actually build it.
+
 #ifdef __cplusplus
 
 #include <cstdint>
@@ -9,9 +13,7 @@
   #include "svf_runtime.h"
 #endif
 
-// Note: this file is intended to be compiled as C++11 or later.
 //
-// TODO @support: check if all popular compilers can actually build it in C++11 mode.
 
 namespace svf {
 
@@ -90,6 +92,7 @@ enum class CompatibilityLevel {
 // types, so on any changes, make sure to edit them in sync.
 template<typename T>
 struct ReadMessageResult {
+  SVFRT_ErrorCode error_code; // TODO: an enum class would be nice here.
   T const *entry;
   void *allocation;
   CompatibilityLevel compatibility_level;
@@ -101,38 +104,41 @@ template<typename T> struct WriteContext: SVFRT_WriteContext {};
 template<typename Entry>
 static inline
 ReadMessageResult<Entry> read_message(
-  Range<U8> message_bytes,
-  Range<U8> scratch_memory,
+  Range<U8> message,
+  Range<U8> scratch,
   CompatibilityLevel required_level,
   AllocatorFn *allocator_fn = 0,
   void *allocator_ptr = 0
 ) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
-  SVFRT_ReadMessageResult result = {};
-  SVFRT_read_message_implementation(
+  SVFRT_ReadMessageParams params;
+  SVFRT_ReadMessageResult result;
+  params.expected_schema.pointer = (U8 *) SchemaDescription::schema_binary_array;
+  params.expected_schema.count = SchemaDescription::schema_binary_size;
+  params.required_level = (SVFRT_CompatibilityLevel) required_level;
+  params.entry_struct_name_hash = SchemaDescription::template PerType<Entry>::name_hash,
+  params.entry_struct_index = SchemaDescription::template PerType<Entry>::index,
+  params.max_schema_work = SchemaDescription::compatibility_work_base * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR;
+  params.max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH;
+  params.max_output_size = SVFRT_NO_SIZE_LIMIT;
+  params.allocator_fn = allocator_fn;
+  params.allocator_ptr = allocator_ptr;
+  params.schema_lookup_fn = NULL;
+  params.schema_lookup_ptr = NULL;
+  SVFRT_read_message(
+    &params,
     &result,
     SVFRT_Bytes {
-      /*.pointer =*/ message_bytes.pointer,
-      /*.count =*/ message_bytes.count,
+      /*.pointer =*/ message.pointer,
+      /*.count =*/ message.count,
     },
-    SchemaDescription::template PerType<Entry>::name_hash,
-    SchemaDescription::template PerType<Entry>::index,
     SVFRT_Bytes {
-      /*.pointer =*/ (U8 *) SchemaDescription::schema_binary_array,
-      /*.count =*/ SchemaDescription::schema_binary_size
-    },
-    SchemaDescription::compatibility_work_base * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR,
-    SVFRT_DEFAULT_MAX_RECURSION_DEPTH,
-    SVFRT_NO_SIZE_LIMIT,
-    SVFRT_Bytes {
-      /*.pointer =*/ scratch_memory.pointer,
-      /*.count =*/ scratch_memory.count,
-    },
-    (SVFRT_CompatibilityLevel) required_level,
-    allocator_fn,
-    allocator_ptr
+      /*.pointer =*/ scratch.pointer,
+      /*.count =*/ scratch.count,
+    }
   );
   return ReadMessageResult<Entry> {
+    /*.error_code =*/ result.error_code,
     /*.entry =*/ (Entry *) result.entry,
     /*.allocation =*/ result.allocation,
     /*.compatibility_level =*/ (CompatibilityLevel) result.compatibility_level,
@@ -189,16 +195,16 @@ T const *read_sequence_element(
 
 template<typename Entry>
 static inline
-WriteContext<Entry> write_message_start(
+WriteContext<Entry> write_start(
   void *writer_ptr,
   WriterFn *writer_fn
 ) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   WriteContext<Entry> ctx_value = {};
-  SVFRT_write_message_implementation(
+  SVFRT_write_start(
     &ctx_value,
-    writer_ptr,
     writer_fn,
+    writer_ptr,
     { SchemaDescription::schema_binary_array, SchemaDescription::schema_binary_size },
     SchemaDescription::template PerType<Entry>::name_hash
   );
@@ -217,11 +223,11 @@ Reference<T> write_reference(
 
 template<typename T>
 static inline
-void write_message_end(
+void write_finish(
   WriteContext<T> *ctx,
   T const *pointer
 ) noexcept {
-  SVFRT_write_message_end(ctx, (void *) pointer, sizeof(T));
+  SVFRT_write_finish(ctx, (void *) pointer, sizeof(T));
 }
 
 template<typename T, typename E>

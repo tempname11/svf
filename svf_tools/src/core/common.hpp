@@ -31,13 +31,21 @@ TypePluralityAndSize get_plurality(
 );
 
 static inline
-U32 get_compatibility_work_base(Bytes schema_bytes, svf::META::Schema *in_schema) {
+U64 get_content_hash(Bytes schema_bytes) {
+  auto result = hash64::begin();
+  hash64::add_bytes(&result, schema_bytes);
+  ASSERT(result != 0);
+  return result;
+}
+
+static inline
+U32 get_compatibility_work_base(Bytes schema_bytes, svf::META::SchemaDefinition *definition) {
   // See #compatibility-work. For the "base" we will take the scenario where
   // the schema is checked for compatibility with one equivalent to itself.
   //
-  uint32_t result = in_schema->structs.count; // [1]
+  uint32_t result = definition->structs.count; // [1]
 
-  auto the_structs = to_range(schema_bytes, in_schema->structs);
+  auto the_structs = to_range(schema_bytes, definition->structs);
   for (UInt i = 0; i < the_structs.count; i++) {
     auto definition = the_structs.pointer + i;
     result += definition->fields.count * definition->fields.count; // [2]
@@ -49,11 +57,11 @@ U32 get_compatibility_work_base(Bytes schema_bytes, svf::META::Schema *in_schema
 }
 
 static inline
-UInt get_min_read_scratch_memory_size(svf::META::Schema *in_schema) {
+UInt get_min_read_scratch_memory_size(svf::META::SchemaDefinition *definition) {
   // #scratch-memory-partitions.
   return (
     (sizeof(U32) - 1) // In case of misalignment.
-    + in_schema->structs.count * sizeof(U32) * 4 // Strides, matches, 2x queue.
-    + in_schema->choices.count * sizeof(U32) * 3 // Matches, 2x queue.
+    + definition->structs.count * sizeof(U32) * 4 // Strides, matches, 2x queue.
+    + definition->choices.count * sizeof(U32) * 3 // Matches, 2x queue.
   );
 }

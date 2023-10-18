@@ -11,7 +11,7 @@
 void example_write(FILE *file) {
   namespace RT = svf::runtime;
   namespace JSON = svf::JSON;
-  auto ctx = RT::write_message_start<JSON::Item>((void *) file, SVFRT_fwrite);
+  auto ctx = RT::write_start<JSON::Item>((void *) file, SVFRT_fwrite);
 
   JSON::Field fields[2] = {};
 
@@ -34,6 +34,6 @@ void example_write(FILE *file) {
   entry.value_enum = JSON::Value_enum::object;
   entry.value_union.object = RT::write_fixed_size_array(&ctx, fields);
 
-  svf::runtime::write_message_end(&ctx, &entry);
+  svf::runtime::write_finish(&ctx, &entry);
   assert(ctx.finished);
 }

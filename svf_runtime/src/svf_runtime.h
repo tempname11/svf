@@ -1,6 +1,11 @@
 #ifndef SVF_RUNTIME_H
 #define SVF_RUNTIME_H
 
+// Note: all sources are intended to be compiled as C99 (or later), or as C++98 (or later).
+//
+// TODO @support: check if all popular compilers can actually build it.
+// Also, this concerns the single-file `svf.h`.
+
 #ifdef __cplusplus
   #include <climits>
   #include <cstddef>
@@ -29,7 +34,7 @@ extern "C" {
   #error "This library only supports 8-bit bytes. What on earth are you compiling for?!"
 #endif
 
-// TOOD @support: check size_t and uintptr_t (>= 32 bit).
+// TODO @support: check size_t and uintptr_t (must be >= 32 bit).
 
 #ifndef SVF_COMMON_C_TYPES_INCLUDED
 #define SVF_COMMON_C_TYPES_INCLUDED
@@ -62,7 +67,7 @@ typedef struct SVFRT_MessageHeader {
   uint8_t magic[3];
   uint8_t version;
   uint32_t schema_length;
-  uint64_t entry_name_hash;
+  uint64_t entry_struct_name_hash; // TODO: SVFRT_Hash64?
 } SVFRT_MessageHeader;
 #pragma pack(pop)
 
@@ -87,6 +92,8 @@ typedef struct SVFRT_MessageHeader {
 // Must allocate with alignment of at least `SVFRT_MESSAGE_PART_ALIGNMENT`.
 typedef void *(SVFRT_AllocatorFn)(void *allocate_ptr, size_t size);
 
+typedef SVFRT_Bytes (SVFRT_SchemaLookupFn)(void *schema_lookup_ptr, uint64_t schema_content_hash);
+
 typedef struct SVFRT_ReadContext {
   SVFRT_Bytes data_range;
   SVFRT_RangeU32 struct_strides;
@@ -99,39 +106,15 @@ typedef enum SVFRT_CompatibilityLevel {
   SVFRT_compatibility_exact = 3,
 } SVFRT_CompatibilityLevel;
 
-typedef struct SVFRT_ReadMessageResult {
-  void *entry;
-  void *allocation;
-  SVFRT_CompatibilityLevel compatibility_level;
-  SVFRT_ReadContext context; // Only valid, if `entry` is valid.
-} SVFRT_ReadMessageResult;
-
-// Read the message.
-// - `scratch_memory` must have a certain size dependent on the read schema.
-// See `min_read_scratch_memory_size` in the header generated from the read schema.
-void SVFRT_read_message_implementation(
-  SVFRT_ReadMessageResult *result,
-  SVFRT_Bytes message_bytes,
-  uint64_t entry_name_hash,
-  uint32_t entry_index,
-  SVFRT_Bytes expected_schema,
-  uint32_t work_max, // TODO: three `uint32_t` limits in a row, will be easy to mix them up...
-  uint32_t max_recursion_depth,
-  uint32_t max_output_size,
-  SVFRT_Bytes scratch_memory,
-  SVFRT_CompatibilityLevel required_level,
-  SVFRT_AllocatorFn *allocator_fn, // Only for SVFRT_compatibility_logical.
-  void *allocator_ptr              // Only for SVFRT_compatibility_logical.
-);
-
 typedef uint32_t SVFRT_ErrorCode;
 // TODO: codes are not final, tidy them up (after all or most of them are listed).
+// TODO: some kind of ErrorCode -> string converter would be nice.
 
-#define SVFRT_code_compatibility__work_max_exceeded                   0x00010001
+#define SVFRT_code_compatibility__max_schema_work_exceeded                   0x00010001
 #define SVFRT_code_compatibility__required_level_is_none              0x00010002
 #define SVFRT_code_compatibility__invalid_sufficient_level            0x00010003
 #define SVFRT_code_compatibility__not_enough_scratch_memory           0x00010004
-#define SVFRT_code_compatibility__entry_name_hash_not_found           0x00010005
+#define SVFRT_code_compatibility__entry_struct_name_hash_not_found           0x00010005
 #define SVFRT_code_compatibility__struct_index_mismatch               0x00010006
 #define SVFRT_code_compatibility__invalid_structs                     0x00010007
 #define SVFRT_code_compatibility__invalid_choices                     0x00010008
@@ -147,6 +130,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility__concrete_type_mismatch              0x00010012
 #define SVFRT_code_compatibility__invalid_struct_index                0x00010013
 #define SVFRT_code_compatibility__invalid_choice_index                0x00010014
+#define SVFRT_code_compatibility__schema_too_small                    0x00010015
 
 #define SVFRT_code_compatibility_internal__invalid_type_enum          0x00020001
 #define SVFRT_code_compatibility_internal__invalid_structs            0x00020007
@@ -155,6 +139,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility_internal__invalid_options            0x0002000A
 #define SVFRT_code_compatibility_internal__queue_overflow             0x0002000B
 #define SVFRT_code_compatibility_internal__queue_unhandled            0x0002000C
+#define SVFRT_code_compatibility_internal__schema_too_small           0x00020015
 
 #define SVFRT_code_conversion__allocation_failed                      0x00030001
 #define SVFRT_code_conversion__total_data_size_limit_exceeded         0x00030002
@@ -191,16 +176,96 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_conversion_internal__schema_incompatible_types     0x0004000E
 #define SVFRT_code_conversion_internal__suballocation_out_of_bounds   0x0004000F
 #define SVFRT_code_conversion_internal__bad_type                      0x00040010
+#define SVFRT_code_conversion_internal__need_logical_compatibility    0x00040011
+
+#define SVFRT_code_read__header_too_small                             0x00050001
+#define SVFRT_code_read__header_not_aligned                           0x00050002
+#define SVFRT_code_read__header_magic_mismatch                        0x00050003
+#define SVFRT_code_read__header_version_mismatch                      0x00050004
+#define SVFRT_code_read__entry_struct_name_hash_mismatch                     0x00050005
+#define SVFRT_code_read__bad_schema_length                            0x00050006
+#define SVFRT_code_read__no_schema_lookup_function                    0x00050007
+#define SVFRT_code_read__schema_lookup_failed                         0x00050008
+#define SVFRT_code_read__bad_schema_content_hash                      0x00050009
+#define SVFRT_code_read__no_compatibility                             0x0005000A
+#define SVFRT_code_read__no_allocator_function                        0x0005000B
+#define SVFRT_code_read__data_too_small                               0x0005000C
+
+#define SVFRT_code_write__writer_function_failed                      0x00060001
+#define SVFRT_code_write__data_would_overflow                         0x00060002
+#define SVFRT_code_write__sequence_non_contiguous                     0x00060003
+#define SVFRT_code_write__already_finished                            0x00060004
+
+typedef struct SVFRT_ReadMessageResult {
+  SVFRT_ErrorCode error_code;
+
+  // NULL in case of any errors.
+  void *entry;
+
+  // The allocation, which may only occur for `SVFRT_compatibility_logical`.
+  // It is allocated using the user-provided allocator function, and the user
+  // has the responsibility to free it.
+  void *allocation;
+
+  // Greater or equal to the required level.
+  SVFRT_CompatibilityLevel compatibility_level;
+
+  // This context is only valid, if there were no errors.
+  SVFRT_ReadContext context;
+} SVFRT_ReadMessageResult;
+
+typedef struct SVFRT_ReadMessageParams {
+  SVFRT_Bytes expected_schema;
+  SVFRT_CompatibilityLevel required_level;
+
+  uint64_t entry_struct_name_hash;
+  uint32_t entry_struct_index;
+
+  uint32_t max_schema_work;
+  uint32_t max_recursion_depth;
+  uint32_t max_output_size;
+
+  SVFRT_AllocatorFn *allocator_fn; // Only for `SVFRT_compatibility_logical`.
+  void *allocator_ptr;             // Only for `SVFRT_compatibility_logical`. Optional.
+
+  SVFRT_SchemaLookupFn *schema_lookup_fn; // Optional. TODO: describe.
+  void *schema_lookup_ptr;                // Optional.
+} SVFRT_ReadMessageParams;
+
+// Read the message.
+//
+// `scratch` must have a certain minimum size dependent on the read schema.
+// See `min_read_scratch_memory_size` in the header generated from the read schema.
+//
+// The scratch memory may be used in the result (specifically, in `SVFRT_ReadContext`),
+// so it needs to be kept alive as long as the result is used.
+//
+void SVFRT_read_message(
+  SVFRT_ReadMessageParams *params,
+  SVFRT_ReadMessageResult *out_result,
+  SVFRT_Bytes message,
+  SVFRT_Bytes scratch
+);
+
+typedef struct SVF_META_SchemaDefinition SVF_META_SchemaDefinition;
+
+typedef struct SVFRT_LogicalCompatibilityInfo {
+  SVFRT_Bytes unsafe_schema_src;
+  SVFRT_Bytes schema_dst;
+  SVF_META_SchemaDefinition *unsafe_definition_src;
+  SVF_META_SchemaDefinition *definition_dst;
+  uint32_t entry_struct_index_src;
+  uint32_t entry_struct_index_dst;
+  uint32_t unsafe_entry_struct_size_src;
+  uint32_t entry_struct_size_dst;
+} SVFRT_LogicalCompatibilityInfo;
 
 typedef struct SVFRT_CompatibilityResult {
   SVFRT_CompatibilityLevel level;
   SVFRT_RangeU32 quirky_struct_strides_dst; // See #logical-compatibility-stride-quirk.
   SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
 
-  // Internal.
-  uint32_t unsafe_entry_size_src;
-  uint32_t entry_struct_index_src;
-  uint32_t entry_struct_index_dst;
+  SVFRT_LogicalCompatibilityInfo logical; // Only for `SVFRT_compatibility_logical`.
 } SVFRT_CompatibilityResult;
 
 // Check compatibility of two schemas, i.e. can the data written in one schema
@@ -210,49 +275,60 @@ typedef struct SVFRT_CompatibilityResult {
 // - `scratch_memory` must have a certain size dependent on the read schema.
 // See `min_read_scratch_memory_size` in the header generated from the read schema.
 //
+// The result may refer to scratch memory, so it needs to be kept alive as long
+// as `out_result` is used.
+//
 // TODO: consider, whether this should be internal.
 void SVFRT_check_compatibility(
   SVFRT_CompatibilityResult *out_result,
   SVFRT_Bytes scratch_memory,
   SVFRT_Bytes unsafe_schema_src,
   SVFRT_Bytes schema_dst,
-  uint64_t entry_name_hash,
+  uint64_t entry_struct_name_hash,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_CompatibilityLevel sufficient_level,
-  uint32_t work_max
+  uint32_t max_schema_work
 );
 
 typedef uint32_t (SVFRT_WriterFn)(void *write_pointer, SVFRT_Bytes data);
 
 typedef struct SVFRT_WriteContext {
+  SVFRT_ErrorCode error_code;
+  bool finished;
   void *writer_ptr;
   SVFRT_WriterFn *writer_fn;
   uint32_t data_bytes_written;
-
-  // TODO: more granular error reporting.
-  bool error;
-
-  bool finished;
 } SVFRT_WriteContext;
 
-void SVFRT_write_message_implementation(
+void SVFRT_write_start(
   SVFRT_WriteContext *result,
-  void *writer_pointer,
   SVFRT_WriterFn *writer_fn,
+  void *writer_ptr,
   SVFRT_Bytes schema_bytes,
-  uint64_t entry_name_hash
+  uint64_t entry_struct_name_hash
 );
 
 static inline
-void SVFRT_internal_write_increment_counter(
+void SVFRT_internal_write_tally(
   SVFRT_WriteContext *ctx,
   uint32_t written
 ) {
+  if (ctx->error_code) {
+    return;
+  }
+
+  if (ctx->finished) {
+    ctx->error_code = SVFRT_code_write__already_finished;
+    return;
+  }
+
   ctx->data_bytes_written += written;
 
+  // If an unsigned overflow happened, the result will be less than any of the
+  // sum parts.
   if (ctx->data_bytes_written < written) {
-    // We got an overflow.
-    ctx->error = true;
+    ctx->data_bytes_written -= written; // Revert.
+    ctx->error_code = SVFRT_code_write__data_would_overflow;
   }
 }
 
@@ -262,19 +338,23 @@ SVFRT_Reference SVFRT_write_reference(
   void *pointer,
   uint32_t type_size
 ) {
+  SVFRT_Reference result = { ~ctx->data_bytes_written };
   SVFRT_Bytes bytes = { (uint8_t *) pointer, type_size };
+
+  SVFRT_internal_write_tally(ctx, bytes.count);
+  if (ctx->error_code) {
+    result.data_offset_complement = 0;
+    return result;
+  }
 
   // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
-    ctx->error = true;
-    SVFRT_Reference result = {0};
-    return result;
+    ctx->error_code = SVFRT_code_write__writer_function_failed;
+    result.data_offset_complement = 0;
   }
 
-  SVFRT_Reference result = { ~ctx->data_bytes_written };
-  SVFRT_internal_write_increment_counter(ctx, written);
   return result;
 }
 
@@ -285,29 +365,42 @@ SVFRT_Sequence SVFRT_write_sequence(
   uint32_t type_size,
   uint32_t count
 ) {
+  SVFRT_Sequence result = { ~ctx->data_bytes_written, count };
+
   // Prevent addition overflow by casting operands to `uint64_t` first.
   uint64_t total_size = (uint64_t) type_size * (uint64_t) count;
   if (total_size > (uint64_t) UINT32_MAX) {
-    ctx->error = true;
-    SVFRT_Sequence result = {0, 0};
+    ctx->error_code = SVFRT_code_write__data_would_overflow;
+    result.count = UINT32_MAX;
+    result.data_offset_complement = 0;
     return result;
   }
+
   SVFRT_Bytes bytes = { (uint8_t *) pointer, (uint32_t) total_size };
+
+  SVFRT_internal_write_tally(ctx, bytes.count);
+  if (ctx->error_code) {
+    result.count = UINT32_MAX;
+    result.data_offset_complement = 0;
+    return result;
+  }
 
   // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
-    ctx->error = true;
-    SVFRT_Sequence result = {0, 0};
-    return result;
+    ctx->error_code = SVFRT_code_write__writer_function_failed;
+    result.count = UINT32_MAX;
+    result.data_offset_complement = 0;
   }
 
-  SVFRT_Sequence result = { ~ctx->data_bytes_written, count };
-  SVFRT_internal_write_increment_counter(ctx, written);
   return result;
 }
 
+// TODO: could be generalized to `SVFRT_write_sequence_elements`, which would be faster
+// (because of per-call checks), and also, the currently separately implemented
+// `SVFRT_write_sequence` and `SVFRT_write_sequence_element` could re-use it.
+//
 static inline
 void SVFRT_write_sequence_element(
   SVFRT_WriteContext *ctx,
@@ -315,50 +408,58 @@ void SVFRT_write_sequence_element(
   uint32_t type_size,
   SVFRT_Sequence *inout_sequence
 ) {
-  // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
-  // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
-  uint64_t end_offset = (uint64_t) (~inout_sequence->data_offset_complement) + (
-    (uint64_t) type_size * (uint64_t) inout_sequence->count
-  );
+  if (inout_sequence->count != 0) {
+    // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
+    // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
+    uint64_t end_offset = (uint64_t) (~inout_sequence->data_offset_complement) + (
+      (uint64_t) type_size * (uint64_t) inout_sequence->count
+    );
 
-  // Make sure we write contiguously.
-  if (inout_sequence->count != 0 && end_offset != (uint64_t) ctx->data_bytes_written) {
-    ctx->error = true;
-    return;
-  }
+    // Make sure we write contiguously.
+    if (end_offset != (uint64_t) ctx->data_bytes_written) {
+      ctx->error_code = SVFRT_code_write__sequence_non_contiguous;
+      inout_sequence->count = UINT32_MAX;
+      inout_sequence->data_offset_complement = 0;
+      return;
+    }
 
-  if (inout_sequence->count == UINT32_MAX) {
-    ctx->error = true;
-    return;
+    // If `.count == UINT32_MAX` (and `type_size` is > 0), then `end_offset` is
+    // at least `UINT32_MAX`, and so is `data_bytes_written`, which means the
+    // tally will overflow anyway, so we don't need to check it explicitly here.
+    inout_sequence->count += 1;
+  } else {
+    inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
+    inout_sequence->count = 1;
   }
 
   SVFRT_Bytes bytes = { (uint8_t *) pointer, type_size };
+
+  SVFRT_internal_write_tally(ctx, bytes.count);
+  if (ctx->error_code) {
+    inout_sequence->count = UINT32_MAX;
+    inout_sequence->data_offset_complement = 0;
+    return;
+  }
 
   // TODO @proper-alignment.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
-    ctx->error = true;
+    ctx->error_code = SVFRT_code_write__writer_function_failed;
+    inout_sequence->count = UINT32_MAX;
+    inout_sequence->data_offset_complement = 0;
     return;
   }
-
-  if (inout_sequence->count == 0) {
-    inout_sequence->data_offset_complement = ~ctx->data_bytes_written;
-  }
-
-  // Overflow cannot happen because of an earlier check.
-  inout_sequence->count += 1;
-  SVFRT_internal_write_increment_counter(ctx, written);
 }
 
 static inline
-void SVFRT_write_message_end(
+void SVFRT_write_finish(
   SVFRT_WriteContext *ctx,
   void *pointer,
   uint32_t type_size
 ) {
   SVFRT_write_reference(ctx, pointer, type_size);
-  if (!ctx->error) {
+  if (!ctx->error_code) {
     ctx->finished = true;
   }
 }
@@ -449,11 +550,11 @@ void const *SVFRT_read_sequence_element(
   return (void *) (ctx->data_range.pointer + (uint32_t) item_end_offset - stride);
 }
 
-#define SVFRT_WRITE_MESSAGE_START(schema_name, entry_name, ctx, writer_fn, writer_ptr) \
-  SVFRT_write_message_implementation( \
+#define SVFRT_WRITE_START(schema_name, entry_name, ctx, writer_fn, writer_ptr) \
+  SVFRT_write_start( \
     (ctx), \
-    (writer_ptr), \
     (writer_fn), \
+    (writer_ptr), \
     (SVFRT_Bytes) { (void *) schema_name ## _schema_binary_array, schema_name ## _schema_binary_size }, \
     entry_name ## _name_hash \
   )
@@ -467,25 +568,24 @@ void const *SVFRT_read_sequence_element(
 #define SVFRT_WRITE_SEQUENCE_ELEMENT(ctx, data_ptr, inout_sequence) \
   SVFRT_write_sequence_element((ctx), (void *) (data_ptr), sizeof(*(data_ptr)), (inout_sequence))
 
-#define SVFRT_WRITE_MESSAGE_END(ctx, data_ptr) \
-  SVFRT_write_message_end((ctx), (void *) (data_ptr), sizeof(*(data_ptr)))
+#define SVFRT_WRITE_FINISH(ctx, data_ptr) \
+  SVFRT_write_finish((ctx), (void *) (data_ptr), sizeof(*(data_ptr)))
 
-// `*out_result` must be zero-initialized.
-#define SVFRT_READ_MESSAGE(schema_name, entry_name, out_result, message_bytes, scratch_memory, required_level, allocator_fn, allocator_ptr) \
-  SVFRT_read_message_implementation( \
-    (out_result), \
-    (message_bytes), \
-    (entry_name ## _name_hash), \
-    (entry_name ## _struct_index), \
-    (SVFRT_Bytes) { (void *) schema_name ## _schema_binary_array, schema_name ## _schema_binary_size }, \
-    (schema_name ## _compatibility_work_base) * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR, \
-    SVFRT_DEFAULT_MAX_RECURSION_DEPTH, \
-    SVFRT_NO_SIZE_LIMIT, \
-    (scratch_memory), \
-    (required_level), \
-    (allocator_fn), \
-    (allocator_ptr) \
-  )
+#define SVFRT_SET_DEFAULT_READ_PARAMS(out_params, schema_name, entry_name) \
+  do { \
+    (out_params)->expected_schema.pointer = (void *) (schema_name ## _schema_binary_array); \
+    (out_params)->expected_schema.count = (schema_name ## _schema_binary_size); \
+    (out_params)->required_level = SVFRT_compatibility_binary; \
+    (out_params)->entry_struct_name_hash = (entry_name ## _name_hash); \
+    (out_params)->entry_struct_index = (entry_name ## _struct_index); \
+    (out_params)->max_schema_work = (schema_name ## _compatibility_work_base) * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR; \
+    (out_params)->max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH; \
+    (out_params)->max_output_size = SVFRT_NO_SIZE_LIMIT; \
+    (out_params)->allocator_fn = NULL; \
+    (out_params)->allocator_ptr = NULL; \
+    (out_params)->schema_lookup_fn = NULL; \
+    (out_params)->schema_lookup_ptr = NULL; \
+  } while(0)
 
 #define SVFRT_READ_REFERENCE(type_name, ctx, reference) \
   ((type_name const *) SVFRT_read_reference((ctx), (reference), sizeof(type_name)))

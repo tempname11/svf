@@ -34,8 +34,8 @@ typedef struct SVFRT_IndexPairQueue {
 
 typedef struct SVFRT_CheckContext {
   // The root definition for both schemas.
-  SVF_META_Schema* unsafe_definition_src;
-  SVF_META_Schema* definition_dst;
+  SVF_META_SchemaDefinition *unsafe_definition_src;
+  SVF_META_SchemaDefinition *definition_dst;
 
   // Byte ranges of the two schemas.
   SVFRT_Bytes unsafe_schema_src;
@@ -68,7 +68,7 @@ typedef struct SVFRT_CheckContext {
   // Required level. We can exit early if we see that something does not match it.
   SVFRT_CompatibilityLevel required_level;
 
-  uint32_t work_max;
+  uint32_t max_schema_work;
   uint32_t work_done;
 
   SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
@@ -141,8 +141,8 @@ void SVFRT_check_add_choice(
 static inline
 bool SVFRT_check_work(SVFRT_CheckContext *ctx, uint32_t work_count) {
   ctx->work_done += work_count;
-  if (ctx->work_done > ctx->work_max) {
-    ctx->error_code = SVFRT_code_compatibility__work_max_exceeded;
+  if (ctx->work_done > ctx->max_schema_work) {
+    ctx->error_code = SVFRT_code_compatibility__max_schema_work_exceeded;
     return false;
   }
 
@@ -522,7 +522,7 @@ void SVFRT_check_choice(
       if (unsafe_option_src->name_hash == option_dst->name_hash) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
-          && (unsafe_option_src->index != option_dst->index)
+          && (unsafe_option_src->tag != option_dst->tag)
         ) {
           ctx->current_level = SVFRT_compatibility_logical;
           if (ctx->current_level < ctx->required_level) {
@@ -560,10 +560,10 @@ void SVFRT_check_compatibility(
   SVFRT_Bytes scratch_memory,
   SVFRT_Bytes unsafe_schema_src,
   SVFRT_Bytes schema_dst,
-  uint64_t entry_name_hash,
+  uint64_t entry_struct_name_hash,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_CompatibilityLevel sufficient_level,
-  uint32_t work_max
+  uint32_t max_schema_work
 ) {
   if (required_level == SVFRT_compatibility_none) {
     out_result->error_code = SVFRT_code_compatibility__required_level_is_none;
@@ -575,16 +575,28 @@ void SVFRT_check_compatibility(
     return;
   }
 
+  // Make sure we can read both schemas.
+
+  if (unsafe_schema_src.count < sizeof(SVF_META_SchemaDefinition)) {
+    out_result->error_code = SVFRT_code_compatibility__schema_too_small;
+    return;
+  }
   // TODO @proper-alignment.
-  SVF_META_Schema *unsafe_definition_src = (SVF_META_Schema *) (
+  SVF_META_SchemaDefinition *unsafe_definition_src = (SVF_META_SchemaDefinition *) (
     unsafe_schema_src.pointer
     + unsafe_schema_src.count
-    - sizeof(SVF_META_Schema)
+    - sizeof(SVF_META_SchemaDefinition)
   );
-  SVF_META_Schema *definition_dst = (SVF_META_Schema *) (
+
+  if (schema_dst.count < sizeof(SVF_META_SchemaDefinition)) {
+    out_result->error_code = SVFRT_code_compatibility_internal__schema_too_small;
+    return;
+  }
+  // TODO @proper-alignment.
+  SVF_META_SchemaDefinition *definition_dst = (SVF_META_SchemaDefinition *) (
     schema_dst.pointer
     + schema_dst.count
-    - sizeof(SVF_META_Schema)
+    - sizeof(SVF_META_SchemaDefinition)
   );
 
   uint32_t scratch_misalignment = ((uintptr_t) scratch_memory.pointer) % sizeof(uint32_t);
@@ -723,7 +735,7 @@ void SVFRT_check_compatibility(
     .choice_queue = choice_queue_initial,
     .current_level = sufficient_level,
     .required_level = required_level,
-    .work_max = work_max,
+    .max_schema_work = max_schema_work,
   };
   SVFRT_CheckContext *ctx = &ctx_val;
 
@@ -737,28 +749,28 @@ void SVFRT_check_compatibility(
     return;
   }
 
-  uint32_t struct_index_src = (uint32_t) (-1);
+  uint32_t entry_struct_index_src = (uint32_t) (-1);
   for (uint32_t i = 0; i < unsafe_structs_src.count; i++) {
-    if (unsafe_structs_src.pointer[i].name_hash == entry_name_hash) {
-      struct_index_src = i;
+    if (unsafe_structs_src.pointer[i].name_hash == entry_struct_name_hash) {
+      entry_struct_index_src = i;
       break;
     }
   }
 
-  uint32_t struct_index_dst = (uint32_t) (-1);
+  uint32_t entry_struct_index_dst = (uint32_t) (-1);
   for (uint32_t i = 0; i < structs_dst.count; i++) {
-    if (structs_dst.pointer[i].name_hash == entry_name_hash) {
-      struct_index_dst = i;
+    if (structs_dst.pointer[i].name_hash == entry_struct_name_hash) {
+      entry_struct_index_dst = i;
       break;
     }
   }
 
-  if (struct_index_src == (uint32_t) (-1) || struct_index_dst == (uint32_t) (-1)) {
-    out_result->error_code = SVFRT_code_compatibility__entry_name_hash_not_found;
+  if (entry_struct_index_src == (uint32_t) (-1) || entry_struct_index_dst == (uint32_t) (-1)) {
+    out_result->error_code = SVFRT_code_compatibility__entry_struct_name_hash_not_found;
     return;
   }
 
-  SVFRT_check_add_struct(ctx, struct_index_src, struct_index_dst);
+  SVFRT_check_add_struct(ctx, entry_struct_index_src, entry_struct_index_dst);
 
   for (uint32_t i = 0; i < ctx->struct_queue.capacity + ctx->choice_queue.capacity; i++) {
     if (ctx->struct_queue.occupied > 0) {
@@ -801,10 +813,6 @@ void SVFRT_check_compatibility(
   // - for logical compatibility, see #logical-compatibility-stride-quirk.
   out_result->quirky_struct_strides_dst = ctx->unsafe_struct_strides_dst;
 
-  out_result->unsafe_entry_size_src = unsafe_structs_src.pointer[struct_index_src].size;
-  out_result->entry_struct_index_src = struct_index_src;
-  out_result->entry_struct_index_dst = struct_index_dst;
-
   if (ctx->current_level == SVFRT_compatibility_logical) {
     // #logical-compatibility-stride-quirk.
     //
@@ -814,5 +822,16 @@ void SVFRT_check_compatibility(
       // These are actually safe here, but the naming stays...
       out_result->quirky_struct_strides_dst.pointer[i] = structs_dst.pointer[i].size;
     }
+
+    out_result->logical.unsafe_schema_src = unsafe_schema_src;
+    out_result->logical.schema_dst = schema_dst;
+    out_result->logical.unsafe_definition_src = unsafe_definition_src;
+    out_result->logical.definition_dst = definition_dst;
+    out_result->logical.entry_struct_index_src = entry_struct_index_src;
+    out_result->logical.entry_struct_index_dst = entry_struct_index_dst;
+
+    // We found these indices in the arrays, so they are safe to use.
+    out_result->logical.unsafe_entry_struct_size_src = unsafe_structs_src.pointer[entry_struct_index_src].size;
+    out_result->logical.entry_struct_size_dst = structs_dst.pointer[entry_struct_index_dst].size;
   }
 }

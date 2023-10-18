@@ -66,7 +66,7 @@
 // The answer to this question would make everything more clear.
 
 typedef struct SVFRT_ConversionContext {
-  SVFRT_ConversionInfo *info;
+  SVFRT_LogicalCompatibilityInfo *info;
   SVFRT_Bytes data_bytes;
   uint32_t max_recursion_depth;
 
@@ -558,7 +558,7 @@ void SVFRT_conversion_traverse_concrete_type(
       for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
         SVF_META_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
 
-        if (unsafe_option_src->index != choice_tag) {
+        if (unsafe_option_src->tag != choice_tag) {
           continue;
         }
 
@@ -584,7 +584,7 @@ void SVFRT_conversion_traverse_concrete_type(
 
             // Write the tag.
             // TODO @proper-alignment.
-            *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->index;
+            *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->tag;
 
             phase2_inner.data_range_dst = phase2->data_range_dst;
 
@@ -1171,14 +1171,36 @@ void SVFRT_conversion_traverse_any_type(
 
 void SVFRT_convert_message(
   SVFRT_ConversionResult *out_result,
-  SVFRT_ConversionInfo *info,
-  SVFRT_Bytes entry_bytes_src, // TODO: this does not need to be a parameter?
+  SVFRT_CompatibilityResult *check_result,
   SVFRT_Bytes data_bytes,
   uint32_t max_recursion_depth,
   uint32_t total_data_size_limit,
-  SVFRT_AllocatorFn *allocator_fn,
+  SVFRT_AllocatorFn *allocator_fn, // Non-NULL.
   void *allocator_ptr
 ) {
+  // A previously passed compatibility check allows us to reuse some data, and
+  // also make some assumptions.
+  if (check_result->level != SVFRT_compatibility_logical) {
+    out_result->error_code = SVFRT_code_conversion_internal__need_logical_compatibility;
+    return;
+  }
+
+  SVFRT_LogicalCompatibilityInfo *info = &check_result->logical;
+
+  uint32_t unsafe_entry_struct_size = info->unsafe_entry_struct_size_src;
+
+  if (unsafe_entry_struct_size > data_bytes.count) {
+    out_result->error_code = SVFRT_code_conversion__data_out_of_bounds;
+    return;
+  }
+
+  // Now, `unsafe_entry_size` can be considered safe.
+  // TODO @proper-alignment.
+  SVFRT_Bytes entry_bytes_src = {
+    /*.pointer =*/ data_bytes.pointer + data_bytes.count - unsafe_entry_struct_size,
+    /*.count =*/ unsafe_entry_struct_size,
+  };
+
   SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     info->unsafe_schema_src,
     info->unsafe_definition_src->structs,
@@ -1219,18 +1241,6 @@ void SVFRT_convert_message(
     return;
   }
 
-  if (info->struct_index_src >= unsafe_structs_src.count) {
-    out_result->error_code = SVFRT_code_conversion__bad_schema_struct_index;
-    return;
-  }
-  uint32_t unsafe_entry_struct_size_src = unsafe_structs_src.pointer[info->struct_index_src].size;
-
-  if (info->struct_index_dst >= structs_dst.count) {
-    out_result->error_code = SVFRT_code_conversion_internal__bad_schema_struct_index;
-    return;
-  }
-  uint32_t entry_struct_size_dst = structs_dst.pointer[info->struct_index_dst].size;
-
   SVFRT_ConversionContext ctx_val = {0};
   ctx_val.info = info;
   ctx_val.data_bytes = data_bytes;
@@ -1250,8 +1260,8 @@ void SVFRT_convert_message(
   SVFRT_conversion_traverse_struct(
     ctx,
     recursion_depth,
-    info->struct_index_src,
-    info->struct_index_dst,
+    info->entry_struct_index_src,
+    info->entry_struct_index_dst,
     entry_bytes_src,
     NULL
   );
@@ -1262,8 +1272,8 @@ void SVFRT_convert_message(
 
   SVFRT_conversion_tally(
     ctx,
-    unsafe_entry_struct_size_src,
-    entry_struct_size_dst,
+    info->unsafe_entry_struct_size_src,
+    info->entry_struct_size_dst,
     1,
     NULL
   );
@@ -1294,7 +1304,7 @@ void SVFRT_convert_message(
   // Phase 2: actually copy the data.
   //
 
-  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + ctx->info->struct_index_dst;
+  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + ctx->info->entry_struct_index_dst;
 
   // Entry is special, as it always resides at the end of the data range.
   //
@@ -1310,8 +1320,8 @@ void SVFRT_convert_message(
   SVFRT_conversion_traverse_struct(
     ctx,
     recursion_depth,
-    info->struct_index_src,
-    info->struct_index_dst,
+    info->entry_struct_index_src,
+    info->entry_struct_index_dst,
     entry_bytes_src,
     &phase2
   );
@@ -1323,8 +1333,8 @@ void SVFRT_convert_message(
   SVFRT_Bytes entry_bytes_dst_alternate = {0};
   SVFRT_conversion_tally(
     ctx,
-    unsafe_entry_struct_size_src,
-    entry_struct_size_dst,
+    info->unsafe_entry_struct_size_src,
+    info->entry_struct_size_dst,
     1,
     &entry_bytes_dst_alternate
   );

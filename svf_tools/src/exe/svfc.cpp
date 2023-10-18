@@ -188,13 +188,18 @@ int main(int argc, char *argv[]) {
     }
     fclose(output_file);
   } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
+    // TODO: use `write_start` instead here for the header & schema parts. The
+    // data part will have to be written using `fwrite` anyway.
+    //
+    // TODO: use content hash only in the schema part.
+
     // Write the header.
     {
       svf::runtime::MessageHeader header = {
         .magic = { 'S', 'V', 'F' },
         .version = 0,
         .schema_length = (uint32_t) meta::binary::size,
-        .entry_name_hash = meta::Schema_name_hash,
+        .entry_struct_name_hash = meta::SchemaDefinition_name_hash,
       };
 
       auto result = fwrite(&header, 1, sizeof(header), output_file);
@@ -204,7 +209,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // Write the metaschema.
+    // Write the schema part (metaschema).
     {
       auto result = fwrite(meta::binary::array, 1, meta::binary::size, output_file);
       if (result != meta::binary::size) {
@@ -224,7 +229,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // Write the input schema.
+    // Write the data part (input schema).
     {
       auto result = fwrite(schema_bytes.pointer, 1, schema_bytes.count, output_file);
       if (result != schema_bytes.count) {

@@ -5,16 +5,19 @@
 #include <generated/h/JSON.h>
 #include <src/svf_runtime.h>
 
-void example_read(SVFRT_Bytes bytes) {
+void example_read(SVFRT_Bytes input_bytes) {
   uint8_t scratch_buffer[SVF_JSON_min_read_scratch_memory_size];
   SVFRT_Bytes scratch = { scratch_buffer, sizeof(scratch_buffer) };
-  SVFRT_ReadMessageResult result = {0};
 
-  SVFRT_READ_MESSAGE(SVF_JSON, SVF_JSON_Item, &result, bytes, scratch, SVFRT_compatibility_binary, NULL, NULL);
-  assert(result.entry);
+  SVFRT_ReadMessageResult read_result;
+  SVFRT_ReadMessageParams read_params;
+  SVFRT_SET_DEFAULT_READ_PARAMS(&read_params, SVF_JSON, SVF_JSON_Item);
 
-  SVFRT_ReadContext *ctx = &result.context;
-  SVF_JSON_Item *entry = result.entry;
+  SVFRT_read_message(&read_params, &read_result, input_bytes, scratch);
+  assert(read_result.entry);
+
+  SVFRT_ReadContext *ctx = &read_result.context;
+  SVF_JSON_Item *entry = (SVF_JSON_Item *) read_result.entry;
 
   assert(entry->value_enum == SVF_JSON_Value_object);
   assert(entry->value_union.object.count == 2);

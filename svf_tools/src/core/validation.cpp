@@ -33,14 +33,14 @@ bool has_higher_dependencies(
 
 Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
   // TODO @proper-alignment.
-  auto in_schema = (meta::Schema *) (
+  auto schema_definition = (meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
-    sizeof(meta::Schema)
+    sizeof(meta::SchemaDefinition)
   );
 
-  auto structs = to_range(schema_bytes, in_schema->structs);
-  auto choices = to_range(schema_bytes, in_schema->choices);
+  auto structs = to_range(schema_bytes, schema_definition->structs);
+  auto choices = to_range(schema_bytes, schema_definition->choices);
 
   UInt current_order = 0;
   auto assigned_struct_orders = vm::many<UInt>(arena, structs.count);

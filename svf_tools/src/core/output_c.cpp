@@ -7,11 +7,11 @@ namespace core::output::c {
 
 void output_struct_declaration(Ctx ctx, meta::StructDefinition *it) {
   output_cstring(ctx, "typedef struct SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, " SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, ";\n");
@@ -19,17 +19,17 @@ void output_struct_declaration(Ctx ctx, meta::StructDefinition *it) {
 
 void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "typedef uint8_t SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_enum;\n");
 
   output_cstring(ctx, "typedef union SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_union SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_union;\n");
@@ -37,7 +37,7 @@ void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
 
 void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "#define SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_struct_index ");
@@ -47,11 +47,11 @@ void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
 
 void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
   output_cstring(ctx, "#define SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_name_hash 0x");
-  output_hex(ctx, hash);
+  output_hexadecimal(ctx, hash);
   output_cstring(ctx, "ull\n");
 }
 
@@ -62,17 +62,17 @@ void output_concrete_type_name(
 ) {
   switch (in_enum) {
     case meta::ConcreteType_enum::defined_struct: {
-      auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
+      auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
       output_cstring(ctx, "SVF_");
-      output_u8_array(ctx, ctx->in_schema->name);
+      output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
       output_u8_array(ctx, structs.pointer[in_union->defined_struct.index].name);
       break;
     }
     case meta::ConcreteType_enum::defined_choice: {
-      auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+      auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
       output_cstring(ctx, "SVF_");
-      output_u8_array(ctx, ctx->in_schema->name);
+      output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
       output_u8_array(ctx, choices.pointer[in_union->defined_choice.index].name);
       break;
@@ -160,17 +160,17 @@ void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
 }
 
 Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
-  auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
-  auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+  auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
+  auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
   output_cstring(ctx, "struct SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, " {\n");
 
   UInt size_sum = 0;
-  auto fields = to_range(ctx->in_bytes, it->fields);
+  auto fields = to_range(ctx->schema_bytes, it->fields);
 
   for (UInt i = 0; i < fields.count; i++) {
     auto field = fields.pointer + i;
@@ -241,27 +241,27 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
 }
 
 Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
-  auto structs = to_range(ctx->in_bytes, ctx->in_schema->structs);
-  auto choices = to_range(ctx->in_bytes, ctx->in_schema->choices);
+  auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
+  auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
-  auto options = to_range(ctx->in_bytes, it->options);
+  auto options = to_range(ctx->schema_bytes, it->options);
   UInt size_max = 0;
 
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
     output_cstring(ctx, "#define SVF_");
-    output_u8_array(ctx, ctx->in_schema->name);
+    output_u8_array(ctx, ctx->schema_definition->name);
     output_cstring(ctx, "_");
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "_");
     output_u8_array(ctx, option->name);
     output_cstring(ctx, " ");
-    output_decimal(ctx, safe_int_cast<U64>(option->index));
+    output_decimal(ctx, safe_int_cast<U64>(option->tag));
     output_cstring(ctx, "\n");
   }
 
   output_cstring(ctx, "\nunion SVF_");
-  output_u8_array(ctx, ctx->in_schema->name);
+  output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_union {\n");
@@ -305,28 +305,28 @@ Bytes as_code(
   validation::Result *validation_result
 ) {
   // TODO @proper-alignment.
-  auto in_schema = (meta::Schema *) (
+  auto schema_definition = (meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
-    sizeof(meta::Schema)
+    sizeof(meta::SchemaDefinition)
   );
 
   auto start = vm::realign(arena);
   OutputContext context_value = {
     .dedicated_arena = arena,
-    .in_schema = in_schema,
-    .in_bytes = schema_bytes,
+    .schema_definition = schema_definition,
+    .schema_bytes = schema_bytes,
   };
 
   auto ctx = &context_value;
-  auto structs = to_range(schema_bytes, in_schema->structs);
-  auto choices = to_range(schema_bytes, in_schema->choices);
+  auto structs = to_range(schema_bytes, schema_definition->structs);
+  auto choices = to_range(schema_bytes, schema_definition->choices);
 
   output_cstring(ctx, "// AUTOGENERATED by svfc.\n");
   output_cstring(ctx, "#ifndef SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_H\n#define SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_H\n");
   output_cstring(ctx, R"(
 #ifdef __cplusplus
@@ -360,38 +360,39 @@ typedef struct SVFRT_Sequence {
 )");
 
   output_cstring(ctx, "#define SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_min_read_scratch_memory_size ");
-  output_decimal(ctx, get_min_read_scratch_memory_size(in_schema));
+  output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#define SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_compatibility_work_base ");
-  output_decimal(ctx, get_compatibility_work_base(schema_bytes ,in_schema));
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes, schema_definition));
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#define SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_schema_binary_size ");
   output_decimal(ctx, schema_bytes.count);
   output_cstring(ctx, "\n");
 
+  output_cstring(ctx, "#define SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_name_hash 0x");
+  output_hexadecimal(ctx, schema_definition->name_hash);
+  output_cstring(ctx, "ull\n");
+
+  output_cstring(ctx, "#define SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_content_hash 0x");
+  output_hexadecimal(ctx, get_content_hash(schema_bytes));
+  output_cstring(ctx, "ull\n");
+
   output_cstring(ctx, "extern uint8_t const SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_schema_binary_array[];\n");
-  output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
-
-  output_cstring(ctx, "uint8_t const SVF_");
-  output_u8_array(ctx, in_schema->name);
-
-  output_cstring(ctx, "_schema_binary_array[] = {\n");
-  output_raw_bytes(ctx, schema_bytes);
-  output_cstring(ctx, "};\n");
-
-  output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
   output_cstring(ctx, "\n");
   output_cstring(ctx, "// Forward declarations.\n");
 
@@ -439,8 +440,34 @@ typedef struct SVFRT_Sequence {
     }
   }
 
-  output_cstring(ctx, "#pragma pack(pop)\n#ifdef __cplusplus\n} // extern \"C\"\n #endif\n\n#endif // SVF_");
-  output_u8_array(ctx, in_schema->name);
+  output_cstring(ctx, "#pragma pack(pop)\n");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "// Binary schema.\n");
+  output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+  output_cstring(ctx, "#ifndef SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_BINARY_INCLUDED_H\n");
+
+  output_cstring(ctx, "uint8_t const SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_binary_array[] = {\n");
+  output_raw_bytes(ctx, schema_bytes);
+  output_cstring(ctx, "};\n");
+
+  output_cstring(ctx, "#endif // SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_BINARY_INCLUDED_H\n");
+  output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "#ifdef __cplusplus\n");
+  output_cstring(ctx, "} // extern \"C\"\n");
+  output_cstring(ctx, "#endif\n");
+
+  output_cstring(ctx, "\n");
+  output_cstring(ctx, "#endif // SVF_");
+  output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_H\n");
 
   auto end = arena->reserved_range.pointer + arena->waterline;
