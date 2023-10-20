@@ -36,6 +36,8 @@ typedef struct SVFRT_Sequence {
 #define SVF_META_schema_name_hash 0x80BE2AAF7FD058B8ull
 #define SVF_META_schema_content_hash 0xB8A328E5D3533E6Eull
 extern uint8_t const SVF_META_schema_binary_array[];
+extern uint32_t const SVF_META_schema_struct_strides[];
+#define SVF_META_schema_struct_count 10
 
 // Forward declarations.
 typedef struct SVF_META_SchemaDefinition SVF_META_SchemaDefinition;
@@ -174,6 +176,19 @@ struct SVF_META_FieldDefinition {
 // Binary schema.
 #if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 #ifndef SVF_META_BINARY_INCLUDED_H
+uint32_t const SVF_META_schema_struct_strides[] = {
+  32,
+  28,
+  28,
+  4,
+  4,
+  5,
+  5,
+  5,
+  23,
+  26
+};
+
 uint8_t const SVF_META_schema_binary_array[] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

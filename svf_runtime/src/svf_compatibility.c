@@ -819,7 +819,6 @@ void SVFRT_check_compatibility(
     // If we have logical compatibility, then we will do a conversion, so it
     // does not make sense to store src-schema sizes here. So patch them up.
     for (size_t i = 0; i < structs_dst.count; i++) {
-      // These are actually safe here, but the naming stays...
       out_result->quirky_struct_strides_dst.pointer[i] = structs_dst.pointer[i].size;
     }
 

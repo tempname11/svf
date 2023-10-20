@@ -48,6 +48,8 @@ struct GetSchemaFromType;
 namespace META {
 #pragma pack(push, 1)
 
+extern U32 const struct_strides[];
+
 namespace binary {
   size_t const size = 2133;
   extern U8 const array[];
@@ -196,8 +198,10 @@ struct SchemaDescription {
   template<typename T>
   struct PerType;
 
+  static constexpr U32 *schema_struct_strides = (U32 *) struct_strides;
   static constexpr U8 *schema_binary_array = (U8 *) binary::array;
   static constexpr size_t schema_binary_size = binary::size;
+  static constexpr U32 schema_struct_count = 10;
   static constexpr U32 min_read_scratch_memory_size = 187;
   static constexpr U32 compatibility_work_base = 95;
   static constexpr U64 name_hash = 0x80BE2AAF7FD058B8ull;
@@ -322,6 +326,20 @@ struct GetSchemaFromType<META::FieldDefinition> {
 #if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 #ifndef SVF_META_BINARY_INCLUDED_HPP
 namespace META {
+
+U32 const struct_strides[] = {
+  32,
+  28,
+  28,
+  4,
+  4,
+  5,
+  5,
+  5,
+  23,
+  26
+};
+
 namespace binary {
 
 U8 const array[] = {

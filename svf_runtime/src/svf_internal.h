@@ -53,6 +53,48 @@ void *SVFRT_internal_from_sequence(
   /*.count = */ (sequence).count \
 }
 
+typedef struct SVFRT_LogicalCompatibilityInfo {
+  SVFRT_Bytes unsafe_schema_src;
+  SVFRT_Bytes schema_dst;
+  SVF_META_SchemaDefinition *unsafe_definition_src;
+  SVF_META_SchemaDefinition *definition_dst;
+  uint32_t entry_struct_index_src;
+  uint32_t entry_struct_index_dst;
+  uint32_t unsafe_entry_struct_size_src;
+  uint32_t entry_struct_size_dst;
+} SVFRT_LogicalCompatibilityInfo;
+
+typedef struct SVFRT_CompatibilityResult {
+  SVFRT_CompatibilityLevel level;
+  SVFRT_RangeU32 quirky_struct_strides_dst; // See #logical-compatibility-stride-quirk.
+  SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
+
+  SVFRT_LogicalCompatibilityInfo logical; // Only for `SVFRT_compatibility_logical`.
+} SVFRT_CompatibilityResult;
+
+// Check compatibility of two schemas, i.e. can the data written in one schema
+// ("src"), be read using another schema ("dst").
+//
+// - `result` must be zero-initialized.
+// - `scratch_memory` must have a certain size dependent on the read schema.
+// See `min_read_scratch_memory_size` in the header generated from the read schema.
+//
+// The result may refer to scratch memory, so it needs to be kept alive as long
+// as `out_result` is used.
+//
+// TODO: this is currently internal, but some variation of this should be public
+// as part of some tentative "Compatibility Lookup API".
+void SVFRT_check_compatibility(
+  SVFRT_CompatibilityResult *out_result,
+  SVFRT_Bytes scratch_memory,
+  SVFRT_Bytes unsafe_schema_src,
+  SVFRT_Bytes schema_dst,
+  uint64_t entry_struct_name_hash,
+  SVFRT_CompatibilityLevel required_level,
+  SVFRT_CompatibilityLevel sufficient_level,
+  uint32_t max_schema_work
+);
+
 typedef struct SVFRT_ConversionResult {
   SVFRT_Bytes output_bytes; // Note: may refer to allocated memory even on failure.
   bool success;

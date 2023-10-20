@@ -86,18 +86,12 @@ void SVFRT_read_message(
     /*.count =*/ message.count - schema_padded_end_offset,
   };
 
-  SVFRT_Bytes final_schema_range = schema_range;
-
-  if (schema_range.count == sizeof(uint64_t)) {
+  if (schema_range.count == 0) {
     // Only a reference to the schema is available, we have to rely on the user-
     // provided lookup function.
 
-    // Pointer is SVFRT_MESSAGE_PART_ALIGNMENT-aligned, so we can read the U64
-    // directly.
-    uint64_t schema_content_hash = *((uint64_t *) schema_range.pointer);
-
     // Zero hash is invalid, don't try to look it up.
-    if (schema_content_hash == 0) {
+    if (header->schema_content_hash == 0) {
       out_result->error_code = SVFRT_code_read__bad_schema_content_hash;
       return;
     }
@@ -108,25 +102,33 @@ void SVFRT_read_message(
       return;
     }
 
-    final_schema_range = params->schema_lookup_fn(params->schema_lookup_ptr, schema_content_hash);
+    schema_range = params->schema_lookup_fn(params->schema_lookup_ptr, header->schema_content_hash);
 
-    if (!final_schema_range.pointer) {
+    if (!schema_range.pointer) {
       out_result->error_code = SVFRT_code_read__schema_lookup_failed;
       return;
     }
   }
 
   SVFRT_CompatibilityResult check_result = {0};
-  SVFRT_check_compatibility(
-    &check_result,
-    scratch,
-    schema_range,
-    params->expected_schema,
-    params->entry_struct_name_hash,
-    params->required_level,
-    SVFRT_compatibility_exact,
-    params->max_schema_work
-  );
+
+  if (params->expected_schema_content_hash == header->schema_content_hash) {
+    // Quick path.
+    check_result.level = SVFRT_compatibility_exact;
+    check_result.quirky_struct_strides_dst = params->expected_schema_struct_strides;
+  } else {
+    // Slow path.
+    SVFRT_check_compatibility(
+      &check_result,
+      scratch,
+      schema_range,
+      params->expected_schema,
+      params->entry_struct_name_hash,
+      params->required_level,
+      SVFRT_compatibility_exact,
+      params->max_schema_work
+    );
+  }
 
   // Set this here in case of early exits.
   out_result->compatibility_level = check_result.level;
@@ -200,19 +202,20 @@ void SVFRT_read_message(
   out_result->context.struct_strides = check_result.quirky_struct_strides_dst;
 }
 
-// TODO: a variation that only writes the schema content hash.
 void SVFRT_write_start(
   SVFRT_WriteContext *result,
   SVFRT_WriterFn *writer_fn,
   void *writer_ptr,
+  uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
   uint64_t entry_struct_name_hash
 ) {
   SVFRT_MessageHeader header = {
-    .magic = { 'S', 'V', 'F' },
-    .version = 0,
-    .schema_length = (uint32_t) schema_bytes.count,
-    .entry_struct_name_hash = entry_struct_name_hash,
+    /*.magic =*/ { 'S', 'V', 'F' },
+    /*.version =*/ 0,
+    /*.schema_length =*/ (uint32_t) schema_bytes.count,
+    /*.schema_content_hash =*/ schema_content_hash,
+    /*.entry_struct_name_hash =*/ entry_struct_name_hash
   };
 
   SVFRT_Bytes header_bytes = {
@@ -227,21 +230,23 @@ void SVFRT_write_start(
     error_code = SVFRT_code_write__writer_function_failed;
   }
 
-  uint32_t written_schema = writer_fn(writer_ptr, schema_bytes);
-  if (written_schema != schema_bytes.count) {
-    error_code = SVFRT_code_write__writer_function_failed;
-  }
-
-  uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
-  uint32_t misaligned = written_schema % SVFRT_MESSAGE_PART_ALIGNMENT;
-  SVFRT_Bytes padding_bytes = {
-    /*.pointer =*/ (uint8_t *) zeros,
-    /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
-  };
-  if (misaligned != 0) {
-    uint32_t written_padding = writer_fn(writer_ptr, padding_bytes);
-    if (written_padding != padding_bytes.count) {
+  if (schema_bytes.count > 0) {
+    uint32_t written_schema = writer_fn(writer_ptr, schema_bytes);
+    if (written_schema != schema_bytes.count) {
       error_code = SVFRT_code_write__writer_function_failed;
+    }
+
+    uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
+    uint32_t misaligned = written_schema % SVFRT_MESSAGE_PART_ALIGNMENT;
+    SVFRT_Bytes padding_bytes = {
+      /*.pointer =*/ (uint8_t *) zeros,
+      /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
+    };
+    if (misaligned != 0) {
+      uint32_t written_padding = writer_fn(writer_ptr, padding_bytes);
+      if (written_padding != padding_bytes.count) {
+        error_code = SVFRT_code_write__writer_function_failed;
+      }
     }
   }
 

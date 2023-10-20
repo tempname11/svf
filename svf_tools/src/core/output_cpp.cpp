@@ -356,6 +356,9 @@ Bytes as_code(
   output_cstring(ctx, "#pragma pack(push, 1)\n");
   output_cstring(ctx, "\n");
 
+  output_cstring(ctx, "extern U32 const struct_strides[];\n");
+  output_cstring(ctx, "\n");
+
   output_cstring(ctx, "namespace binary {\n");
   output_cstring(ctx, "  size_t const size = ");
   output_decimal(ctx, schema_bytes.count);
@@ -415,9 +418,14 @@ Bytes as_code(
   template<typename T>
   struct PerType;
 
+  static constexpr U32 *schema_struct_strides = (U32 *) struct_strides;
   static constexpr U8 *schema_binary_array = (U8 *) binary::array;
   static constexpr size_t schema_binary_size = binary::size;)");
   output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "  static constexpr U32 schema_struct_count = ");
+  output_decimal(ctx, structs.count);
+  output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr U32 min_read_scratch_memory_size = ");
   output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
@@ -481,6 +489,21 @@ Bytes as_code(
   output_cstring(ctx, "namespace ");
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, " {\n");
+  output_cstring(ctx, "\n");
+
+  output_cstring(ctx, "U32 const struct_strides[] = {\n");
+  for (UInt i = 0; i < structs.count; i++) {
+    auto it = structs.pointer + i;
+    if (i != 0) {
+      output_cstring(ctx, ",\n");
+    }
+    output_cstring(ctx, "  ");
+    output_decimal(ctx, it->size);
+  }
+  output_cstring(ctx, "\n");
+  output_cstring(ctx, "};\n");
+  output_cstring(ctx, "\n");
+
   output_cstring(ctx, "namespace binary {\n");
   output_cstring(ctx, "\n");
 

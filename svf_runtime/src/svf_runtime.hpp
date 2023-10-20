@@ -113,6 +113,9 @@ ReadMessageResult<Entry> read_message(
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_ReadMessageParams params;
   SVFRT_ReadMessageResult result;
+  params.expected_schema_content_hash = SchemaDescription::content_hash;
+  params.expected_schema_struct_strides.pointer = (U32 *) SchemaDescription::schema_struct_strides;
+  params.expected_schema_struct_strides.count = SchemaDescription::schema_struct_count;
   params.expected_schema.pointer = (U8 *) SchemaDescription::schema_binary_array;
   params.expected_schema.count = SchemaDescription::schema_binary_size;
   params.required_level = (SVFRT_CompatibilityLevel) required_level;
@@ -205,6 +208,7 @@ WriteContext<Entry> write_start(
     &ctx_value,
     writer_fn,
     writer_ptr,
+    SchemaDescription::content_hash,
     { SchemaDescription::schema_binary_array, SchemaDescription::schema_binary_size },
     SchemaDescription::template PerType<Entry>::name_hash
   );

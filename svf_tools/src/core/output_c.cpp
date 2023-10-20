@@ -393,6 +393,16 @@ typedef struct SVFRT_Sequence {
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_schema_binary_array[];\n");
 
+  output_cstring(ctx, "extern uint32_t const SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_struct_strides[];\n");
+
+  output_cstring(ctx, "#define SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_struct_count ");
+  output_decimal(ctx, structs.count);
+  output_cstring(ctx, "\n");
+
   output_cstring(ctx, "\n");
   output_cstring(ctx, "// Forward declarations.\n");
 
@@ -448,6 +458,21 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "#ifndef SVF_");
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_BINARY_INCLUDED_H\n");
+
+  output_cstring(ctx, "uint32_t const SVF_");
+  output_u8_array(ctx, schema_definition->name);
+  output_cstring(ctx, "_schema_struct_strides[] = {\n");
+  for (UInt i = 0; i < structs.count; i++) {
+    auto it = structs.pointer + i;
+    if (i != 0) {
+      output_cstring(ctx, ",\n");
+    }
+    output_cstring(ctx, "  ");
+    output_decimal(ctx, it->size);
+  }
+  output_cstring(ctx, "\n");
+  output_cstring(ctx, "};\n");
+  output_cstring(ctx, "\n");
 
   output_cstring(ctx, "uint8_t const SVF_");
   output_u8_array(ctx, schema_definition->name);

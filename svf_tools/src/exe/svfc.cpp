@@ -199,6 +199,7 @@ int main(int argc, char *argv[]) {
         .magic = { 'S', 'V', 'F' },
         .version = 0,
         .schema_length = (uint32_t) meta::binary::size,
+        .schema_content_hash =  meta::SchemaDescription::content_hash,
         .entry_struct_name_hash = meta::SchemaDefinition_name_hash,
       };
 

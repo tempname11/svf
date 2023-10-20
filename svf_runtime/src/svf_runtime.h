@@ -67,12 +67,15 @@ typedef struct SVFRT_MessageHeader {
   uint8_t magic[3];
   uint8_t version;
   uint32_t schema_length;
-  uint64_t entry_struct_name_hash; // TODO: SVFRT_Hash64?
+  uint64_t schema_content_hash;
+  uint64_t entry_struct_name_hash;
 } SVFRT_MessageHeader;
 #pragma pack(pop)
 
 // Alignment for message parts: header, schema, data.
 #define SVFRT_MESSAGE_PART_ALIGNMENT 8
+
+// TODO: check `sizeof(SVFRT_MessageHeader) % SVFRT_MESSAGE_PART_ALIGNMENT == 0`.
 
 // If tags ever become capable of being > 1 byte wide, this macro needs to be
 // removed altogether. Code that relies on it being exactly 1 byte currently,
@@ -215,6 +218,8 @@ typedef struct SVFRT_ReadMessageResult {
 } SVFRT_ReadMessageResult;
 
 typedef struct SVFRT_ReadMessageParams {
+  uint64_t expected_schema_content_hash;
+  SVFRT_RangeU32 expected_schema_struct_strides;
   SVFRT_Bytes expected_schema;
   SVFRT_CompatibilityLevel required_level;
 
@@ -247,49 +252,6 @@ void SVFRT_read_message(
   SVFRT_Bytes scratch
 );
 
-typedef struct SVF_META_SchemaDefinition SVF_META_SchemaDefinition;
-
-typedef struct SVFRT_LogicalCompatibilityInfo {
-  SVFRT_Bytes unsafe_schema_src;
-  SVFRT_Bytes schema_dst;
-  SVF_META_SchemaDefinition *unsafe_definition_src;
-  SVF_META_SchemaDefinition *definition_dst;
-  uint32_t entry_struct_index_src;
-  uint32_t entry_struct_index_dst;
-  uint32_t unsafe_entry_struct_size_src;
-  uint32_t entry_struct_size_dst;
-} SVFRT_LogicalCompatibilityInfo;
-
-typedef struct SVFRT_CompatibilityResult {
-  SVFRT_CompatibilityLevel level;
-  SVFRT_RangeU32 quirky_struct_strides_dst; // See #logical-compatibility-stride-quirk.
-  SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
-
-  SVFRT_LogicalCompatibilityInfo logical; // Only for `SVFRT_compatibility_logical`.
-} SVFRT_CompatibilityResult;
-
-// Check compatibility of two schemas, i.e. can the data written in one schema
-// ("src"), be read using another schema ("dst").
-//
-// - `result` must be zero-initialized.
-// - `scratch_memory` must have a certain size dependent on the read schema.
-// See `min_read_scratch_memory_size` in the header generated from the read schema.
-//
-// The result may refer to scratch memory, so it needs to be kept alive as long
-// as `out_result` is used.
-//
-// TODO: consider, whether this should be internal.
-void SVFRT_check_compatibility(
-  SVFRT_CompatibilityResult *out_result,
-  SVFRT_Bytes scratch_memory,
-  SVFRT_Bytes unsafe_schema_src,
-  SVFRT_Bytes schema_dst,
-  uint64_t entry_struct_name_hash,
-  SVFRT_CompatibilityLevel required_level,
-  SVFRT_CompatibilityLevel sufficient_level,
-  uint32_t max_schema_work
-);
-
 typedef uint32_t (SVFRT_WriterFn)(void *write_pointer, SVFRT_Bytes data);
 
 typedef struct SVFRT_WriteContext {
@@ -300,10 +262,17 @@ typedef struct SVFRT_WriteContext {
   uint32_t data_bytes_written;
 } SVFRT_WriteContext;
 
+// Start writing a message. Intended to be followed by `SVFRT_write_*` calls,
+// and `SVFRT_write_finish` and the very end.
+//
+// Note: `schema_bytes` may optionally be empty. In that case, the reader of
+// this message will need a way to look up the schema by `schema_content_hash`.
+//
 void SVFRT_write_start(
   SVFRT_WriteContext *result,
   SVFRT_WriterFn *writer_fn,
   void *writer_ptr,
+  uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
   uint64_t entry_struct_name_hash
 );
@@ -555,6 +524,7 @@ void const *SVFRT_read_sequence_element(
     (ctx), \
     (writer_fn), \
     (writer_ptr), \
+    (schema_name ## _schema_content_hash), \
     (SVFRT_Bytes) { (void *) schema_name ## _schema_binary_array, schema_name ## _schema_binary_size }, \
     entry_name ## _name_hash \
   )
@@ -573,6 +543,9 @@ void const *SVFRT_read_sequence_element(
 
 #define SVFRT_SET_DEFAULT_READ_PARAMS(out_params, schema_name, entry_name) \
   do { \
+    (out_params)->expected_schema_content_hash = (schema_name ## _schema_content_hash); \
+    (out_params)->expected_schema_struct_strides.pointer = (uint32_t *) (schema_name ## _schema_struct_strides); \
+    (out_params)->expected_schema_struct_strides.count = (schema_name ## _schema_struct_count); \
     (out_params)->expected_schema.pointer = (void *) (schema_name ## _schema_binary_array); \
     (out_params)->expected_schema.count = (schema_name ## _schema_binary_size); \
     (out_params)->required_level = SVFRT_compatibility_binary; \
