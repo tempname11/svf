@@ -342,3 +342,18 @@ add_test(NAME test_simple_c COMMAND test_simple_c)
 # Examples.
 add_test(NAME example_json COMMAND example_json)
 add_test(NAME example_hello COMMAND example_hello)
+
+function(add_our_write_test CODE)
+  add_executable(test_write_code_${CODE} src/test/write/${CODE}.cpp)
+  target_link_libraries(test_write_code_${CODE} PRIVATE svf_runtime platform)
+
+  # target_compile_options(test_write_code_${CODE} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+  # target_link_options(test_write_code_${CODE} PRIVATE -fprofile-instr-generate)
+
+  add_test(NAME test_write_code_${CODE} COMMAND test_write_code_${CODE})
+endfunction(add_our_write_test)
+
+add_our_write_test(writer_function_failed)
+add_our_write_test(data_would_overflow)
+add_our_write_test(sequence_non_contiguous)
+add_our_write_test(already_finished)
