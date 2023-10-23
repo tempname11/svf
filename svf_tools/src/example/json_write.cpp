@@ -11,7 +11,7 @@
 void example_write(FILE *file) {
   namespace RT = svf::runtime;
   namespace JSON = svf::JSON;
-  auto ctx = RT::write_start<JSON::Item>((void *) file, SVFRT_fwrite);
+  auto ctx = RT::write_start<JSON::Item>(SVFRT_fwrite, (void *) file);
 
   JSON::Field fields[2] = {};
 

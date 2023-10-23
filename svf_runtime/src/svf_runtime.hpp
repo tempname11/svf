@@ -199,8 +199,8 @@ T const *read_sequence_element(
 template<typename Entry>
 static inline
 WriteContext<Entry> write_start(
-  void *writer_ptr,
-  WriterFn *writer_fn
+  WriterFn *writer_fn,
+  void *writer_ptr
 ) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   WriteContext<Entry> ctx_value = {};

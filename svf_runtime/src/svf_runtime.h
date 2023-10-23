@@ -113,11 +113,11 @@ typedef uint32_t SVFRT_ErrorCode;
 // TODO: codes are not final, tidy them up (after all or most of them are listed).
 // TODO: some kind of ErrorCode -> string converter would be nice.
 
-#define SVFRT_code_compatibility__max_schema_work_exceeded                   0x00010001
+#define SVFRT_code_compatibility__max_schema_work_exceeded            0x00010001
 #define SVFRT_code_compatibility__required_level_is_none              0x00010002
 #define SVFRT_code_compatibility__invalid_sufficient_level            0x00010003
 #define SVFRT_code_compatibility__not_enough_scratch_memory           0x00010004
-#define SVFRT_code_compatibility__entry_struct_name_hash_not_found           0x00010005
+#define SVFRT_code_compatibility__entry_struct_name_hash_not_found    0x00010005
 #define SVFRT_code_compatibility__struct_index_mismatch               0x00010006
 #define SVFRT_code_compatibility__invalid_structs                     0x00010007
 #define SVFRT_code_compatibility__invalid_choices                     0x00010008

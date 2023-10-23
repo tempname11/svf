@@ -10,10 +10,7 @@
 void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
   namespace schema = svf::B0;
 
-  auto ctx = svf::runtime::write_start<schema::Entry>(
-    writer_ptr,
-    writer_fn
-  );
+  auto ctx = svf::runtime::write_start<schema::Entry>(writer_fn, writer_ptr);
 
   schema::Entry entry = {
     .reorderFields = {

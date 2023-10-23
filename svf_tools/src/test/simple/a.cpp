@@ -8,10 +8,7 @@
 void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
   namespace schema = svf::A0;
 
-  auto ctx = svf::runtime::write_start<schema::Entry>(
-    writer_ptr,
-    writer_fn
-  );
+  auto ctx = svf::runtime::write_start<schema::Entry>(writer_fn, writer_ptr);
 
   schema::Target target0 = {
     .value = 0x1111111111111111ull,
