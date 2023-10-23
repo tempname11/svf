@@ -1,35 +1,35 @@
 #name META
 
 SchemaDefinition: struct {
-  name_hash: U64;
+  nameHash: U64;
   name: U8[];
   structs: StructDefinition[];
   choices: ChoiceDefinition[];
 };
 
 ChoiceDefinition: struct {
-  name_hash: U64;
+  nameHash: U64;
   name: U8[];
-  payload_size: U32;
+  payloadSize: U32;
   options: OptionDefinition[];
 };
 
 OptionDefinition: struct {
-  name_hash: U64;
+  nameHash: U64;
   name: U8[];
   tag: U8;
   type: Type;
 };
 
 StructDefinition: struct {
-  name_hash: U64;
+  nameHash: U64;
   name: U8[];
   size: U32;
   fields: FieldDefinition[];
 };
 
 FieldDefinition: struct {
-  name_hash: U64;
+  nameHash: U64;
   name: U8[];
   offset: U32;
   type: Type;
@@ -46,11 +46,11 @@ ConcreteType: choice {
   i64;
   f32;
   f64;
-  zero_sized;
-  defined_struct: struct {
+  zeroSized;
+  definedStruct: struct {
     index: U32;
   };
-  defined_choice: struct {
+  definedChoice: struct {
     index: U32;
   };
 };
@@ -63,6 +63,6 @@ Type: choice {
     type: ConcreteType;
   };
   sequence: struct {
-    element_type: ConcreteType;
+    elementType: ConcreteType;
   };
 };

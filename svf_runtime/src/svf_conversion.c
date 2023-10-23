@@ -125,15 +125,15 @@ uint32_t SVFRT_conversion_get_type_size(
     case SVF_META_ConcreteType_f64: {
       return 8;
     }
-    case SVF_META_ConcreteType_defined_struct: {
-      uint32_t index = type_union->defined_struct.index;
+    case SVF_META_ConcreteType_definedStruct: {
+      uint32_t index = type_union->definedStruct.index;
       if (index >= structs.count) {
         return 0;
       }
       return structs.pointer[index].size;
     }
-    case SVF_META_ConcreteType_zero_sized:
-    case SVF_META_ConcreteType_defined_choice:
+    case SVF_META_ConcreteType_zeroSized:
+    case SVF_META_ConcreteType_definedChoice:
     default: {
       return 0;
     }
@@ -375,7 +375,7 @@ void SVFRT_conversion_traverse_struct(
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
       SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
-      if (unsafe_field_src->name_hash != field_dst->name_hash) {
+      if (unsafe_field_src->nameHash != field_dst->nameHash) {
         continue;
       }
 
@@ -430,15 +430,15 @@ void SVFRT_conversion_traverse_concrete_type(
   SVFRT_Phase2_TraverseConcreteType *phase2
 ) {
   switch (type_enum_dst) {
-    case SVF_META_ConcreteType_defined_struct: {
+    case SVF_META_ConcreteType_definedStruct: {
       // Sanity check.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_defined_struct) {
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_definedStruct) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
         return;
       }
 
-      uint32_t unsafe_struct_index_src = unsafe_type_union_src->defined_struct.index;
-      uint32_t struct_index_dst = type_union_dst->defined_struct.index;
+      uint32_t unsafe_struct_index_src = unsafe_type_union_src->definedStruct.index;
+      uint32_t struct_index_dst = type_union_dst->definedStruct.index;
 
       if (unsafe_struct_index_src >= ctx->unsafe_structs_src.count) {
         ctx->error_code = SVFRT_code_conversion__bad_schema_struct_index;
@@ -489,15 +489,15 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_defined_choice: {
+    case SVF_META_ConcreteType_definedChoice: {
       // Sanity check.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_defined_choice) {
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_definedChoice) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
         return;
       }
 
-      uint32_t unsafe_choice_index_src = unsafe_type_union_src->defined_choice.index;
-      uint32_t choice_index_dst = type_union_dst->defined_choice.index;
+      uint32_t unsafe_choice_index_src = unsafe_type_union_src->definedChoice.index;
+      uint32_t choice_index_dst = type_union_dst->definedChoice.index;
 
       // Prevent addition overflow by casting operands to `uint64_t` first.
       if ((uint64_t) unsafe_data_offset_src + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) data_range_src.count) {
@@ -565,7 +565,7 @@ void SVFRT_conversion_traverse_concrete_type(
         for (uint32_t j = 0; j < options_dst.count; j++) {
           SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
 
-          if (option_dst->name_hash != unsafe_option_src->name_hash) {
+          if (option_dst->nameHash != unsafe_option_src->nameHash) {
             continue;
           }
 
@@ -624,9 +624,9 @@ void SVFRT_conversion_traverse_concrete_type(
 
       return;
     }
-    case SVF_META_ConcreteType_zero_sized: {
+    case SVF_META_ConcreteType_zeroSized: {
       // Sanity check. This case should only arise inside choices.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_zero_sized) {
+      if (unsafe_type_enum_src != SVF_META_ConcreteType_zeroSized) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
       }
       return;

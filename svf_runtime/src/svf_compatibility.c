@@ -161,8 +161,8 @@ void SVFRT_check_concrete_type(
 ) {
   if (unsafe_enum_src == enum_dst) {
     switch (enum_dst) {
-      case SVF_META_ConcreteType_defined_struct: {
-        uint32_t unsafe_src_index = unsafe_union_src->defined_struct.index;
+      case SVF_META_ConcreteType_definedStruct: {
+        uint32_t unsafe_src_index = unsafe_union_src->definedStruct.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
         if (unsafe_src_index >= ctx->unsafe_structs_src.count) {
@@ -173,12 +173,12 @@ void SVFRT_check_concrete_type(
         SVFRT_check_add_struct(
           ctx,
           unsafe_src_index,
-          union_dst->defined_struct.index
+          union_dst->definedStruct.index
         );
         return;
       }
-      case SVF_META_ConcreteType_defined_choice: {
-        uint32_t unsafe_src_index = unsafe_union_src->defined_choice.index;
+      case SVF_META_ConcreteType_definedChoice: {
+        uint32_t unsafe_src_index = unsafe_union_src->definedChoice.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
         if (unsafe_src_index >= ctx->unsafe_choices_src.count) {
@@ -189,7 +189,7 @@ void SVFRT_check_concrete_type(
         SVFRT_check_add_choice(
           ctx,
           unsafe_src_index,
-          union_dst->defined_choice.index
+          union_dst->definedChoice.index
         );
         return;
       }
@@ -302,10 +302,10 @@ void SVFRT_check_type(
     case SVF_META_Type_sequence: {
       SVFRT_check_concrete_type(
         ctx,
-        unsafe_union_src->sequence.element_type_enum,
-        &unsafe_union_src->sequence.element_type_union,
-        union_dst->sequence.element_type_enum,
-        &union_dst->sequence.element_type_union
+        unsafe_union_src->sequence.elementType_enum,
+        &unsafe_union_src->sequence.elementType_union,
+        union_dst->sequence.elementType_enum,
+        &union_dst->sequence.elementType_union
       );
       return;
     }
@@ -391,7 +391,7 @@ void SVFRT_check_struct(
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
       SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
-      if (unsafe_field_src->name_hash == field_dst->name_hash) {
+      if (unsafe_field_src->nameHash == field_dst->nameHash) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
           && (unsafe_field_src->offset != field_dst->offset)
@@ -519,7 +519,7 @@ void SVFRT_check_choice(
     for (uint32_t j = 0; j < options_dst.count; j++) {
       SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
 
-      if (unsafe_option_src->name_hash == option_dst->name_hash) {
+      if (unsafe_option_src->nameHash == option_dst->nameHash) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
           && (unsafe_option_src->tag != option_dst->tag)
@@ -751,7 +751,7 @@ void SVFRT_check_compatibility(
 
   uint32_t entry_struct_index_src = (uint32_t) (-1);
   for (uint32_t i = 0; i < unsafe_structs_src.count; i++) {
-    if (unsafe_structs_src.pointer[i].name_hash == entry_struct_name_hash) {
+    if (unsafe_structs_src.pointer[i].nameHash == entry_struct_name_hash) {
       entry_struct_index_src = i;
       break;
     }
@@ -759,7 +759,7 @@ void SVFRT_check_compatibility(
 
   uint32_t entry_struct_index_dst = (uint32_t) (-1);
   for (uint32_t i = 0; i < structs_dst.count; i++) {
-    if (structs_dst.pointer[i].name_hash == entry_struct_name_hash) {
+    if (structs_dst.pointer[i].nameHash == entry_struct_name_hash) {
       entry_struct_index_dst = i;
       break;
     }

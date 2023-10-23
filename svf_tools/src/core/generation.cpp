@@ -94,7 +94,7 @@ OutputTypeResult output_concrete_type(
       return { .ok = true, .main_size = 8};
     }
     case grammar::ConcreteType::Which::zero_sized: {
-      *out_enum = meta::ConcreteType_enum::zero_sized;
+      *out_enum = meta::ConcreteType_enum::zeroSized;
       return { .ok = true, .main_size = 0};
     }
     case grammar::ConcreteType::Which::defined: {
@@ -107,8 +107,8 @@ OutputTypeResult output_concrete_type(
       if (definition->which == grammar::TopLevelDefinition::Which::a_struct) {
         auto struct_index = assigned_indices.pointer[ix];
 
-        *out_enum = meta::ConcreteType_enum::defined_struct;
-        out_union->defined_struct = {
+        *out_enum = meta::ConcreteType_enum::definedStruct;
+        out_union->definedStruct = {
           .index = safe_int_cast<U32>(struct_index),
         };
 
@@ -128,8 +128,8 @@ OutputTypeResult output_concrete_type(
 
         auto choice_index = assigned_indices.pointer[ix];
 
-        *out_enum = meta::ConcreteType_enum::defined_choice;
-        out_union->defined_choice = {
+        *out_enum = meta::ConcreteType_enum::definedChoice;
+        out_union->definedChoice = {
           .index = safe_int_cast<U32>(choice_index),
         };
 
@@ -138,7 +138,7 @@ OutputTypeResult output_concrete_type(
         }
 
         // We rely on the fact that this type has already been output.
-        auto payload_size = choices.pointer[choice_index].payload_size;
+        auto payload_size = choices.pointer[choice_index].payloadSize;
         return {true, payload_size, SVFRT_TAG_SIZE};
 
       } else {
@@ -199,8 +199,8 @@ OutputTypeResult output_type(
         choices,
         assigned_indices,
         &in_type->sequence.element_type,
-        &out_union->sequence.element_type_enum,
-        &out_union->sequence.element_type_union,
+        &out_union->sequence.elementType_enum,
+        &out_union->sequence.elementType_union,
         false, // allow_tag
         true // force_size
       );
@@ -377,8 +377,8 @@ Bytes as_bytes(
           auto out_name = vm::many<U8>(arena, in_field->name.count);
           range_copy(out_name, in_field->name);
 
-          *out_field = {
-            .name_hash = in_field->name_hash,
+          *out_field = meta::FieldDefinition {
+            .nameHash = in_field->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
@@ -412,8 +412,8 @@ Bytes as_bytes(
         auto out_name = vm::many<U8>(arena, in_struct->name.count);
         range_copy(out_name, in_struct->name);
 
-        *out_struct = {
-          .name_hash = in_struct->name_hash,
+        *out_struct = meta::StructDefinition {
+          .nameHash = in_struct->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
@@ -445,7 +445,7 @@ Bytes as_bytes(
           range_copy(out_name, in_option->name);
 
           *out_option = meta::OptionDefinition {
-            .name_hash = in_option->name_hash,
+            .nameHash = in_option->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
@@ -475,13 +475,13 @@ Bytes as_bytes(
         auto out_name = vm::many<U8>(arena, in_choice->name.count);
         range_copy(out_name, in_choice->name);
 
-        *out_choice = {
-          .name_hash = in_choice->name_hash,
+        *out_choice = meta::ChoiceDefinition {
+          .nameHash = in_choice->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
           },
-          .payload_size = size_max,
+          .payloadSize = size_max,
           .options = {
             .data_offset_complement = ~offset_between<U32>(start, out_options.pointer),
             .count = safe_int_cast<U32>(out_options.count),
@@ -498,7 +498,7 @@ Bytes as_bytes(
 
   auto out_definition = vm::one<meta::SchemaDefinition>(arena);
   *out_definition = meta::SchemaDefinition {
-    .name_hash = in_root->schema_name_hash,
+    .nameHash = in_root->schema_name_hash,
     .name = {
       .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
       .count = safe_int_cast<U32>(out_name.count),

@@ -15,13 +15,13 @@ bool has_higher_dependencies(
 ) {
   if (in_enum == meta::Type_enum::concrete) {
     auto type = in_union->concrete.type_enum;
-    if (type == meta::ConcreteType_enum::defined_struct) {
-      auto it = &in_union->concrete.type_union.defined_struct;
+    if (type == meta::ConcreteType_enum::definedStruct) {
+      auto it = &in_union->concrete.type_union.definedStruct;
       if (assigned_struct_orders.pointer[it->index] >= current_order) {
         return true;
       }
-    } else if (type == meta::ConcreteType_enum::defined_choice) {
-      auto it = &in_union->concrete.type_union.defined_choice;
+    } else if (type == meta::ConcreteType_enum::definedChoice) {
+      auto it = &in_union->concrete.type_union.definedChoice;
       if (assigned_choice_orders.pointer[it->index] >= current_order) {
         return true;
       }
@@ -85,7 +85,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_struct_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_enum::defined_struct,
+          .type = meta::ConcreteType_enum::definedStruct,
         };
         some_ok = true;
       } else {
@@ -119,7 +119,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_choice_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_enum::defined_choice,
+          .type = meta::ConcreteType_enum::definedChoice,
         };
         some_ok = true;
       } else {

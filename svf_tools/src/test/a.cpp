@@ -19,10 +19,10 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
 
   schema::Entry entry = {
     .reference = svf::runtime::write_reference(&ctx, &target0),
-    .some_struct = {
+    .someStruct = {
       .sequence = {},
-      .some_choice_enum = schema::SomeChoice_enum::target,
-      .some_choice_union = {
+      .someChoice_enum = schema::SomeChoice_enum::target,
+      .someChoice_union = {
         .target = {
           .value = 0x4444444444444444ull,
         },
@@ -34,7 +34,7 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
     schema::Target target = {
       .value = (i + 2) * 0x1111111111111111ull,
     };
-    svf::runtime::write_sequence_element(&ctx, &target, &entry.some_struct.sequence);
+    svf::runtime::write_sequence_element(&ctx, &target, &entry.someStruct.sequence);
   }
 
   svf::runtime::write_finish(&ctx, &entry);
@@ -70,13 +70,13 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   ASSERT(target0);
   ASSERT(target0->value == 0x1111111111111111ull);
 
-  ASSERT(entry->some_struct.sequence.count == 2);
-  auto e0 = svf::runtime::read_sequence_element(ctx, entry->some_struct.sequence, 0);
-  auto e1 = svf::runtime::read_sequence_element(ctx, entry->some_struct.sequence, 1);
+  ASSERT(entry->someStruct.sequence.count == 2);
+  auto e0 = svf::runtime::read_sequence_element(ctx, entry->someStruct.sequence, 0);
+  auto e1 = svf::runtime::read_sequence_element(ctx, entry->someStruct.sequence, 1);
   ASSERT(e0 && e1);
   ASSERT(e0->value == 0x2222222222222222ull);
   ASSERT(e1->value == 0x3333333333333333ull);
 
-  ASSERT(entry->some_struct.some_choice_enum == schema::SomeChoice_enum::target);
-  ASSERT(entry->some_struct.some_choice_union.target.value == 0x4444444444444444ull);
+  ASSERT(entry->someStruct.someChoice_enum == schema::SomeChoice_enum::target);
+  ASSERT(entry->someStruct.someChoice_union.target.value == 0x4444444444444444ull);
 }

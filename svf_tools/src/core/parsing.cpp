@@ -177,7 +177,6 @@ Range<U8> parse_name(Ctx ctx, NameKind kind) {
       || (byte >= 'A' && byte <= 'Z')
       || (byte >= 'a' && byte <= 'z')
       || (byte >= '0' && byte <= '9')
-      || byte == '_'
     ) {
       ctx->state.cursor++;
     } else {

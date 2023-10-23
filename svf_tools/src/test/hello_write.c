@@ -12,8 +12,8 @@ void example_write(FILE *file) {
 
   SVF_Hello_World world = {0};
   world.population = 8000000000;
-  world.gravitational_constant = 6.674e-11f;
-  world.current_year = 2023;
+  world.gravitationalConstant = 6.674e-11f;
+  world.currentYear = 2023;
   world.mechanics_enum = SVF_Hello_Mechanics_quantum;
 
   char const name[] = "The Universe"; // TODO: null-termination is not what we want.

@@ -18,8 +18,8 @@ void example_read(svf::runtime::Bytes bytes) {
 
   assert(world);
   assert(world->population == 8000000000);
-  assert(world->gravitational_constant == 6.674e-11f);
-  assert(world->current_year == 2023);
+  assert(world->gravitationalConstant == 6.674e-11f);
+  assert(world->currentYear == 2023);
   assert(world->mechanics_enum == Hello::Mechanics_enum::quantum);
 
   auto name = RT::read_sequence_raw(ctx, world->name.utf8);

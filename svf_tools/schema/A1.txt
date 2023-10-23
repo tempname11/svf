@@ -2,12 +2,12 @@
 
 Entry: struct {
   reference: Target*;
-  some_struct: SomeStruct;
+  someStruct: SomeStruct;
 };
 
 SomeStruct: struct {
   sequence: Target[];
-  some_choice: SomeChoice;
+  someChoice: SomeChoice;
 };
 
 SomeChoice: choice {

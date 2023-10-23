@@ -16,43 +16,43 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
   );
 
   schema::Entry entry = {
-    .reorder_fields = {
+    .reorderFields = {
       .one = 42,
       .two = 43,
     },
-    .reorder_options_enum = schema::ReorderOptions_enum::one,
-    .reorder_options_union = {
+    .reorderOptions_enum = schema::ReorderOptions_enum::one,
+    .reorderOptions_union = {
       .one = 44,
     },
-    .remove_field = {
+    .removeField = {
       .one = 45,
       .two = 46,
       .three = 47,
     },
-    .add_option_enum = schema::AddOption_enum::three,
-    .add_option_union = {
+    .addOption_enum = schema::AddOption_enum::three,
+    .addOption_union = {
       .three = 48,
     },
     .primitives = {
-      .u8_to_u16 = 49,
-      .u8_to_u32 = 50,
-      .u8_to_u64 = 51,
-      .u8_to_i16 = 52,
-      .u8_to_i32 = 53,
-      .u8_to_i64 = 54,
-      .u16_to_u32 = 55,
-      .u16_to_u64 = 56,
-      .u16_to_i32 = 57,
-      .u16_to_i64 = 58,
-      .u32_to_u64 = 59,
-      .u32_to_i64 = 60,
-      .i8_to_i16 = 61,
-      .i8_to_i32 = 62,
-      .i8_to_i64 = 63,
-      .i16_to_i32 = 64,
-      .i16_to_i64 = 65,
-      .i32_to_i64 = 66,
-      .f32_to_f64 = 67.0,
+      .u8u16 = 49,
+      .u8u32 = 50,
+      .u8u64 = 51,
+      .u8i16 = 52,
+      .u8i32 = 53,
+      .u8i64 = 54,
+      .u16u32 = 55,
+      .u16u64 = 56,
+      .u16i32 = 57,
+      .u16i64 = 58,
+      .u32u64 = 59,
+      .u32i64 = 60,
+      .i8i16 = 61,
+      .i8i32 = 62,
+      .i8i64 = 63,
+      .i16i32 = 64,
+      .i16i64 = 65,
+      .i32i64 = 66,
+      .f32f64 = 67.0,
     },
   };
 
@@ -89,30 +89,30 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
 
   auto entry = read_result.entry;
 
-  ASSERT(entry->reorder_fields.one == 42 && entry->reorder_fields.two == 43);
-  ASSERT(entry->reorder_options_enum == schema::ReorderOptions_enum::one);
-  ASSERT(entry->reorder_options_union.one == 44);
-  ASSERT(entry->remove_field.one == 45 && entry->remove_field.three == 47);
-  ASSERT(entry->add_option_enum == schema::AddOption_enum::three);
+  ASSERT(entry->reorderFields.one == 42 && entry->reorderFields.two == 43);
+  ASSERT(entry->reorderOptions_enum == schema::ReorderOptions_enum::one);
+  ASSERT(entry->reorderOptions_union.one == 44);
+  ASSERT(entry->removeField.one == 45 && entry->removeField.three == 47);
+  ASSERT(entry->addOption_enum == schema::AddOption_enum::three);
 
-  ASSERT(entry->add_option_union.three == 48);
-  ASSERT(entry->primitives.u8_to_u16 == 49);
-  ASSERT(entry->primitives.u8_to_u32 == 50);
-  ASSERT(entry->primitives.u8_to_u64 == 51);
-  ASSERT(entry->primitives.u8_to_i16 == 52);
-  ASSERT(entry->primitives.u8_to_i32 == 53);
-  ASSERT(entry->primitives.u8_to_i64 == 54);
-  ASSERT(entry->primitives.u16_to_u32 == 55);
-  ASSERT(entry->primitives.u16_to_u64 == 56);
-  ASSERT(entry->primitives.u16_to_i32 == 57);
-  ASSERT(entry->primitives.u16_to_i64 == 58);
-  ASSERT(entry->primitives.u32_to_u64 == 59);
-  ASSERT(entry->primitives.u32_to_i64 == 60);
-  ASSERT(entry->primitives.i8_to_i16 == 61);
-  ASSERT(entry->primitives.i8_to_i32 == 62);
-  ASSERT(entry->primitives.i8_to_i64 == 63);
-  ASSERT(entry->primitives.i16_to_i32 == 64);
-  ASSERT(entry->primitives.i16_to_i64 == 65);
-  ASSERT(entry->primitives.i32_to_i64 == 66);
-  ASSERT(entry->primitives.f32_to_f64 == 67.0);
+  ASSERT(entry->addOption_union.three == 48);
+  ASSERT(entry->primitives.u8u16 == 49);
+  ASSERT(entry->primitives.u8u32 == 50);
+  ASSERT(entry->primitives.u8u64 == 51);
+  ASSERT(entry->primitives.u8i16 == 52);
+  ASSERT(entry->primitives.u8i32 == 53);
+  ASSERT(entry->primitives.u8i64 == 54);
+  ASSERT(entry->primitives.u16u32 == 55);
+  ASSERT(entry->primitives.u16u64 == 56);
+  ASSERT(entry->primitives.u16i32 == 57);
+  ASSERT(entry->primitives.u16i64 == 58);
+  ASSERT(entry->primitives.u32u64 == 59);
+  ASSERT(entry->primitives.u32i64 == 60);
+  ASSERT(entry->primitives.i8i16 == 61);
+  ASSERT(entry->primitives.i8i32 == 62);
+  ASSERT(entry->primitives.i8i64 == 63);
+  ASSERT(entry->primitives.i16i32 == 64);
+  ASSERT(entry->primitives.i16i64 == 65);
+  ASSERT(entry->primitives.i32i64 == 66);
+  ASSERT(entry->primitives.f32f64 == 67.0);
 }

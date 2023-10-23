@@ -28,8 +28,8 @@ The format is structured, meaning that all data has an associated schema. Here i
 
 World: struct {
   population: U64; // 64-bit unsigned integer.
-  gravitational_constant: F32; // 32-bit floating-point.
-  current_year: I16; // 16-bit integer (signed).
+  gravitationalConstant: F32; // 32-bit floating-point.
+  currentYear: I16; // 16-bit integer (signed).
   mechanics: Mechanics;
   name: String;
 };
@@ -38,7 +38,7 @@ Mechanics: choice {
   classical;
   quantum;
   simulated: struct {
-    parent_world: World*;
+    parentWorld: World*;
   };
 };
 

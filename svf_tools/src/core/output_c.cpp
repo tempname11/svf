@@ -61,20 +61,20 @@ void output_concrete_type_name(
   meta::ConcreteType_union *in_union
 ) {
   switch (in_enum) {
-    case meta::ConcreteType_enum::defined_struct: {
+    case meta::ConcreteType_enum::definedStruct: {
       auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
       output_cstring(ctx, "SVF_");
       output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
-      output_u8_array(ctx, structs.pointer[in_union->defined_struct.index].name);
+      output_u8_array(ctx, structs.pointer[in_union->definedStruct.index].name);
       break;
     }
-    case meta::ConcreteType_enum::defined_choice: {
+    case meta::ConcreteType_enum::definedChoice: {
       auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
       output_cstring(ctx, "SVF_");
       output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
-      output_u8_array(ctx, choices.pointer[in_union->defined_choice.index].name);
+      output_u8_array(ctx, choices.pointer[in_union->definedChoice.index].name);
       break;
     }
     case meta::ConcreteType_enum::u8: {
@@ -291,7 +291,7 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
 
   }
 
-  if (size_max != it->payload_size) {
+  if (size_max != it->payloadSize) {
     return false;
   }
 
@@ -380,7 +380,7 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_schema_name_hash 0x");
-  output_hexadecimal(ctx, schema_definition->name_hash);
+  output_hexadecimal(ctx, schema_definition->nameHash);
   output_cstring(ctx, "ull\n");
 
   output_cstring(ctx, "#define SVF_");
@@ -425,11 +425,11 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "\n// Hashes of top level definition names.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_name_hash(ctx, it->name, it->name_hash);
+    output_name_hash(ctx, it->name, it->nameHash);
   }
   for (UInt i = 0; i < choices.count; i++) {
     auto it = choices.pointer + i;
-    output_name_hash(ctx, it->name, it->name_hash);
+    output_name_hash(ctx, it->name, it->nameHash);
   }
 
   output_cstring(ctx, "\n// Full declarations.\n");
@@ -437,11 +437,11 @@ typedef struct SVFRT_Sequence {
   for (UInt i = 0; i < validation_result->ordering.count; i++) {
     auto item = validation_result->ordering.pointer + i;
 
-    if (item->type == meta::ConcreteType_enum::defined_struct) {
+    if (item->type == meta::ConcreteType_enum::definedStruct) {
       if (!output_struct(ctx, structs.pointer + item->index)) {
         return {};
       }
-    } else if (item->type == meta::ConcreteType_enum::defined_choice) {
+    } else if (item->type == meta::ConcreteType_enum::definedChoice) {
       if (!output_choice(ctx, choices.pointer + item->index)) {
         return {};
       }

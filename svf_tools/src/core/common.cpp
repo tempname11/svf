@@ -42,19 +42,19 @@ TypePluralityAndSize get_plurality(
         case meta::ConcreteType_enum::f64: {
           return { TypePlurality::one, 8 };
         }
-        case meta::ConcreteType_enum::zero_sized: {
+        case meta::ConcreteType_enum::zeroSized: {
           return { TypePlurality::zero, 0 };
         }
-        case meta::ConcreteType_enum::defined_struct: {
-          auto index = in_union->concrete.type_union.defined_struct.index;
+        case meta::ConcreteType_enum::definedStruct: {
+          auto index = in_union->concrete.type_union.definedStruct.index;
           ASSERT(index < structs.count);
           auto size = structs.pointer[index].size;
           return { TypePlurality::one, size };
         }
-        case meta::ConcreteType_enum::defined_choice: {
-          auto index = in_union->concrete.type_union.defined_choice.index;
+        case meta::ConcreteType_enum::definedChoice: {
+          auto index = in_union->concrete.type_union.definedChoice.index;
           ASSERT(index < choices.count);
-          auto payload_size = choices.pointer[index].payload_size;
+          auto payload_size = choices.pointer[index].payloadSize;
           // TODO @proper-alignment.
           return { TypePlurality::enum_and_union, SVFRT_TAG_SIZE + payload_size };
         }
