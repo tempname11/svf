@@ -20,7 +20,7 @@ namespace core {
   namespace validation {
     struct TLDRef {
       UInt index;
-      meta::ConcreteType_enum type; // Must be a struct or a choice.
+      meta::ConcreteType_tag type; // Must be a struct or a choice.
     };
 
     struct Result {

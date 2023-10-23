@@ -10,18 +10,18 @@ bool has_higher_dependencies(
   Range<UInt> assigned_struct_orders,
   Range<UInt> assigned_choice_orders,
   UInt current_order,
-  meta::Type_enum in_enum,
-  meta::Type_union *in_union
+  meta::Type_tag in_tag,
+  meta::Type_payload *in_payload
 ) {
-  if (in_enum == meta::Type_enum::concrete) {
-    auto type = in_union->concrete.type_enum;
-    if (type == meta::ConcreteType_enum::definedStruct) {
-      auto it = &in_union->concrete.type_union.definedStruct;
+  if (in_tag == meta::Type_tag::concrete) {
+    auto type = in_payload->concrete.type_tag;
+    if (type == meta::ConcreteType_tag::definedStruct) {
+      auto it = &in_payload->concrete.type_payload.definedStruct;
       if (assigned_struct_orders.pointer[it->index] >= current_order) {
         return true;
       }
-    } else if (type == meta::ConcreteType_enum::definedChoice) {
-      auto it = &in_union->concrete.type_union.definedChoice;
+    } else if (type == meta::ConcreteType_tag::definedChoice) {
+      auto it = &in_payload->concrete.type_payload.definedChoice;
       if (assigned_choice_orders.pointer[it->index] >= current_order) {
         return true;
       }
@@ -73,8 +73,8 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
           assigned_struct_orders,
           assigned_choice_orders,
           current_order,
-          field->type_enum,
-          &field->type_union
+          field->type_tag,
+          &field->type_payload
         )) {
           ok = false;
           break;
@@ -85,7 +85,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_struct_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_enum::definedStruct,
+          .type = meta::ConcreteType_tag::definedStruct,
         };
         some_ok = true;
       } else {
@@ -107,8 +107,8 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
           assigned_struct_orders,
           assigned_choice_orders,
           current_order,
-          option->type_enum,
-          &option->type_union
+          option->type_tag,
+          &option->type_payload
         )) {
           ok = false;
           break;
@@ -119,7 +119,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_choice_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_enum::definedChoice,
+          .type = meta::ConcreteType_tag::definedChoice,
         };
         some_ok = true;
       } else {

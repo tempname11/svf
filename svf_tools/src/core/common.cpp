@@ -4,59 +4,59 @@
 TypePluralityAndSize get_plurality(
   Range<svf::META::StructDefinition> structs,
   Range<svf::META::ChoiceDefinition> choices,
-  svf::META::Type_enum in_enum,
-  svf::META::Type_union *in_union
+  svf::META::Type_tag in_tag,
+  svf::META::Type_payload *in_payload
 ) {
   namespace meta = svf::META;
 
-  switch (in_enum) {
-    case meta::Type_enum::concrete: {
-      switch (in_union->concrete.type_enum) {
-        case meta::ConcreteType_enum::u8: {
+  switch (in_tag) {
+    case meta::Type_tag::concrete: {
+      switch (in_payload->concrete.type_tag) {
+        case meta::ConcreteType_tag::u8: {
           return { TypePlurality::one, 1 };
         }
-        case meta::ConcreteType_enum::u16: {
+        case meta::ConcreteType_tag::u16: {
           return { TypePlurality::one, 2 };
         }
-        case meta::ConcreteType_enum::u32: {
+        case meta::ConcreteType_tag::u32: {
           return { TypePlurality::one, 4 };
         }
-        case meta::ConcreteType_enum::u64: {
+        case meta::ConcreteType_tag::u64: {
           return { TypePlurality::one, 8 };
         }
-        case meta::ConcreteType_enum::i8: {
+        case meta::ConcreteType_tag::i8: {
           return { TypePlurality::one, 1 };
         }
-        case meta::ConcreteType_enum::i16: {
+        case meta::ConcreteType_tag::i16: {
           return { TypePlurality::one, 2 };
         }
-        case meta::ConcreteType_enum::i32: {
+        case meta::ConcreteType_tag::i32: {
           return { TypePlurality::one, 4 };
         }
-        case meta::ConcreteType_enum::i64: {
+        case meta::ConcreteType_tag::i64: {
           return { TypePlurality::one, 8 };
         }
-        case meta::ConcreteType_enum::f32: {
+        case meta::ConcreteType_tag::f32: {
           return { TypePlurality::one, 4 };
         }
-        case meta::ConcreteType_enum::f64: {
+        case meta::ConcreteType_tag::f64: {
           return { TypePlurality::one, 8 };
         }
-        case meta::ConcreteType_enum::zeroSized: {
+        case meta::ConcreteType_tag::zeroSized: {
           return { TypePlurality::zero, 0 };
         }
-        case meta::ConcreteType_enum::definedStruct: {
-          auto index = in_union->concrete.type_union.definedStruct.index;
+        case meta::ConcreteType_tag::definedStruct: {
+          auto index = in_payload->concrete.type_payload.definedStruct.index;
           ASSERT(index < structs.count);
           auto size = structs.pointer[index].size;
           return { TypePlurality::one, size };
         }
-        case meta::ConcreteType_enum::definedChoice: {
-          auto index = in_union->concrete.type_union.definedChoice.index;
+        case meta::ConcreteType_tag::definedChoice: {
+          auto index = in_payload->concrete.type_payload.definedChoice.index;
           ASSERT(index < choices.count);
           auto payload_size = choices.pointer[index].payloadSize;
           // TODO @proper-alignment.
-          return { TypePlurality::enum_and_union, SVFRT_TAG_SIZE + payload_size };
+          return { TypePlurality::tag_and_payload, SVFRT_TAG_SIZE + payload_size };
         }
         default: {
           ASSERT(false);
@@ -64,10 +64,10 @@ TypePluralityAndSize get_plurality(
         }
       }
     }
-    case meta::Type_enum::reference: {
+    case meta::Type_tag::reference: {
       return { TypePlurality::one, 4 };
     }
-    case meta::Type_enum::sequence: {
+    case meta::Type_tag::sequence: {
       return { TypePlurality::one, 8 };
     }
     default: {

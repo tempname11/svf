@@ -19,11 +19,11 @@ void example_read(SVFRT_Bytes input_bytes) {
   SVFRT_ReadContext *ctx = &read_result.context;
   SVF_JSON_Item *entry = (SVF_JSON_Item *) read_result.entry;
 
-  assert(entry->value_enum == SVF_JSON_Value_object);
-  assert(entry->value_union.object.count == 2);
+  assert(entry->value_tag == SVF_JSON_Value_tag_object);
+  assert(entry->value_payload.object.count == 2);
 
-  SVF_JSON_Field const *field0 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 0);
-  SVF_JSON_Field const *field1 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_union.object, 1);
+  SVF_JSON_Field const *field0 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_payload.object, 0);
+  SVF_JSON_Field const *field1 = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Field, ctx, entry->value_payload.object, 1);
   assert(field0 && field1);
 
   uint8_t const *name0_ptr = SVFRT_READ_SEQUENCE_RAW(uint8_t, ctx, field0->name);
@@ -31,16 +31,16 @@ void example_read(SVFRT_Bytes input_bytes) {
   assert(strncmp("hello", (char *) name0_ptr, field0->name.count) == 0);
   assert(strncmp("world", (char *) name1_ptr, field1->name.count) == 0);
 
-  assert(field0->value_enum == SVF_JSON_Value_number);
-  assert(field0->value_union.number == 42.0);
+  assert(field0->value_tag == SVF_JSON_Value_tag_number);
+  assert(field0->value_payload.number == 42.0);
 
-  assert(field1->value_enum == SVF_JSON_Value_array);
-  assert(field1->value_union.array.count == 42);
+  assert(field1->value_tag == SVF_JSON_Value_tag_array);
+  assert(field1->value_payload.array.count == 42);
 
   for (int i = 0; i < 42; i++) {
-    SVF_JSON_Item const *item = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Item, ctx, field1->value_union.array, i);
+    SVF_JSON_Item const *item = SVFRT_READ_SEQUENCE_ELEMENT(SVF_JSON_Item, ctx, field1->value_payload.array, i);
     assert(item);
-    assert(item->value_enum == SVF_JSON_Value_number);
-    assert(item->value_union.number == i);
+    assert(item->value_tag == SVF_JSON_Value_tag_number);
+    assert(item->value_payload.number == i);
   }
 }

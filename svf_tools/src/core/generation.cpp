@@ -47,54 +47,54 @@ OutputTypeResult output_concrete_type(
   Range<meta::ChoiceDefinition> choices,
   Range<UInt> assigned_indices,
   grammar::ConcreteType *in_concrete,
-  meta::ConcreteType_enum *out_enum,
-  meta::ConcreteType_union *out_union,
+  meta::ConcreteType_tag *out_tag,
+  meta::ConcreteType_payload *out_payload,
   Bool allow_tag,
   Bool force_size
 ) {
   switch (in_concrete->which) {
     case grammar::ConcreteType::Which::u8: {
-      *out_enum = meta::ConcreteType_enum::u8;
+      *out_tag = meta::ConcreteType_tag::u8;
       return { .ok = true, .main_size = 1 };
     }
     case grammar::ConcreteType::Which::u16: {
-      *out_enum = meta::ConcreteType_enum::u16;
+      *out_tag = meta::ConcreteType_tag::u16;
       return { .ok = true, .main_size = 2};
     }
     case grammar::ConcreteType::Which::u32: {
-      *out_enum = meta::ConcreteType_enum::u32;
+      *out_tag = meta::ConcreteType_tag::u32;
       return { .ok = true, .main_size = 4};
     }
     case grammar::ConcreteType::Which::u64: {
-      *out_enum = meta::ConcreteType_enum::u64;
+      *out_tag = meta::ConcreteType_tag::u64;
       return { .ok = true, .main_size = 8};
     }
     case grammar::ConcreteType::Which::i8: {
-      *out_enum = meta::ConcreteType_enum::i8;
+      *out_tag = meta::ConcreteType_tag::i8;
       return { .ok = true, .main_size = 1};
     }
     case grammar::ConcreteType::Which::i16: {
-      *out_enum = meta::ConcreteType_enum::i16;
+      *out_tag = meta::ConcreteType_tag::i16;
       return { .ok = true, .main_size = 2};
     }
     case grammar::ConcreteType::Which::i32: {
-      *out_enum = meta::ConcreteType_enum::i32;
+      *out_tag = meta::ConcreteType_tag::i32;
       return { .ok = true, .main_size = 4};
     }
     case grammar::ConcreteType::Which::i64: {
-      *out_enum = meta::ConcreteType_enum::i64;
+      *out_tag = meta::ConcreteType_tag::i64;
       return { .ok = true, .main_size = 8};
     }
     case grammar::ConcreteType::Which::f32: {
-      *out_enum = meta::ConcreteType_enum::f32;
+      *out_tag = meta::ConcreteType_tag::f32;
       return { .ok = true, .main_size = 4};
     }
     case grammar::ConcreteType::Which::f64: {
-      *out_enum = meta::ConcreteType_enum::f64;
+      *out_tag = meta::ConcreteType_tag::f64;
       return { .ok = true, .main_size = 8};
     }
     case grammar::ConcreteType::Which::zero_sized: {
-      *out_enum = meta::ConcreteType_enum::zeroSized;
+      *out_tag = meta::ConcreteType_tag::zeroSized;
       return { .ok = true, .main_size = 0};
     }
     case grammar::ConcreteType::Which::defined: {
@@ -107,8 +107,8 @@ OutputTypeResult output_concrete_type(
       if (definition->which == grammar::TopLevelDefinition::Which::a_struct) {
         auto struct_index = assigned_indices.pointer[ix];
 
-        *out_enum = meta::ConcreteType_enum::definedStruct;
-        out_union->definedStruct = {
+        *out_tag = meta::ConcreteType_tag::definedStruct;
+        out_payload->definedStruct = {
           .index = safe_int_cast<U32>(struct_index),
         };
 
@@ -128,8 +128,8 @@ OutputTypeResult output_concrete_type(
 
         auto choice_index = assigned_indices.pointer[ix];
 
-        *out_enum = meta::ConcreteType_enum::definedChoice;
-        out_union->definedChoice = {
+        *out_tag = meta::ConcreteType_tag::definedChoice;
+        out_payload->definedChoice = {
           .index = safe_int_cast<U32>(choice_index),
         };
 
@@ -156,35 +156,35 @@ OutputTypeResult output_type(
   Range<meta::ChoiceDefinition> choices,
   Range<UInt> assigned_indices,
   grammar::Type *in_type,
-  meta::Type_enum *out_enum,
-  meta::Type_union *out_union,
+  meta::Type_tag *out_tag,
+  meta::Type_payload *out_payload,
   Bool allow_tag
 ) {
   switch (in_type->which) {
     case grammar::Type::Which::concrete: {
-      *out_enum = meta::Type_enum::concrete;
+      *out_tag = meta::Type_tag::concrete;
       return output_concrete_type(
         in_root,
         structs,
         choices,
         assigned_indices,
         &in_type->concrete.type,
-        &out_union->concrete.type_enum,
-        &out_union->concrete.type_union,
+        &out_payload->concrete.type_tag,
+        &out_payload->concrete.type_payload,
         allow_tag,
         false // force_size
       );
     }
     case grammar::Type::Which::reference: {
-      *out_enum = meta::Type_enum::reference;
+      *out_tag = meta::Type_tag::reference;
       auto result = output_concrete_type(
         in_root,
         structs,
         choices,
         assigned_indices,
         &in_type->reference.type,
-        &out_union->reference.type_enum,
-        &out_union->reference.type_union,
+        &out_payload->reference.type_tag,
+        &out_payload->reference.type_payload,
         false, // allow_tag
         true // force_size
       );
@@ -192,15 +192,15 @@ OutputTypeResult output_type(
       return result;
     }
     case grammar::Type::Which::sequence: {
-      *out_enum = meta::Type_enum::sequence;
+      *out_tag = meta::Type_tag::sequence;
       auto result = output_concrete_type(
         in_root,
         structs,
         choices,
         assigned_indices,
         &in_type->sequence.element_type,
-        &out_union->sequence.elementType_enum,
-        &out_union->sequence.elementType_union,
+        &out_payload->sequence.elementType_tag,
+        &out_payload->sequence.elementType_payload,
         false, // allow_tag
         true // force_size
       );
@@ -392,8 +392,8 @@ Bytes as_bytes(
             out_choices,
             assigned_indices,
             &in_field->type,
-            &out_field->type_enum,
-            &out_field->type_union,
+            &out_field->type_tag,
+            &out_field->type_payload,
             true // allow_tag
           );
 
@@ -459,8 +459,8 @@ Bytes as_bytes(
             out_choices,
             assigned_indices,
             &in_option->type,
-            &out_option->type_enum,
-            &out_option->type_union,
+            &out_option->type_tag,
+            &out_option->type_payload,
             false // allow_tag
           );
 

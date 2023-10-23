@@ -20,7 +20,7 @@ void example_read(svf::runtime::Bytes bytes) {
   assert(world->population == 8000000000);
   assert(world->gravitationalConstant == 6.674e-11f);
   assert(world->currentYear == 2023);
-  assert(world->mechanics_enum == Hello::Mechanics_enum::quantum);
+  assert(world->mechanics_tag == Hello::Mechanics_tag::quantum);
 
   auto name = RT::read_sequence_raw(ctx, world->name.utf8);
   assert(strncmp("The Universe", (char const *) name.pointer, name.count) == 0);

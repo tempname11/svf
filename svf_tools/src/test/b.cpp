@@ -20,8 +20,8 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
       .one = 42,
       .two = 43,
     },
-    .reorderOptions_enum = schema::ReorderOptions_enum::one,
-    .reorderOptions_union = {
+    .reorderOptions_tag = schema::ReorderOptions_tag::one,
+    .reorderOptions_payload = {
       .one = 44,
     },
     .removeField = {
@@ -29,8 +29,8 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
       .two = 46,
       .three = 47,
     },
-    .addOption_enum = schema::AddOption_enum::three,
-    .addOption_union = {
+    .addOption_tag = schema::AddOption_tag::three,
+    .addOption_payload = {
       .three = 48,
     },
     .primitives = {
@@ -90,12 +90,15 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   auto entry = read_result.entry;
 
   ASSERT(entry->reorderFields.one == 42 && entry->reorderFields.two == 43);
-  ASSERT(entry->reorderOptions_enum == schema::ReorderOptions_enum::one);
-  ASSERT(entry->reorderOptions_union.one == 44);
-  ASSERT(entry->removeField.one == 45 && entry->removeField.three == 47);
-  ASSERT(entry->addOption_enum == schema::AddOption_enum::three);
 
-  ASSERT(entry->addOption_union.three == 48);
+  ASSERT(entry->reorderOptions_tag == schema::ReorderOptions_tag::one);
+  ASSERT(entry->reorderOptions_payload.one == 44);
+
+  ASSERT(entry->removeField.one == 45 && entry->removeField.three == 47);
+
+  ASSERT(entry->addOption_tag == schema::AddOption_tag::three);
+  ASSERT(entry->addOption_payload.three == 48);
+
   ASSERT(entry->primitives.u8u16 == 49);
   ASSERT(entry->primitives.u8u32 == 50);
   ASSERT(entry->primitives.u8u64 == 51);

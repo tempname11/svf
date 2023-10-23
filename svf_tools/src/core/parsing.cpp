@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cstdlib>
 #include <src/library.hpp>
 #include <src/library/crude_dynamic_array.hpp>
@@ -365,7 +366,7 @@ Type parse_type_reference_or_inline_type_definition(
     definition_name.count += parent_name.count;
   }
   {
-    auto str = range_from_cstr("_dot_");
+    auto str = range_from_cstr("_");
     auto dst = vm::many<U8>(ctx->arena, str.count);
     range_copy(dst, str);
     definition_name.count += str.count;
@@ -373,6 +374,7 @@ Type parse_type_reference_or_inline_type_definition(
   {
     auto dst = vm::many<U8>(ctx->arena, part_name.count);
     range_copy(dst, part_name);
+    dst.pointer[0] = toupper(dst.pointer[0]); // Capitalize the first letter.
     definition_name.count += part_name.count;
   }
 

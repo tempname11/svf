@@ -21,8 +21,8 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
     .reference = svf::runtime::write_reference(&ctx, &target0),
     .someStruct = {
       .sequence = {},
-      .someChoice_enum = schema::SomeChoice_enum::target,
-      .someChoice_union = {
+      .someChoice_tag = schema::SomeChoice_tag::target,
+      .someChoice_payload = {
         .target = {
           .value = 0x4444444444444444ull,
         },
@@ -77,6 +77,6 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   ASSERT(e0->value == 0x2222222222222222ull);
   ASSERT(e1->value == 0x3333333333333333ull);
 
-  ASSERT(entry->someStruct.someChoice_enum == schema::SomeChoice_enum::target);
-  ASSERT(entry->someStruct.someChoice_union.target.value == 0x4444444444444444ull);
+  ASSERT(entry->someStruct.someChoice_tag == schema::SomeChoice_tag::target);
+  ASSERT(entry->someStruct.someChoice_payload.target.value == 0x4444444444444444ull);
 }

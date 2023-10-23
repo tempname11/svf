@@ -135,7 +135,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility__invalid_choice_index                0x00010014
 #define SVFRT_code_compatibility__schema_too_small                    0x00010015
 
-#define SVFRT_code_compatibility_internal__invalid_type_enum          0x00020001
+#define SVFRT_code_compatibility_internal__invalid_type_tag           0x00020001
 #define SVFRT_code_compatibility_internal__invalid_structs            0x00020007
 #define SVFRT_code_compatibility_internal__invalid_choices            0x00020008
 #define SVFRT_code_compatibility_internal__invalid_fields             0x00020009
@@ -154,11 +154,11 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_conversion__bad_schema_field_index                 0x00030008
 #define SVFRT_code_conversion__bad_schema_choice_index                0x00030009
 #define SVFRT_code_conversion__bad_schema_option_index                0x0003000A
-#define SVFRT_code_conversion__bad_schema_type_enum                   0x0003000B
+#define SVFRT_code_conversion__bad_schema_type_tag                    0x0003000B
 #define SVFRT_code_conversion__data_out_of_bounds                     0x0003000C
 #define SVFRT_code_conversion__bad_choice_tag                         0x0003000D
-#define SVFRT_code_conversion__schema_type_enum_mismatch              0x0003000E
-#define SVFRT_code_conversion__schema_concrete_type_enum_mismatch     0x0003000F
+#define SVFRT_code_conversion__schema_type_tag_mismatch               0x0003000E
+#define SVFRT_code_conversion__schema_concrete_type_tag_mismatch      0x0003000F
 #define SVFRT_code_conversion__max_recursion_depth_exceeded           0x00030010
 #define SVFRT_code_conversion__bad_type                               0x00030011
 #define SVFRT_code_conversion__data_aliasing_detected                 0x00030012
@@ -185,7 +185,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_read__header_not_aligned                           0x00050002
 #define SVFRT_code_read__header_magic_mismatch                        0x00050003
 #define SVFRT_code_read__header_version_mismatch                      0x00050004
-#define SVFRT_code_read__entry_struct_name_hash_mismatch                     0x00050005
+#define SVFRT_code_read__entry_struct_name_hash_mismatch              0x00050005
 #define SVFRT_code_read__bad_schema_length                            0x00050006
 #define SVFRT_code_read__no_schema_lookup_function                    0x00050007
 #define SVFRT_code_read__schema_lookup_failed                         0x00050008

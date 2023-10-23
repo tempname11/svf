@@ -91,49 +91,49 @@ typedef struct SVFRT_ConversionContext {
 // Returns 0 on an error.
 uint32_t SVFRT_conversion_get_type_size(
   SVFRT_RangeStructDefinition structs,
-  SVF_META_ConcreteType_enum type_enum,
-  SVF_META_ConcreteType_union *type_union
+  SVF_META_ConcreteType_tag type_tag,
+  SVF_META_ConcreteType_payload *type_payload
 ) {
-  switch (type_enum) {
-    case SVF_META_ConcreteType_u8: {
+  switch (type_tag) {
+    case SVF_META_ConcreteType_tag_u8: {
       return 1;
     }
-    case SVF_META_ConcreteType_u16: {
+    case SVF_META_ConcreteType_tag_u16: {
       return 2;
     }
-    case SVF_META_ConcreteType_u32: {
+    case SVF_META_ConcreteType_tag_u32: {
       return 4;
     }
-    case SVF_META_ConcreteType_u64: {
+    case SVF_META_ConcreteType_tag_u64: {
       return 8;
     }
-    case SVF_META_ConcreteType_i8: {
+    case SVF_META_ConcreteType_tag_i8: {
       return 1;
     }
-    case SVF_META_ConcreteType_i16: {
+    case SVF_META_ConcreteType_tag_i16: {
       return 2;
     }
-    case SVF_META_ConcreteType_i32: {
+    case SVF_META_ConcreteType_tag_i32: {
       return 4;
     }
-    case SVF_META_ConcreteType_i64: {
+    case SVF_META_ConcreteType_tag_i64: {
       return 8;
     }
-    case SVF_META_ConcreteType_f32: {
+    case SVF_META_ConcreteType_tag_f32: {
       return 4;
     }
-    case SVF_META_ConcreteType_f64: {
+    case SVF_META_ConcreteType_tag_f64: {
       return 8;
     }
-    case SVF_META_ConcreteType_definedStruct: {
-      uint32_t index = type_union->definedStruct.index;
+    case SVF_META_ConcreteType_tag_definedStruct: {
+      uint32_t index = type_payload->definedStruct.index;
       if (index >= structs.count) {
         return 0;
       }
       return structs.pointer[index].size;
     }
-    case SVF_META_ConcreteType_zeroSized:
-    case SVF_META_ConcreteType_definedChoice:
+    case SVF_META_ConcreteType_tag_zeroSized:
+    case SVF_META_ConcreteType_tag_definedChoice:
     default: {
       return 0;
     }
@@ -298,10 +298,10 @@ void SVFRT_conversion_traverse_any_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_Type_enum unsafe_type_enum_src,
-  SVF_META_Type_union *unsafe_type_union_src,
-  SVF_META_Type_enum type_enum_dst,
-  SVF_META_Type_union *type_union_dst,
+  SVF_META_Type_tag unsafe_type_tag_src,
+  SVF_META_Type_payload *unsafe_type_payload_src,
+  SVF_META_Type_tag type_tag_dst,
+  SVF_META_Type_payload *type_payload_dst,
   SVFRT_Phase2_TraverseAnyType *phase2
 );
 
@@ -390,10 +390,10 @@ void SVFRT_conversion_traverse_struct(
         recursion_depth,
         struct_bytes_src,
         unsafe_field_src->offset,
-        unsafe_field_src->type_enum,
-        &unsafe_field_src->type_union,
-        field_dst->type_enum,
-        &field_dst->type_union,
+        unsafe_field_src->type_tag,
+        &unsafe_field_src->type_payload,
+        field_dst->type_tag,
+        &field_dst->type_payload,
         phase2 ? &phase2_inner : NULL
       );
 
@@ -423,22 +423,22 @@ void SVFRT_conversion_traverse_concrete_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_ConcreteType_enum unsafe_type_enum_src,
-  SVF_META_ConcreteType_union *unsafe_type_union_src,
-  SVF_META_ConcreteType_enum type_enum_dst,
-  SVF_META_ConcreteType_union *type_union_dst,
+  SVF_META_ConcreteType_tag unsafe_type_tag_src,
+  SVF_META_ConcreteType_payload *unsafe_type_payload_src,
+  SVF_META_ConcreteType_tag type_tag_dst,
+  SVF_META_ConcreteType_payload *type_payload_dst,
   SVFRT_Phase2_TraverseConcreteType *phase2
 ) {
-  switch (type_enum_dst) {
-    case SVF_META_ConcreteType_definedStruct: {
+  switch (type_tag_dst) {
+    case SVF_META_ConcreteType_tag_definedStruct: {
       // Sanity check.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_definedStruct) {
-        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_definedStruct) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
         return;
       }
 
-      uint32_t unsafe_struct_index_src = unsafe_type_union_src->definedStruct.index;
-      uint32_t struct_index_dst = type_union_dst->definedStruct.index;
+      uint32_t unsafe_struct_index_src = unsafe_type_payload_src->definedStruct.index;
+      uint32_t struct_index_dst = type_payload_dst->definedStruct.index;
 
       if (unsafe_struct_index_src >= ctx->unsafe_structs_src.count) {
         ctx->error_code = SVFRT_code_conversion__bad_schema_struct_index;
@@ -489,15 +489,15 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_definedChoice: {
+    case SVF_META_ConcreteType_tag_definedChoice: {
       // Sanity check.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_definedChoice) {
-        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_definedChoice) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
         return;
       }
 
-      uint32_t unsafe_choice_index_src = unsafe_type_union_src->definedChoice.index;
-      uint32_t choice_index_dst = type_union_dst->definedChoice.index;
+      uint32_t unsafe_choice_index_src = unsafe_type_payload_src->definedChoice.index;
+      uint32_t choice_index_dst = type_payload_dst->definedChoice.index;
 
       // Prevent addition overflow by casting operands to `uint64_t` first.
       if ((uint64_t) unsafe_data_offset_src + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) data_range_src.count) {
@@ -597,10 +597,10 @@ void SVFRT_conversion_traverse_concrete_type(
             recursion_depth,
             data_range_src,
             unsafe_data_offset_src + SVFRT_TAG_SIZE, // TODO: @proper-alignment.
-            unsafe_option_src->type_enum,
-            &unsafe_option_src->type_union,
-            option_dst->type_enum,
-            &option_dst->type_union,
+            unsafe_option_src->type_tag,
+            &unsafe_option_src->type_payload,
+            option_dst->type_tag,
+            &option_dst->type_payload,
             phase2 ? &phase2_inner : NULL
           );
 
@@ -624,18 +624,18 @@ void SVFRT_conversion_traverse_concrete_type(
 
       return;
     }
-    case SVF_META_ConcreteType_zeroSized: {
+    case SVF_META_ConcreteType_tag_zeroSized: {
       // Sanity check. This case should only arise inside choices.
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_zeroSized) {
-        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_enum_mismatch;
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_zeroSized) {
+        ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_u64: {
+    case SVF_META_ConcreteType_tag_u64: {
       if (!phase2) return;
       uint64_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_u64: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_u64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -646,15 +646,15 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_u32: { // U32 -> U64.
+        case SVF_META_ConcreteType_tag_u32: { // U32 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u16: { // U16 -> U64.
+        case SVF_META_ConcreteType_tag_u16: { // U16 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> U64.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -667,11 +667,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_u32: {
+    case SVF_META_ConcreteType_tag_u32: {
       if (!phase2) return;
       uint32_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_u32: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_u32: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -682,11 +682,11 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_u16: { // U16 -> U32.
+        case SVF_META_ConcreteType_tag_u16: { // U16 -> U32.
           out_value = (uint32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> U32.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> U32.
           out_value = (uint32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -699,11 +699,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_u16: {
+    case SVF_META_ConcreteType_tag_u16: {
       if (!phase2) return;
       uint16_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_u16: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_u16: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -714,7 +714,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> U16.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> U16.
           out_value = (uint16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -727,9 +727,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_u8: {
+    case SVF_META_ConcreteType_tag_u8: {
       if (!phase2) return;
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_u8) {
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_u8) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -743,11 +743,11 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_i64: {
+    case SVF_META_ConcreteType_tag_i64: {
       if (!phase2) return;
       int64_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_i64: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_i64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -758,27 +758,27 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_i32: { // I32 -> I64.
+        case SVF_META_ConcreteType_tag_i32: { // I32 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_i16: { // I16 -> I64.
+        case SVF_META_ConcreteType_tag_i16: { // I16 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_i8: { // I8 -> I64.
+        case SVF_META_ConcreteType_tag_i8: { // I8 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u32: { // U32 -> I64.
+        case SVF_META_ConcreteType_tag_u32: { // U32 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u16: { // U16 -> I64.
+        case SVF_META_ConcreteType_tag_u16: { // U16 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> I64.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -791,11 +791,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_i32: {
+    case SVF_META_ConcreteType_tag_i32: {
       if (!phase2) return;
       int32_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_i32: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_i32: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -806,7 +806,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_i64: { // Exact case, copy and exit.
+        case SVF_META_ConcreteType_tag_i64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -817,19 +817,19 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_i16: { // I16 -> I32.
+        case SVF_META_ConcreteType_tag_i16: { // I16 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_i8: { // I8 -> I32.
+        case SVF_META_ConcreteType_tag_i8: { // I8 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u16: { // U16 -> I32.
+        case SVF_META_ConcreteType_tag_u16: { // U16 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> I32.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -842,11 +842,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_i16: {
+    case SVF_META_ConcreteType_tag_i16: {
       if (!phase2) return;
       int16_t out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_i16: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_i16: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -857,11 +857,11 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_i8: { // I8 -> I16.
+        case SVF_META_ConcreteType_tag_i8: { // I8 -> I16.
           out_value = (int16_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_u8: { // U8 -> I16.
+        case SVF_META_ConcreteType_tag_u8: { // U8 -> I16.
           out_value = (int16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -874,9 +874,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_i8: {
+    case SVF_META_ConcreteType_tag_i8: {
       if (!phase2) return;
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_i8) {
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_i8) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -890,15 +890,15 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_f64: {
+    case SVF_META_ConcreteType_tag_f64: {
       if (!phase2) return;
       // Note: it is unclear, whether lossless integer -> float conversions
       // should be allowed or not. Probably not, because the semantics are very
       // different.
 
       double out_value = 0;
-      switch (unsafe_type_enum_src) {
-        case SVF_META_ConcreteType_f64: { // Exact case, copy and exit.
+      switch (unsafe_type_tag_src) {
+        case SVF_META_ConcreteType_tag_f64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -909,7 +909,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_f32: { // F32 -> F64.
+        case SVF_META_ConcreteType_tag_f32: { // F32 -> F64.
           out_value = (double) SVFRT_conversion_read_float(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -922,9 +922,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_double(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_f32: {
+    case SVF_META_ConcreteType_tag_f32: {
       if (!phase2) return;
-      if (unsafe_type_enum_src != SVF_META_ConcreteType_f32) {
+      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_f32) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -950,10 +950,10 @@ void SVFRT_conversion_traverse_any_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_Type_enum unsafe_type_enum_src,
-  SVF_META_Type_union *unsafe_type_union_src,
-  SVF_META_Type_enum type_enum_dst,
-  SVF_META_Type_union *type_union_dst,
+  SVF_META_Type_tag unsafe_type_tag_src,
+  SVF_META_Type_payload *unsafe_type_payload_src,
+  SVF_META_Type_tag type_tag_dst,
+  SVF_META_Type_payload *type_payload_dst,
   SVFRT_Phase2_TraverseAnyType *phase2
 ) {
   recursion_depth += 1;
@@ -962,11 +962,11 @@ void SVFRT_conversion_traverse_any_type(
     return;
   }
 
-  switch (unsafe_type_enum_src) {
-    case SVF_META_Type_concrete: {
+  switch (unsafe_type_tag_src) {
+    case SVF_META_Type_tag_concrete: {
       // Sanity check.
-      if (type_enum_dst != SVF_META_Type_concrete) {
-        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+      if (type_tag_dst != SVF_META_Type_tag_concrete) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
 
@@ -981,19 +981,19 @@ void SVFRT_conversion_traverse_any_type(
         recursion_depth,
         data_range_src,
         unsafe_data_offset_src,
-        unsafe_type_union_src->concrete.type_enum,
-        &unsafe_type_union_src->concrete.type_union,
-        type_union_dst->concrete.type_enum,
-        &type_union_dst->concrete.type_union,
+        unsafe_type_payload_src->concrete.type_tag,
+        &unsafe_type_payload_src->concrete.type_payload,
+        type_payload_dst->concrete.type_tag,
+        &type_payload_dst->concrete.type_payload,
         phase2 ? &phase2_inner : NULL
       );
 
       return;
     }
-    case SVF_META_Type_reference: {
+    case SVF_META_Type_tag_reference: {
       // Sanity check.
-      if (type_enum_dst != SVF_META_Type_reference) {
-        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+      if (type_tag_dst != SVF_META_Type_tag_reference) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
 
@@ -1015,8 +1015,8 @@ void SVFRT_conversion_traverse_any_type(
 
       uint32_t unsafe_size_src = SVFRT_conversion_get_type_size(
         ctx->unsafe_structs_src,
-        unsafe_type_union_src->reference.type_enum,
-        &unsafe_type_union_src->reference.type_union
+        unsafe_type_payload_src->reference.type_tag,
+        &unsafe_type_payload_src->reference.type_payload
       );
       if (unsafe_size_src == 0) {
         ctx->error_code = SVFRT_code_conversion__bad_type;
@@ -1025,8 +1025,8 @@ void SVFRT_conversion_traverse_any_type(
 
       uint32_t size_dst = SVFRT_conversion_get_type_size(
         ctx->structs_dst,
-        type_union_dst->reference.type_enum,
-        &type_union_dst->reference.type_union
+        type_payload_dst->reference.type_tag,
+        &type_payload_dst->reference.type_payload
       );
       if (size_dst == 0) {
         ctx->error_code = SVFRT_code_conversion_internal__bad_type;
@@ -1054,18 +1054,18 @@ void SVFRT_conversion_traverse_any_type(
         recursion_depth,
         ctx->data_bytes,
         ~unsafe_representation_src.data_offset_complement,
-        unsafe_type_union_src->reference.type_enum,
-        &unsafe_type_union_src->reference.type_union,
-        type_union_dst->reference.type_enum,
-        &type_union_dst->reference.type_union,
+        unsafe_type_payload_src->reference.type_tag,
+        &unsafe_type_payload_src->reference.type_payload,
+        type_payload_dst->reference.type_tag,
+        &type_payload_dst->reference.type_payload,
         phase2 ? &phase2_inner : NULL
       );
       return;
     }
-    case SVF_META_Type_sequence: {
+    case SVF_META_Type_tag_sequence: {
       // Sanity check.
-      if (type_enum_dst != SVF_META_Type_sequence) {
-        ctx->error_code = SVFRT_code_conversion__schema_type_enum_mismatch;
+      if (type_tag_dst != SVF_META_Type_tag_sequence) {
+        ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
 
@@ -1086,8 +1086,8 @@ void SVFRT_conversion_traverse_any_type(
 
       uint32_t unsafe_size_src = SVFRT_conversion_get_type_size(
         ctx->unsafe_structs_src,
-        unsafe_type_union_src->reference.type_enum,
-        &unsafe_type_union_src->reference.type_union
+        unsafe_type_payload_src->reference.type_tag,
+        &unsafe_type_payload_src->reference.type_payload
       );
       if (unsafe_size_src == 0) {
         ctx->error_code = SVFRT_code_conversion__bad_type;
@@ -1096,8 +1096,8 @@ void SVFRT_conversion_traverse_any_type(
 
       uint32_t size_dst = SVFRT_conversion_get_type_size(
         ctx->structs_dst,
-        type_union_dst->reference.type_enum,
-        &type_union_dst->reference.type_union
+        type_payload_dst->reference.type_tag,
+        &type_payload_dst->reference.type_payload
       );
       if (size_dst == 0) {
         ctx->error_code = SVFRT_code_conversion_internal__bad_type;
@@ -1148,10 +1148,10 @@ void SVFRT_conversion_traverse_any_type(
           recursion_depth,
           ctx->data_bytes,
           unsafe_final_offset_src,
-          unsafe_type_union_src->reference.type_enum,
-          &unsafe_type_union_src->reference.type_union,
-          type_union_dst->reference.type_enum,
-          &type_union_dst->reference.type_union,
+          unsafe_type_payload_src->reference.type_tag,
+          &unsafe_type_payload_src->reference.type_payload,
+          type_payload_dst->reference.type_tag,
+          &type_payload_dst->reference.type_payload,
           phase2 ? &phase2_inner : NULL
         );
 
@@ -1164,7 +1164,7 @@ void SVFRT_conversion_traverse_any_type(
       return;
     }
     default: {
-      ctx->error_code = SVFRT_code_conversion__bad_schema_type_enum;
+      ctx->error_code = SVFRT_code_conversion__bad_schema_type_tag;
     }
   }
 }

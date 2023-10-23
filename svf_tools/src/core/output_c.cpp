@@ -22,17 +22,17 @@ void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_enum;\n");
+  output_cstring(ctx, "_tag;\n");
 
   output_cstring(ctx, "typedef union SVF_");
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_union SVF_");
+  output_cstring(ctx, "_payload SVF_");
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_union;\n");
+  output_cstring(ctx, "_payload;\n");
 }
 
 void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
@@ -57,63 +57,63 @@ void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
 
 void output_concrete_type_name(
   Ctx ctx,
-  meta::ConcreteType_enum in_enum,
-  meta::ConcreteType_union *in_union
+  meta::ConcreteType_tag in_tag,
+  meta::ConcreteType_payload *in_payload
 ) {
-  switch (in_enum) {
-    case meta::ConcreteType_enum::definedStruct: {
+  switch (in_tag) {
+    case meta::ConcreteType_tag::definedStruct: {
       auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
       output_cstring(ctx, "SVF_");
       output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
-      output_u8_array(ctx, structs.pointer[in_union->definedStruct.index].name);
+      output_u8_array(ctx, structs.pointer[in_payload->definedStruct.index].name);
       break;
     }
-    case meta::ConcreteType_enum::definedChoice: {
+    case meta::ConcreteType_tag::definedChoice: {
       auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
       output_cstring(ctx, "SVF_");
       output_u8_array(ctx, ctx->schema_definition->name);
       output_cstring(ctx, "_");
-      output_u8_array(ctx, choices.pointer[in_union->definedChoice.index].name);
+      output_u8_array(ctx, choices.pointer[in_payload->definedChoice.index].name);
       break;
     }
-    case meta::ConcreteType_enum::u8: {
+    case meta::ConcreteType_tag::u8: {
       output_cstring(ctx, "uint8_t");
       break;
     }
-    case meta::ConcreteType_enum::u16: {
+    case meta::ConcreteType_tag::u16: {
       output_cstring(ctx, "uint16_t");
       break;
     }
-    case meta::ConcreteType_enum::u32: {
+    case meta::ConcreteType_tag::u32: {
       output_cstring(ctx, "uint32_t");
       break;
     }
-    case meta::ConcreteType_enum::u64: {
+    case meta::ConcreteType_tag::u64: {
       output_cstring(ctx, "uint64_t");
       break;
     }
-    case meta::ConcreteType_enum::i8: {
+    case meta::ConcreteType_tag::i8: {
       output_cstring(ctx, "int8_t");
       break;
     }
-    case meta::ConcreteType_enum::i16: {
+    case meta::ConcreteType_tag::i16: {
       output_cstring(ctx, "int16_t");
       break;
     }
-    case meta::ConcreteType_enum::i32: {
+    case meta::ConcreteType_tag::i32: {
       output_cstring(ctx, "int32_t");
       break;
     }
-    case meta::ConcreteType_enum::i64: {
+    case meta::ConcreteType_tag::i64: {
       output_cstring(ctx, "int64_t");
       break;
     }
-    case meta::ConcreteType_enum::f32: {
+    case meta::ConcreteType_tag::f32: {
       output_cstring(ctx, "float");
       break;
     }
-    case meta::ConcreteType_enum::f64: {
+    case meta::ConcreteType_tag::f64: {
       output_cstring(ctx, "double");
       break;
     }
@@ -123,32 +123,32 @@ void output_concrete_type_name(
   }
 }
 
-void output_type(Ctx ctx, meta::Type_enum in_enum, meta::Type_union *in_union) {
-  switch(in_enum) {
-    case meta::Type_enum::concrete: {
+void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload) {
+  switch(in_tag) {
+    case meta::Type_tag::concrete: {
       output_concrete_type_name(
         ctx,
-        in_union->concrete.type_enum,
-        &in_union->concrete.type_union
+        in_payload->concrete.type_tag,
+        &in_payload->concrete.type_payload
       );
       break;
     }
-    case meta::Type_enum::reference: {
+    case meta::Type_tag::reference: {
       output_cstring(ctx, "SVFRT_Reference /*");
       output_concrete_type_name(
         ctx,
-        in_union->concrete.type_enum,
-        &in_union->concrete.type_union
+        in_payload->concrete.type_tag,
+        &in_payload->concrete.type_payload
       );
       output_cstring(ctx, "*/");
       break;
     }
-    case meta::Type_enum::sequence: {
+    case meta::Type_tag::sequence: {
       output_cstring(ctx, "SVFRT_Sequence /*");
       output_concrete_type_name(
         ctx,
-        in_union->concrete.type_enum,
-        &in_union->concrete.type_union
+        in_payload->concrete.type_tag,
+        &in_payload->concrete.type_payload
       );
       output_cstring(ctx, "*/");
       break;
@@ -184,8 +184,8 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
     auto plurality = get_plurality(
       structs,
       choices,
-      field->type_enum,
-      &field->type_union
+      field->type_tag,
+      &field->type_payload
     );
     size_sum += plurality.size;
 
@@ -195,34 +195,34 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
       }
       case TypePlurality::one: {
         output_cstring(ctx, "  ");
-        output_type(ctx, field->type_enum, &field->type_union);
+        output_type(ctx, field->type_tag, &field->type_payload);
         output_cstring(ctx, " ");
         output_u8_array(ctx, field->name);
         output_cstring(ctx, ";\n");
         break;
       }
-      case TypePlurality::enum_and_union: {
-        if (field->type_enum != meta::Type_enum::concrete) {
+      case TypePlurality::tag_and_payload: {
+        if (field->type_tag != meta::Type_tag::concrete) {
           return false;
         }
 
         output_cstring(ctx, "  ");
         output_concrete_type_name(
           ctx,
-          field->type_union.concrete.type_enum,
-          &field->type_union.concrete.type_union
+          field->type_payload.concrete.type_tag,
+          &field->type_payload.concrete.type_payload
         );
-        output_cstring(ctx, "_enum ");
+        output_cstring(ctx, "_tag ");
         output_u8_array(ctx, field->name);
-        output_cstring(ctx, "_enum;\n  ");
+        output_cstring(ctx, "_tag;\n  ");
         output_concrete_type_name(
           ctx,
-          field->type_union.concrete.type_enum,
-          &field->type_union.concrete.type_union
+          field->type_payload.concrete.type_tag,
+          &field->type_payload.concrete.type_payload
         );
-        output_cstring(ctx, "_union ");
+        output_cstring(ctx, "_payload ");
         output_u8_array(ctx, field->name);
-        output_cstring(ctx, "_union;\n");
+        output_cstring(ctx, "_payload;\n");
         break;
       }
       default: {
@@ -253,7 +253,7 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
     output_u8_array(ctx, ctx->schema_definition->name);
     output_cstring(ctx, "_");
     output_u8_array(ctx, it->name);
-    output_cstring(ctx, "_");
+    output_cstring(ctx, "_tag_");
     output_u8_array(ctx, option->name);
     output_cstring(ctx, " ");
     output_decimal(ctx, safe_int_cast<U64>(option->tag));
@@ -264,15 +264,15 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_union {\n");
+  output_cstring(ctx, "_payload {\n");
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
 
     auto plurality = get_plurality(
       structs,
       choices,
-      option->type_enum,
-      &option->type_union
+      option->type_tag,
+      &option->type_payload
     );
     size_max = maxi(size_max, plurality.size);
 
@@ -284,7 +284,7 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
     }
 
     output_cstring(ctx, "  ");
-    output_type(ctx, option->type_enum, &option->type_union);
+    output_type(ctx, option->type_tag, &option->type_payload);
     output_cstring(ctx, " ");
     output_u8_array(ctx, option->name);
     output_cstring(ctx, ";\n");
@@ -437,11 +437,11 @@ typedef struct SVFRT_Sequence {
   for (UInt i = 0; i < validation_result->ordering.count; i++) {
     auto item = validation_result->ordering.pointer + i;
 
-    if (item->type == meta::ConcreteType_enum::definedStruct) {
+    if (item->type == meta::ConcreteType_tag::definedStruct) {
       if (!output_struct(ctx, structs.pointer + item->index)) {
         return {};
       }
-    } else if (item->type == meta::ConcreteType_enum::definedChoice) {
+    } else if (item->type == meta::ConcreteType_tag::definedChoice) {
       if (!output_choice(ctx, choices.pointer + item->index)) {
         return {};
       }

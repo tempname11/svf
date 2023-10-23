@@ -154,15 +154,15 @@ bool SVFRT_check_work(SVFRT_CheckContext *ctx, uint32_t work_count) {
 // TODO: report the specific types that did not match?
 void SVFRT_check_concrete_type(
   SVFRT_CheckContext *ctx,
-  SVF_META_ConcreteType_enum unsafe_enum_src,
-  SVF_META_ConcreteType_union *unsafe_union_src,
-  SVF_META_ConcreteType_enum enum_dst,
-  SVF_META_ConcreteType_union *union_dst
+  SVF_META_ConcreteType_tag unsafe_tag_src,
+  SVF_META_ConcreteType_payload *unsafe_payload_src,
+  SVF_META_ConcreteType_tag tag_dst,
+  SVF_META_ConcreteType_payload *payload_dst
 ) {
-  if (unsafe_enum_src == enum_dst) {
-    switch (enum_dst) {
-      case SVF_META_ConcreteType_definedStruct: {
-        uint32_t unsafe_src_index = unsafe_union_src->definedStruct.index;
+  if (unsafe_tag_src == tag_dst) {
+    switch (tag_dst) {
+      case SVF_META_ConcreteType_tag_definedStruct: {
+        uint32_t unsafe_src_index = unsafe_payload_src->definedStruct.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
         if (unsafe_src_index >= ctx->unsafe_structs_src.count) {
@@ -173,12 +173,12 @@ void SVFRT_check_concrete_type(
         SVFRT_check_add_struct(
           ctx,
           unsafe_src_index,
-          union_dst->definedStruct.index
+          payload_dst->definedStruct.index
         );
         return;
       }
-      case SVF_META_ConcreteType_definedChoice: {
-        uint32_t unsafe_src_index = unsafe_union_src->definedChoice.index;
+      case SVF_META_ConcreteType_tag_definedChoice: {
+        uint32_t unsafe_src_index = unsafe_payload_src->definedChoice.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
         if (unsafe_src_index >= ctx->unsafe_choices_src.count) {
@@ -189,80 +189,80 @@ void SVFRT_check_concrete_type(
         SVFRT_check_add_choice(
           ctx,
           unsafe_src_index,
-          union_dst->definedChoice.index
+          payload_dst->definedChoice.index
         );
         return;
       }
       // TODO: this is not exhaustive, but there's not much to gain from that?
       default: {
-        // Other types are primitive, so enum equality is enough.
+        // Other types are primitive, so tag equality is enough.
         return;
       }
     }
   }
 
   if (ctx->required_level <= SVFRT_compatibility_logical) {
-    switch (enum_dst) {
-      case SVF_META_ConcreteType_u16: {
-        if (unsafe_enum_src != SVF_META_ConcreteType_u8) {
+    switch (tag_dst) {
+      case SVF_META_ConcreteType_tag_u16: {
+        if (unsafe_tag_src != SVF_META_ConcreteType_tag_u8) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_u32: {
+      case SVF_META_ConcreteType_tag_u32: {
         if (
-          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
         ) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_u64: {
+      case SVF_META_ConcreteType_tag_u64: {
         if (
-          (unsafe_enum_src != SVF_META_ConcreteType_u32) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
         ) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_i16: {
+      case SVF_META_ConcreteType_tag_i16: {
         if (
-          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
         ) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_i32: {
+      case SVF_META_ConcreteType_tag_i32: {
         if (
-          (unsafe_enum_src != SVF_META_ConcreteType_i16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
         ) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_i64: {
+      case SVF_META_ConcreteType_tag_i64: {
         if (
-          (unsafe_enum_src != SVF_META_ConcreteType_i32) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_i16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_i8) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u32) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u16) &&
-          (unsafe_enum_src != SVF_META_ConcreteType_u8)
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i32) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
         ) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
       }
-      case SVF_META_ConcreteType_f64: {
-        if (unsafe_enum_src != SVF_META_ConcreteType_f32) {
+      case SVF_META_ConcreteType_tag_f64: {
+        if (unsafe_tag_src != SVF_META_ConcreteType_tag_f32) {
           ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
         }
         return;
@@ -278,49 +278,49 @@ void SVFRT_check_concrete_type(
 
 void SVFRT_check_type(
   SVFRT_CheckContext *ctx,
-  SVF_META_Type_enum unsafe_enum_src,
-  SVF_META_Type_union *unsafe_union_src,
-  SVF_META_Type_enum enum_dst,
-  SVF_META_Type_union *union_dst
+  SVF_META_Type_tag unsafe_tag_src,
+  SVF_META_Type_payload *unsafe_payload_src,
+  SVF_META_Type_tag tag_dst,
+  SVF_META_Type_payload *payload_dst
 ) {
-  if (unsafe_enum_src != enum_dst) {
+  if (unsafe_tag_src != tag_dst) {
     ctx->error_code = SVFRT_code_compatibility__type_mismatch;
     return;
   }
 
-  switch (enum_dst) {
-    case SVF_META_Type_reference: {
+  switch (tag_dst) {
+    case SVF_META_Type_tag_reference: {
       SVFRT_check_concrete_type(
         ctx,
-        unsafe_union_src->reference.type_enum,
-        &unsafe_union_src->reference.type_union,
-        union_dst->reference.type_enum,
-        &union_dst->reference.type_union
+        unsafe_payload_src->reference.type_tag,
+        &unsafe_payload_src->reference.type_payload,
+        payload_dst->reference.type_tag,
+        &payload_dst->reference.type_payload
       );
       return;
     }
-    case SVF_META_Type_sequence: {
+    case SVF_META_Type_tag_sequence: {
       SVFRT_check_concrete_type(
         ctx,
-        unsafe_union_src->sequence.elementType_enum,
-        &unsafe_union_src->sequence.elementType_union,
-        union_dst->sequence.elementType_enum,
-        &union_dst->sequence.elementType_union
+        unsafe_payload_src->sequence.elementType_tag,
+        &unsafe_payload_src->sequence.elementType_payload,
+        payload_dst->sequence.elementType_tag,
+        &payload_dst->sequence.elementType_payload
       );
       return;
     }
-    case SVF_META_Type_concrete: {
+    case SVF_META_Type_tag_concrete: {
       SVFRT_check_concrete_type(
         ctx,
-        unsafe_union_src->concrete.type_enum,
-        &unsafe_union_src->concrete.type_union,
-        union_dst->concrete.type_enum,
-        &union_dst->concrete.type_union
+        unsafe_payload_src->concrete.type_tag,
+        &unsafe_payload_src->concrete.type_payload,
+        payload_dst->concrete.type_tag,
+        &payload_dst->concrete.type_payload
       );
       return;
     }
     default: {
-      ctx->error_code = SVFRT_code_compatibility_internal__invalid_type_enum;
+      ctx->error_code = SVFRT_code_compatibility_internal__invalid_type_tag;
       return;
     }
   }
@@ -405,10 +405,10 @@ void SVFRT_check_struct(
 
         SVFRT_check_type(
           ctx,
-          unsafe_field_src->type_enum,
-          &unsafe_field_src->type_union,
-          field_dst->type_enum,
-          &field_dst->type_union
+          unsafe_field_src->type_tag,
+          &unsafe_field_src->type_payload,
+          field_dst->type_tag,
+          &field_dst->type_payload
         );
 
         if (ctx->error_code) {
@@ -533,10 +533,10 @@ void SVFRT_check_choice(
 
         SVFRT_check_type(
           ctx,
-          unsafe_option_src->type_enum,
-          &unsafe_option_src->type_union,
-          option_dst->type_enum,
-          &option_dst->type_union
+          unsafe_option_src->type_tag,
+          &unsafe_option_src->type_payload,
+          option_dst->type_tag,
+          &option_dst->type_payload
         );
 
         if (ctx->error_code) {

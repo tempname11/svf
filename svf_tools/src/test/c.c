@@ -20,8 +20,8 @@ void test_write(SVFRT_WriterFn *writer_fn, void *writer_ptr) {
     .reference = SVFRT_WRITE_REFERENCE(&ctx, &target0),
     .someStruct = {
       .sequence = {0},
-      .someChoice_enum = SVF_A0_SomeChoice_target,
-      .someChoice_union = {
+      .someChoice_tag = SVF_A0_SomeChoice_tag_target,
+      .someChoice_payload = {
         .target = {
           .value = 0x4444444444444444ull,
         },
@@ -65,8 +65,8 @@ void test_read(SVFRT_Bytes input_bytes) {
   assert(e0->value == 0x2222222222222222ull);
   assert(e1->value == 0x3333333333333333ull);
 
-  assert(entry->someStruct.someChoice_enum == SVF_A1_SomeChoice_target);
-  assert(entry->someStruct.someChoice_union.target.value == 0x4444444444444444ull);
+  assert(entry->someStruct.someChoice_tag == SVF_A1_SomeChoice_tag_target);
+  assert(entry->someStruct.someChoice_payload.target.value == 0x4444444444444444ull);
 }
 
 uint32_t file_writer(void *writer_ptr, SVFRT_Bytes data) {

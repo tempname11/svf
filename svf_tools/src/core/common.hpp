@@ -15,7 +15,7 @@ Range<T> to_range(Bytes bytes, svf::Sequence<T> sequence) {
 enum class TypePlurality {
   zero,
   one,
-  enum_and_union,
+  tag_and_payload,
 };
 
 struct TypePluralityAndSize {
@@ -26,8 +26,8 @@ struct TypePluralityAndSize {
 TypePluralityAndSize get_plurality(
   Range<svf::META::StructDefinition> structs,
   Range<svf::META::ChoiceDefinition> choices,
-  svf::META::Type_enum in_enum,
-  svf::META::Type_union *in_union
+  svf::META::Type_tag in_tag,
+  svf::META::Type_payload *in_payload
 );
 
 static inline
