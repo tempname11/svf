@@ -80,6 +80,7 @@ typedef Range<U8> Bytes;
 typedef SVFRT_ReadContext ReadContext;
 typedef SVFRT_AllocatorFn AllocatorFn;
 typedef SVFRT_WriterFn WriterFn;
+typedef SVFRT_SchemaLookupFn SchemaLookupFn;
 
 enum class CompatibilityLevel {
   compatibility_none = SVFRT_compatibility_none,
@@ -107,8 +108,10 @@ ReadMessageResult<Entry> read_message(
   Range<U8> message,
   Range<U8> scratch,
   CompatibilityLevel required_level,
-  AllocatorFn *allocator_fn = 0,
-  void *allocator_ptr = 0
+  AllocatorFn *allocator_fn = NULL,
+  void *allocator_ptr = NULL,
+  SchemaLookupFn *schema_lookup_fn = NULL,
+  void *schema_lookup_ptr = NULL
 ) noexcept {
   using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_ReadMessageParams params;
@@ -126,8 +129,8 @@ ReadMessageResult<Entry> read_message(
   params.max_output_size = SVFRT_NO_SIZE_LIMIT;
   params.allocator_fn = allocator_fn;
   params.allocator_ptr = allocator_ptr;
-  params.schema_lookup_fn = NULL;
-  params.schema_lookup_ptr = NULL;
+  params.schema_lookup_fn = schema_lookup_fn;
+  params.schema_lookup_ptr = schema_lookup_ptr;
   SVFRT_read_message(
     &params,
     &result,

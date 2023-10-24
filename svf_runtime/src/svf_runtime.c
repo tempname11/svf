@@ -29,6 +29,11 @@ void SVFRT_read_message(
   out_result->allocation = NULL;
   out_result->compatibility_level = SVFRT_compatibility_none;
 
+  if (params->required_level == SVFRT_compatibility_logical && !params->allocator_fn) {
+    out_result->error_code = SVFRT_code_read__no_allocator_function;
+    return;
+  }
+
   if (message.count < sizeof(SVFRT_MessageHeader)) {
     out_result->error_code = SVFRT_code_read__header_too_small;
     return;
@@ -87,16 +92,9 @@ void SVFRT_read_message(
   };
 
   if (schema_range.count == 0) {
-    // Only a reference to the schema is available, we have to rely on the user-
-    // provided lookup function.
+    // Only a reference to the schema is available, so we have to rely on the
+    // user- provided lookup function.
 
-    // Zero hash is invalid, don't try to look it up.
-    if (header->schema_content_hash == 0) {
-      out_result->error_code = SVFRT_code_read__bad_schema_content_hash;
-      return;
-    }
-
-    // We have to rely on the user-provided lookup function.
     if (!params->schema_lookup_fn) {
       out_result->error_code = SVFRT_code_read__no_schema_lookup_function;
       return;
@@ -125,7 +123,7 @@ void SVFRT_read_message(
       params->expected_schema,
       params->entry_struct_name_hash,
       params->required_level,
-      SVFRT_compatibility_exact,
+      SVFRT_compatibility_exact, // `sufficient_level`.
       params->max_schema_work
     );
   }
@@ -139,7 +137,8 @@ void SVFRT_read_message(
   }
 
   if (check_result.level == 0) {
-      out_result->error_code = SVFRT_code_read__no_compatibility;
+    // No compatibility, but `error_code` was not set, which should not happen.
+    out_result->error_code = SVFRT_code_compatibility_internal__unknown;
     return;
   }
 
@@ -147,10 +146,8 @@ void SVFRT_read_message(
   if (check_result.level == SVFRT_compatibility_logical) {
     // We have to convert the message.
 
-    if (!params->allocator_fn) {
-      out_result->error_code = SVFRT_code_read__no_allocator_function;
-      return;
-    }
+    // `params->allocator_fn` has already been checked to be non-null, see
+    // `SVFRT_code_read__no_allocator_function`.
 
     SVFRT_ConversionResult conversion_result = {0};
     SVFRT_convert_message(

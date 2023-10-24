@@ -343,6 +343,16 @@ add_test(NAME test_simple_c COMMAND test_simple_c)
 add_test(NAME example_json COMMAND example_json)
 add_test(NAME example_hello COMMAND example_hello)
 
+function(add_our_read_test CODE)
+  add_executable(test_read_code_${CODE} src/test/read/${CODE}.cpp)
+  target_link_libraries(test_read_code_${CODE} PRIVATE svf_runtime platform)
+
+  # target_compile_options(test_read_code_${CODE} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+  # target_link_options(test_read_code_${CODE} PRIVATE -fprofile-instr-generate)
+
+  add_test(NAME test_read_code_${CODE} COMMAND test_read_code_${CODE})
+endfunction(add_our_read_test)
+
 function(add_our_write_test CODE)
   add_executable(test_write_code_${CODE} src/test/write/${CODE}.cpp)
   target_link_libraries(test_write_code_${CODE} PRIVATE svf_runtime platform)
@@ -357,3 +367,7 @@ add_our_write_test(writer_function_failed)
 add_our_write_test(data_would_overflow)
 add_our_write_test(sequence_non_contiguous)
 add_our_write_test(already_finished)
+
+add_our_read_test(header_7)
+add_our_read_test(schema_lookup_2)
+add_our_read_test(no_allocator_function)

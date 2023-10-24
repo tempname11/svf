@@ -135,7 +135,8 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility__invalid_choice_index                0x00010014
 #define SVFRT_code_compatibility__schema_too_small                    0x00010015
 
-#define SVFRT_code_compatibility_internal__invalid_type_tag           0x00020001
+#define SVFRT_code_compatibility_internal__unknown                    0x00020001
+#define SVFRT_code_compatibility_internal__invalid_type_tag           0x00020002
 #define SVFRT_code_compatibility_internal__invalid_structs            0x00020007
 #define SVFRT_code_compatibility_internal__invalid_choices            0x00020008
 #define SVFRT_code_compatibility_internal__invalid_fields             0x00020009
@@ -189,10 +190,8 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_read__bad_schema_length                            0x00050006
 #define SVFRT_code_read__no_schema_lookup_function                    0x00050007
 #define SVFRT_code_read__schema_lookup_failed                         0x00050008
-#define SVFRT_code_read__bad_schema_content_hash                      0x00050009
-#define SVFRT_code_read__no_compatibility                             0x0005000A
-#define SVFRT_code_read__no_allocator_function                        0x0005000B
-#define SVFRT_code_read__data_too_small                               0x0005000C
+#define SVFRT_code_read__no_allocator_function                        0x00050009
+#define SVFRT_code_read__data_too_small                               0x0005000A
 
 #define SVFRT_code_write__writer_function_failed                      0x00060001
 #define SVFRT_code_write__data_would_overflow                         0x00060002
