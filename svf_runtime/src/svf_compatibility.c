@@ -149,8 +149,6 @@ bool SVFRT_check_work(SVFRT_CheckContext *ctx, uint32_t work_count) {
   return true;
 }
 
-#define SVFRT_RETURN_IF_WORK_MAX(ctx, count) if (!SVFRT_check_work((ctx), (count))) { return; }
-
 // TODO: report the specific types that did not match?
 void SVFRT_check_concrete_type(
   SVFRT_CheckContext *ctx,
@@ -201,77 +199,80 @@ void SVFRT_check_concrete_type(
     }
   }
 
-  if (ctx->required_level <= SVFRT_compatibility_logical) {
-    switch (tag_dst) {
-      case SVF_META_ConcreteType_tag_u16: {
-        if (unsafe_tag_src != SVF_META_ConcreteType_tag_u8) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_u32: {
-        if (
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
-        ) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_u64: {
-        if (
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
-        ) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_i16: {
-        if (
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
-        ) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_i32: {
-        if (
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
-        ) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_i64: {
-        if (
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i32) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-          (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
-        ) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      case SVF_META_ConcreteType_tag_f64: {
-        if (unsafe_tag_src != SVF_META_ConcreteType_tag_f32) {
-          ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        }
-        return;
-      }
-      // TODO: this is not exhaustive, but there's not much to gain from that?
-      default: {
+  if (ctx->required_level > SVFRT_compatibility_logical) {
+    ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+    return;
+  }
+
+  switch (tag_dst) {
+    case SVF_META_ConcreteType_tag_u16: {
+      if (unsafe_tag_src != SVF_META_ConcreteType_tag_u8) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
-        return;
       }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_u32: {
+      if (
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+      ) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_u64: {
+      if (
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+      ) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_i16: {
+      if (
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+      ) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_i32: {
+      if (
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+      ) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_i64: {
+      if (
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i32) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+      ) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    case SVF_META_ConcreteType_tag_f64: {
+      if (unsafe_tag_src != SVF_META_ConcreteType_tag_f32) {
+        ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      }
+      return;
+    }
+    // TODO: this is not exhaustive, but there's not much to gain from that?
+    default: {
+      ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
+      return;
     }
   }
 }
@@ -385,7 +386,9 @@ void SVFRT_check_struct(
     SVF_META_FieldDefinition *field_dst = fields_dst.pointer + i;
 
     // Looping over potentially adversarial data, so limit work.
-    SVFRT_RETURN_IF_WORK_MAX(ctx, unsafe_fields_src.count);
+    if (!SVFRT_check_work(ctx, unsafe_fields_src.count)) {
+      return;
+    }
 
     bool found = false;
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
@@ -742,8 +745,7 @@ void SVFRT_check_compatibility(
   // #compatibility-work [1]: this is linear in respect to
   // `unsafe_structs_src.count`.
   //
-  // Looping over potentially adversarial data, so limit work. Do not use the
-  // convenience macro here, because it works with `ctx`, not `out_result`.
+  // Looping over potentially adversarial data, so limit work.
   if (!SVFRT_check_work(ctx, unsafe_structs_src.count)) {
     out_result->error_code = ctx->error_code;
     return;

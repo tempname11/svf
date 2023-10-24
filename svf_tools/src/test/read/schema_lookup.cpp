@@ -5,7 +5,7 @@
 
 namespace schema = svf::A0;
 
-auto write_arena = [](void *it, SVFRT_Bytes src) {
+U32 write_arena(void *it, SVFRT_Bytes src) {
   auto arena = (vm::LinearArena *) it;
   auto dst = vm::many<U8>(arena, src.count);
   range_copy(dst, {src.pointer, src.count});
@@ -29,7 +29,7 @@ SVFRT_Bytes schema_lookup(void *it, uint64_t schema_content_hash) {
 
 int main(int /*argc*/, char */*argv*/[]) {
   // Prepare: create the message.
-  auto arena_value = vm::create_linear_arena(2ull < 30);
+  auto arena_value = vm::create_linear_arena(2ull << 20);
   svf::runtime::WriteContext<schema::Entry> ctx = {};
   SVFRT_write_start(
     &ctx,

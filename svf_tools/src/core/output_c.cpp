@@ -368,7 +368,7 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "_compatibility_work_base ");
-  output_decimal(ctx, get_compatibility_work_base(schema_bytes, schema_definition));
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes));
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#define SVF_");

@@ -38,22 +38,64 @@ U64 get_content_hash(Bytes schema_bytes) {
   return result;
 }
 
+// Internal usage only. Both schemas are assumed to be valid.
 static inline
-U32 get_compatibility_work_base(Bytes schema_bytes, svf::META::SchemaDefinition *definition) {
-  // See #compatibility-work. For the "base" we will take the scenario where
-  // the schema is checked for compatibility with one equivalent to itself.
-  //
-  uint32_t result = definition->structs.count; // [1]
+U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
+  // Note: returns an upper bound, the real number will depend on how many
+  // structs are reachable from the entry.
 
-  auto the_structs = to_range(schema_bytes, definition->structs);
-  for (UInt i = 0; i < the_structs.count; i++) {
-    auto definition = the_structs.pointer + i;
-    result += definition->fields.count * definition->fields.count; // [2]
+  // TODO @proper-alignment.
+  auto definition_src = (svf::META::SchemaDefinition *) (
+    schema_src.pointer +
+    schema_src.count -
+    sizeof(svf::META::SchemaDefinition)
+  );
+
+  // TODO @proper-alignment.
+  auto definition_dst = (svf::META::SchemaDefinition *) (
+    schema_dst.pointer +
+    schema_dst.count -
+    sizeof(svf::META::SchemaDefinition)
+  );
+
+  // See #compatibility-work.
+  uint32_t result = definition_src->structs.count; // [1]
+
+  auto structs_src = to_range(schema_src, definition_src->structs);
+  auto structs_dst = to_range(schema_dst, definition_dst->structs);
+
+  for (UInt i = 0; i < structs_dst.count; i++) {
+    auto definition_dst = structs_dst.pointer + i;
+
+    bool found = false;
+    for (UInt j = 0; j < structs_src.count; j++) {
+      auto definition_src = structs_src.pointer + j;
+
+      if (definition_dst->nameHash != definition_src->nameHash) {
+        continue;
+      }
+
+      ASSERT(!found);
+      found = true;
+      result += definition_src->fields.count * definition_dst->fields.count; // [2]
+      break;
+    }
+
+    ASSERT(found);
   }
 
+  // TODO: this probably needs to be more strict.
   ASSERT((uint64_t) result * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR < UINT32_MAX);
 
   return result;
+}
+
+// Internal usage only. Schema assumed to be valid.
+static inline
+U32 get_compatibility_work_base(Bytes schema_bytes) {
+  // For the "base" we will take the scenario where
+  // the schema is checked for compatibility with one equivalent to itself.
+  return get_compatibility_work(schema_bytes, schema_bytes);
 }
 
 static inline

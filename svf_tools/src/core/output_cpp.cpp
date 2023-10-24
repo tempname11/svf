@@ -432,7 +432,7 @@ Bytes as_code(
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr U32 compatibility_work_base = ");
-  output_decimal(ctx, get_compatibility_work_base(schema_bytes, schema_definition));
+  output_decimal(ctx, get_compatibility_work_base(schema_bytes));
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr U64 name_hash = 0x");
