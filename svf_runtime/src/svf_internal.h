@@ -11,22 +11,22 @@ extern "C" {
 #endif
 
 typedef struct SVFRT_RangeStructDefinition {
-  SVF_META_StructDefinition *pointer;
+  SVF_Meta_StructDefinition *pointer;
   uint32_t count;
 } SVFRT_RangeStructDefinition;
 
 typedef struct SVFRT_RangeChoiceDefinition {
-  SVF_META_ChoiceDefinition *pointer;
+  SVF_Meta_ChoiceDefinition *pointer;
   uint32_t count;
 } SVFRT_RangeChoiceDefinition;
 
 typedef struct SVFRT_RangeFieldDefinition {
-  SVF_META_FieldDefinition *pointer;
+  SVF_Meta_FieldDefinition *pointer;
   uint32_t count;
 } SVFRT_RangeFieldDefinition;
 
 typedef struct SVFRT_RangeOptionDefinition {
-  SVF_META_OptionDefinition *pointer;
+  SVF_Meta_OptionDefinition *pointer;
   uint32_t count;
 } SVFRT_RangeOptionDefinition;
 
@@ -56,8 +56,8 @@ void *SVFRT_internal_from_sequence(
 typedef struct SVFRT_LogicalCompatibilityInfo {
   SVFRT_Bytes unsafe_schema_src;
   SVFRT_Bytes schema_dst;
-  SVF_META_SchemaDefinition *unsafe_definition_src;
-  SVF_META_SchemaDefinition *definition_dst;
+  SVF_Meta_SchemaDefinition *unsafe_definition_src;
+  SVF_Meta_SchemaDefinition *definition_dst;
   uint32_t entry_struct_index_src;
   uint32_t entry_struct_index_dst;
   uint32_t unsafe_entry_struct_size_src;

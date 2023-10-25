@@ -59,7 +59,7 @@ int main(int /*argc*/, char */*argv*/[]) {
 
     writer.should_fail = true;
     schema::SomeStruct x = {};
-    svf::Sequence<schema::SomeStruct> sequence = {};
+    svf::runtime::Sequence<schema::SomeStruct> sequence = {};
     svf::runtime::write_sequence_element(&ctx, &x, &sequence);
     ASSERT(ctx.error_code == SVFRT_code_write__writer_function_failed);
   }
@@ -75,7 +75,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     svf::runtime::write_reference(&ctx, &x);
     svf::runtime::write_sequence(&ctx, &x, 1);
 
-    svf::Sequence<schema::SomeStruct> sequence = {};
+    svf::runtime::Sequence<schema::SomeStruct> sequence = {};
     svf::runtime::write_sequence_element(&ctx, &x, &sequence);
 
     ASSERT(ctx.error_code == 0);

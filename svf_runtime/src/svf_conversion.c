@@ -91,49 +91,49 @@ typedef struct SVFRT_ConversionContext {
 // Returns 0 on an error.
 uint32_t SVFRT_conversion_get_type_size(
   SVFRT_RangeStructDefinition structs,
-  SVF_META_ConcreteType_tag type_tag,
-  SVF_META_ConcreteType_payload *type_payload
+  SVF_Meta_ConcreteType_tag type_tag,
+  SVF_Meta_ConcreteType_payload *type_payload
 ) {
   switch (type_tag) {
-    case SVF_META_ConcreteType_tag_u8: {
+    case SVF_Meta_ConcreteType_tag_u8: {
       return 1;
     }
-    case SVF_META_ConcreteType_tag_u16: {
+    case SVF_Meta_ConcreteType_tag_u16: {
       return 2;
     }
-    case SVF_META_ConcreteType_tag_u32: {
+    case SVF_Meta_ConcreteType_tag_u32: {
       return 4;
     }
-    case SVF_META_ConcreteType_tag_u64: {
+    case SVF_Meta_ConcreteType_tag_u64: {
       return 8;
     }
-    case SVF_META_ConcreteType_tag_i8: {
+    case SVF_Meta_ConcreteType_tag_i8: {
       return 1;
     }
-    case SVF_META_ConcreteType_tag_i16: {
+    case SVF_Meta_ConcreteType_tag_i16: {
       return 2;
     }
-    case SVF_META_ConcreteType_tag_i32: {
+    case SVF_Meta_ConcreteType_tag_i32: {
       return 4;
     }
-    case SVF_META_ConcreteType_tag_i64: {
+    case SVF_Meta_ConcreteType_tag_i64: {
       return 8;
     }
-    case SVF_META_ConcreteType_tag_f32: {
+    case SVF_Meta_ConcreteType_tag_f32: {
       return 4;
     }
-    case SVF_META_ConcreteType_tag_f64: {
+    case SVF_Meta_ConcreteType_tag_f64: {
       return 8;
     }
-    case SVF_META_ConcreteType_tag_definedStruct: {
+    case SVF_Meta_ConcreteType_tag_definedStruct: {
       uint32_t index = type_payload->definedStruct.index;
       if (index >= structs.count) {
         return 0;
       }
       return structs.pointer[index].size;
     }
-    case SVF_META_ConcreteType_tag_zeroSized:
-    case SVF_META_ConcreteType_tag_definedChoice:
+    case SVF_Meta_ConcreteType_tag_zeroSized:
+    case SVF_Meta_ConcreteType_tag_definedChoice:
     default: {
       return 0;
     }
@@ -298,10 +298,10 @@ void SVFRT_conversion_traverse_any_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_Type_tag unsafe_type_tag_src,
-  SVF_META_Type_payload *unsafe_type_payload_src,
-  SVF_META_Type_tag type_tag_dst,
-  SVF_META_Type_payload *type_payload_dst,
+  SVF_Meta_Type_tag unsafe_type_tag_src,
+  SVF_Meta_Type_payload *unsafe_type_payload_src,
+  SVF_Meta_Type_tag type_tag_dst,
+  SVF_Meta_Type_payload *type_payload_dst,
   SVFRT_Phase2_TraverseAnyType *phase2
 );
 
@@ -327,13 +327,13 @@ void SVFRT_conversion_traverse_struct(
     return;
   }
 
-  SVF_META_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + unsafe_struct_index_src;
-  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
+  SVF_Meta_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + unsafe_struct_index_src;
+  SVF_Meta_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
 
   SVFRT_RangeFieldDefinition unsafe_fields_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->info->unsafe_schema_src,
     unsafe_definition_src->fields,
-    SVF_META_FieldDefinition
+    SVF_Meta_FieldDefinition
   );
   if (!unsafe_fields_src.pointer && unsafe_fields_src.count) {
     ctx->error_code = SVFRT_code_conversion__bad_schema_field_index;
@@ -343,7 +343,7 @@ void SVFRT_conversion_traverse_struct(
   SVFRT_RangeFieldDefinition fields_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->info->schema_dst,
     definition_dst->fields,
-    SVF_META_FieldDefinition
+    SVF_Meta_FieldDefinition
   );
   if (!fields_dst.pointer && fields_dst.count) {
     ctx->error_code = SVFRT_code_conversion_internal__bad_schema_field_index;
@@ -368,12 +368,12 @@ void SVFRT_conversion_traverse_struct(
   // conversion. A table will solve everything here.
   //
   for (uint32_t i = 0; i < fields_dst.count; i++) {
-    SVF_META_FieldDefinition *field_dst = fields_dst.pointer + i;
+    SVF_Meta_FieldDefinition *field_dst = fields_dst.pointer + i;
 
     bool found = false;
 
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
-      SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
+      SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
       if (unsafe_field_src->nameHash != field_dst->nameHash) {
         continue;
@@ -423,16 +423,16 @@ void SVFRT_conversion_traverse_concrete_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_ConcreteType_tag unsafe_type_tag_src,
-  SVF_META_ConcreteType_payload *unsafe_type_payload_src,
-  SVF_META_ConcreteType_tag type_tag_dst,
-  SVF_META_ConcreteType_payload *type_payload_dst,
+  SVF_Meta_ConcreteType_tag unsafe_type_tag_src,
+  SVF_Meta_ConcreteType_payload *unsafe_type_payload_src,
+  SVF_Meta_ConcreteType_tag type_tag_dst,
+  SVF_Meta_ConcreteType_payload *type_payload_dst,
   SVFRT_Phase2_TraverseConcreteType *phase2
 ) {
   switch (type_tag_dst) {
-    case SVF_META_ConcreteType_tag_definedStruct: {
+    case SVF_Meta_ConcreteType_tag_definedStruct: {
       // Sanity check.
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_definedStruct) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_definedStruct) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
         return;
       }
@@ -489,9 +489,9 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_tag_definedChoice: {
+    case SVF_Meta_ConcreteType_tag_definedChoice: {
       // Sanity check.
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_definedChoice) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_definedChoice) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
         return;
       }
@@ -516,18 +516,18 @@ void SVFRT_conversion_traverse_concrete_type(
         ctx->error_code = SVFRT_code_conversion__bad_schema_choice_index;
         return;
       }
-      SVF_META_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + unsafe_choice_index_src;
+      SVF_Meta_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + unsafe_choice_index_src;
 
       if (choice_index_dst >= ctx->choices_dst.count) {
         ctx->error_code = SVFRT_code_conversion_internal__bad_schema_choice_index;
         return;
       }
-      SVF_META_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
+      SVF_Meta_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
 
       SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
         ctx->info->unsafe_schema_src,
         unsafe_definition_src->options,
-        SVF_META_OptionDefinition
+        SVF_Meta_OptionDefinition
       );
       if (!unsafe_options_src.pointer && unsafe_options_src.count) {
         ctx->error_code = SVFRT_code_conversion__bad_schema_options;
@@ -537,7 +537,7 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
         ctx->info->schema_dst,
         definition_dst->options,
-        SVF_META_OptionDefinition
+        SVF_Meta_OptionDefinition
       );
       if (!options_dst.pointer && options_dst.count) {
         ctx->error_code = SVFRT_code_conversion_internal__bad_schema_options;
@@ -556,14 +556,14 @@ void SVFRT_conversion_traverse_concrete_type(
       bool found_dst = false;
 
       for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
-        SVF_META_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
+        SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
 
         if (unsafe_option_src->tag != choice_tag) {
           continue;
         }
 
         for (uint32_t j = 0; j < options_dst.count; j++) {
-          SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
+          SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
 
           if (option_dst->nameHash != unsafe_option_src->nameHash) {
             continue;
@@ -624,18 +624,18 @@ void SVFRT_conversion_traverse_concrete_type(
 
       return;
     }
-    case SVF_META_ConcreteType_tag_zeroSized: {
+    case SVF_Meta_ConcreteType_tag_zeroSized: {
       // Sanity check. This case should only arise inside choices.
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_zeroSized) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_zeroSized) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_u64: {
+    case SVF_Meta_ConcreteType_tag_u64: {
       if (!phase2) return;
       uint64_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_u64: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_u64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -646,15 +646,15 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_u32: { // U32 -> U64.
+        case SVF_Meta_ConcreteType_tag_u32: { // U32 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u16: { // U16 -> U64.
+        case SVF_Meta_ConcreteType_tag_u16: { // U16 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> U64.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> U64.
           out_value = (uint64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -667,11 +667,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_u32: {
+    case SVF_Meta_ConcreteType_tag_u32: {
       if (!phase2) return;
       uint32_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_u32: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_u32: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -682,11 +682,11 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_u16: { // U16 -> U32.
+        case SVF_Meta_ConcreteType_tag_u16: { // U16 -> U32.
           out_value = (uint32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> U32.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> U32.
           out_value = (uint32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -699,11 +699,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_u16: {
+    case SVF_Meta_ConcreteType_tag_u16: {
       if (!phase2) return;
       uint16_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_u16: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_u16: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -714,7 +714,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> U16.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> U16.
           out_value = (uint16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -727,9 +727,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_uint16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_u8: {
+    case SVF_Meta_ConcreteType_tag_u8: {
       if (!phase2) return;
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_u8) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_u8) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -743,11 +743,11 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_tag_i64: {
+    case SVF_Meta_ConcreteType_tag_i64: {
       if (!phase2) return;
       int64_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_i64: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_i64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -758,27 +758,27 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_i32: { // I32 -> I64.
+        case SVF_Meta_ConcreteType_tag_i32: { // I32 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_i16: { // I16 -> I64.
+        case SVF_Meta_ConcreteType_tag_i16: { // I16 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_i8: { // I8 -> I64.
+        case SVF_Meta_ConcreteType_tag_i8: { // I8 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u32: { // U32 -> I64.
+        case SVF_Meta_ConcreteType_tag_u32: { // U32 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint32_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u16: { // U16 -> I64.
+        case SVF_Meta_ConcreteType_tag_u16: { // U16 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> I64.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> I64.
           out_value = (int64_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -791,11 +791,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int64_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_i32: {
+    case SVF_Meta_ConcreteType_tag_i32: {
       if (!phase2) return;
       int32_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_i32: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_i32: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -806,7 +806,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_i64: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_i64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -817,19 +817,19 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_i16: { // I16 -> I32.
+        case SVF_Meta_ConcreteType_tag_i16: { // I16 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_int16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_i8: { // I8 -> I32.
+        case SVF_Meta_ConcreteType_tag_i8: { // I8 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u16: { // U16 -> I32.
+        case SVF_Meta_ConcreteType_tag_u16: { // U16 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_uint16_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> I32.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> I32.
           out_value = (int32_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -842,11 +842,11 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int32_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_i16: {
+    case SVF_Meta_ConcreteType_tag_i16: {
       if (!phase2) return;
       int16_t out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_i16: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_i16: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -857,11 +857,11 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_i8: { // I8 -> I16.
+        case SVF_Meta_ConcreteType_tag_i8: { // I8 -> I16.
           out_value = (int16_t) SVFRT_conversion_read_int8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
-        case SVF_META_ConcreteType_tag_u8: { // U8 -> I16.
+        case SVF_Meta_ConcreteType_tag_u8: { // U8 -> I16.
           out_value = (int16_t) SVFRT_conversion_read_uint8_t(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -874,9 +874,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_int16_t(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_i8: {
+    case SVF_Meta_ConcreteType_tag_i8: {
       if (!phase2) return;
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_i8) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_i8) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -890,7 +890,7 @@ void SVFRT_conversion_traverse_concrete_type(
       );
       return;
     }
-    case SVF_META_ConcreteType_tag_f64: {
+    case SVF_Meta_ConcreteType_tag_f64: {
       if (!phase2) return;
       // Note: it is unclear, whether lossless integer -> float conversions
       // should be allowed or not. Probably not, because the semantics are very
@@ -898,7 +898,7 @@ void SVFRT_conversion_traverse_concrete_type(
 
       double out_value = 0;
       switch (unsafe_type_tag_src) {
-        case SVF_META_ConcreteType_tag_f64: { // Exact case, copy and exit.
+        case SVF_Meta_ConcreteType_tag_f64: { // Exact case, copy and exit.
           SVFRT_conversion_copy_exact(
             ctx,
             data_range_src,
@@ -909,7 +909,7 @@ void SVFRT_conversion_traverse_concrete_type(
           );
           return;
         }
-        case SVF_META_ConcreteType_tag_f32: { // F32 -> F64.
+        case SVF_Meta_ConcreteType_tag_f32: { // F32 -> F64.
           out_value = (double) SVFRT_conversion_read_float(ctx, data_range_src, unsafe_data_offset_src);
           break;
         }
@@ -922,9 +922,9 @@ void SVFRT_conversion_traverse_concrete_type(
       SVFRT_conversion_write_double(ctx, phase2->data_range_dst, phase2->data_offset_dst, out_value);
       return;
     }
-    case SVF_META_ConcreteType_tag_f32: {
+    case SVF_Meta_ConcreteType_tag_f32: {
       if (!phase2) return;
-      if (unsafe_type_tag_src != SVF_META_ConcreteType_tag_f32) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_f32) {
           ctx->error_code = SVFRT_code_conversion_internal__schema_incompatible_types;
         return;
       }
@@ -950,10 +950,10 @@ void SVFRT_conversion_traverse_any_type(
   uint32_t recursion_depth,
   SVFRT_Bytes data_range_src,
   uint32_t unsafe_data_offset_src,
-  SVF_META_Type_tag unsafe_type_tag_src,
-  SVF_META_Type_payload *unsafe_type_payload_src,
-  SVF_META_Type_tag type_tag_dst,
-  SVF_META_Type_payload *type_payload_dst,
+  SVF_Meta_Type_tag unsafe_type_tag_src,
+  SVF_Meta_Type_payload *unsafe_type_payload_src,
+  SVF_Meta_Type_tag type_tag_dst,
+  SVF_Meta_Type_payload *type_payload_dst,
   SVFRT_Phase2_TraverseAnyType *phase2
 ) {
   recursion_depth += 1;
@@ -963,9 +963,9 @@ void SVFRT_conversion_traverse_any_type(
   }
 
   switch (unsafe_type_tag_src) {
-    case SVF_META_Type_tag_concrete: {
+    case SVF_Meta_Type_tag_concrete: {
       // Sanity check.
-      if (type_tag_dst != SVF_META_Type_tag_concrete) {
+      if (type_tag_dst != SVF_Meta_Type_tag_concrete) {
         ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
@@ -990,9 +990,9 @@ void SVFRT_conversion_traverse_any_type(
 
       return;
     }
-    case SVF_META_Type_tag_reference: {
+    case SVF_Meta_Type_tag_reference: {
       // Sanity check.
-      if (type_tag_dst != SVF_META_Type_tag_reference) {
+      if (type_tag_dst != SVF_Meta_Type_tag_reference) {
         ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
@@ -1062,9 +1062,9 @@ void SVFRT_conversion_traverse_any_type(
       );
       return;
     }
-    case SVF_META_Type_tag_sequence: {
+    case SVF_Meta_Type_tag_sequence: {
       // Sanity check.
-      if (type_tag_dst != SVF_META_Type_tag_sequence) {
+      if (type_tag_dst != SVF_Meta_Type_tag_sequence) {
         ctx->error_code = SVFRT_code_conversion__schema_type_tag_mismatch;
         return;
       }
@@ -1204,7 +1204,7 @@ void SVFRT_convert_message(
   SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     info->unsafe_schema_src,
     info->unsafe_definition_src->structs,
-    SVF_META_StructDefinition
+    SVF_Meta_StructDefinition
   );
   if (!unsafe_structs_src.pointer && unsafe_structs_src.count) {
     out_result->error_code = SVFRT_code_conversion__bad_schema_structs;
@@ -1214,7 +1214,7 @@ void SVFRT_convert_message(
   SVFRT_RangeStructDefinition structs_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     info->schema_dst,
     info->definition_dst->structs,
-    SVF_META_StructDefinition
+    SVF_Meta_StructDefinition
   );
   if (!structs_dst.pointer && structs_dst.count) {
     out_result->error_code = SVFRT_code_conversion_internal__bad_schema_structs;
@@ -1224,7 +1224,7 @@ void SVFRT_convert_message(
   SVFRT_RangeChoiceDefinition unsafe_choices_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     info->unsafe_schema_src,
     info->unsafe_definition_src->choices,
-    SVF_META_ChoiceDefinition
+    SVF_Meta_ChoiceDefinition
   );
   if (!unsafe_choices_src.pointer && unsafe_choices_src.count) {
     out_result->error_code = SVFRT_code_conversion__bad_schema_choices;
@@ -1234,7 +1234,7 @@ void SVFRT_convert_message(
   SVFRT_RangeChoiceDefinition choices_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     info->schema_dst,
     info->definition_dst->choices,
-    SVF_META_ChoiceDefinition
+    SVF_Meta_ChoiceDefinition
   );
   if (!choices_dst.pointer && choices_dst.count) {
     out_result->error_code = SVFRT_code_conversion_internal__bad_schema_choices;
@@ -1304,7 +1304,7 @@ void SVFRT_convert_message(
   // Phase 2: actually copy the data.
   //
 
-  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + ctx->info->entry_struct_index_dst;
+  SVF_Meta_StructDefinition *definition_dst = ctx->structs_dst.pointer + ctx->info->entry_struct_index_dst;
 
   // Entry is special, as it always resides at the end of the data range.
   //

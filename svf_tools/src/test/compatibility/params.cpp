@@ -43,7 +43,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     // Use identical schemas.
     auto schema_src = schema_dst;
     schema_src.schema_content_hash += 1; // Ensure mismatch.
-    schema_src.schema.count = sizeof(svf::META::SchemaDefinition) - 1; // Truncate to cause failure.
+    schema_src.schema.count = sizeof(svf::Meta::SchemaDefinition) - 1; // Truncate to cause failure.
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_read_message(&default_read_params, &read_result, message, scratch);
@@ -58,7 +58,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
-    read_params.expected_schema.count = sizeof(svf::META::SchemaDefinition) - 1; // Truncate to cause failure.
+    read_params.expected_schema.count = sizeof(svf::Meta::SchemaDefinition) - 1; // Truncate to cause failure.
     SVFRT_read_message(&read_params, &read_result, message, scratch);
     ASSERT(read_result.error_code == SVFRT_code_compatibility_internal__schema_too_small);
   }

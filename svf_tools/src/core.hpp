@@ -4,7 +4,7 @@
 #include "core/grammar.hpp"
 
 namespace core {
-  namespace meta = svf::META;
+  namespace meta = svf::Meta;
 
   namespace parsing {
     grammar::Root *parse_input(vm::LinearArena *arena, Range<U8> input);

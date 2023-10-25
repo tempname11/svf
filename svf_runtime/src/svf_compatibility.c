@@ -34,8 +34,8 @@ typedef struct SVFRT_IndexPairQueue {
 
 typedef struct SVFRT_CheckContext {
   // The root definition for both schemas.
-  SVF_META_SchemaDefinition *unsafe_definition_src;
-  SVF_META_SchemaDefinition *definition_dst;
+  SVF_Meta_SchemaDefinition *unsafe_definition_src;
+  SVF_Meta_SchemaDefinition *definition_dst;
 
   // Byte ranges of the two schemas.
   SVFRT_Bytes unsafe_schema_src;
@@ -152,14 +152,14 @@ bool SVFRT_check_work(SVFRT_CheckContext *ctx, uint32_t work_count) {
 // TODO: report the specific types that did not match?
 void SVFRT_check_concrete_type(
   SVFRT_CheckContext *ctx,
-  SVF_META_ConcreteType_tag unsafe_tag_src,
-  SVF_META_ConcreteType_payload *unsafe_payload_src,
-  SVF_META_ConcreteType_tag tag_dst,
-  SVF_META_ConcreteType_payload *payload_dst
+  SVF_Meta_ConcreteType_tag unsafe_tag_src,
+  SVF_Meta_ConcreteType_payload *unsafe_payload_src,
+  SVF_Meta_ConcreteType_tag tag_dst,
+  SVF_Meta_ConcreteType_payload *payload_dst
 ) {
   if (unsafe_tag_src == tag_dst) {
     switch (tag_dst) {
-      case SVF_META_ConcreteType_tag_definedStruct: {
+      case SVF_Meta_ConcreteType_tag_definedStruct: {
         uint32_t unsafe_src_index = unsafe_payload_src->definedStruct.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
@@ -175,7 +175,7 @@ void SVFRT_check_concrete_type(
         );
         return;
       }
-      case SVF_META_ConcreteType_tag_definedChoice: {
+      case SVF_Meta_ConcreteType_tag_definedChoice: {
         uint32_t unsafe_src_index = unsafe_payload_src->definedChoice.index;
 
         // This guarantees that the index is valid, and is also not `UINT32_MAX`.
@@ -205,66 +205,66 @@ void SVFRT_check_concrete_type(
   }
 
   switch (tag_dst) {
-    case SVF_META_ConcreteType_tag_u16: {
-      if (unsafe_tag_src != SVF_META_ConcreteType_tag_u8) {
+    case SVF_Meta_ConcreteType_tag_u16: {
+      if (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_u32: {
+    case SVF_Meta_ConcreteType_tag_u32: {
       if (
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8)
       ) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_u64: {
+    case SVF_Meta_ConcreteType_tag_u64: {
       if (
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u32) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8)
       ) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_i16: {
+    case SVF_Meta_ConcreteType_tag_i16: {
       if (
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8)
       ) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_i32: {
+    case SVF_Meta_ConcreteType_tag_i32: {
       if (
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8)
       ) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_i64: {
+    case SVF_Meta_ConcreteType_tag_i64: {
       if (
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i32) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_i8) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u32) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u16) &&
-        (unsafe_tag_src != SVF_META_ConcreteType_tag_u8)
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i32) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_i8) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u32) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u16) &&
+        (unsafe_tag_src != SVF_Meta_ConcreteType_tag_u8)
       ) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
     }
-    case SVF_META_ConcreteType_tag_f64: {
-      if (unsafe_tag_src != SVF_META_ConcreteType_tag_f32) {
+    case SVF_Meta_ConcreteType_tag_f64: {
+      if (unsafe_tag_src != SVF_Meta_ConcreteType_tag_f32) {
         ctx->error_code = SVFRT_code_compatibility__concrete_type_mismatch;
       }
       return;
@@ -279,10 +279,10 @@ void SVFRT_check_concrete_type(
 
 void SVFRT_check_type(
   SVFRT_CheckContext *ctx,
-  SVF_META_Type_tag unsafe_tag_src,
-  SVF_META_Type_payload *unsafe_payload_src,
-  SVF_META_Type_tag tag_dst,
-  SVF_META_Type_payload *payload_dst
+  SVF_Meta_Type_tag unsafe_tag_src,
+  SVF_Meta_Type_payload *unsafe_payload_src,
+  SVF_Meta_Type_tag tag_dst,
+  SVF_Meta_Type_payload *payload_dst
 ) {
   if (unsafe_tag_src != tag_dst) {
     ctx->error_code = SVFRT_code_compatibility__type_mismatch;
@@ -290,7 +290,7 @@ void SVFRT_check_type(
   }
 
   switch (tag_dst) {
-    case SVF_META_Type_tag_reference: {
+    case SVF_Meta_Type_tag_reference: {
       SVFRT_check_concrete_type(
         ctx,
         unsafe_payload_src->reference.type_tag,
@@ -300,7 +300,7 @@ void SVFRT_check_type(
       );
       return;
     }
-    case SVF_META_Type_tag_sequence: {
+    case SVF_Meta_Type_tag_sequence: {
       SVFRT_check_concrete_type(
         ctx,
         unsafe_payload_src->sequence.elementType_tag,
@@ -310,7 +310,7 @@ void SVFRT_check_type(
       );
       return;
     }
-    case SVF_META_Type_tag_concrete: {
+    case SVF_Meta_Type_tag_concrete: {
       SVFRT_check_concrete_type(
         ctx,
         unsafe_payload_src->concrete.type_tag,
@@ -332,14 +332,14 @@ void SVFRT_check_struct(
   uint32_t struct_index_src,
   uint32_t struct_index_dst
 ) {
-  SVF_META_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + struct_index_src;
-  SVF_META_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
+  SVF_Meta_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + struct_index_src;
+  SVF_Meta_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
 
   // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
   SVFRT_RangeFieldDefinition unsafe_fields_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->unsafe_schema_src,
     unsafe_definition_src->fields,
-    SVF_META_FieldDefinition
+    SVF_Meta_FieldDefinition
   );
   if (!unsafe_fields_src.pointer && unsafe_fields_src.count) {
     ctx->error_code = SVFRT_code_compatibility__invalid_fields;
@@ -350,7 +350,7 @@ void SVFRT_check_struct(
   SVFRT_RangeFieldDefinition fields_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->schema_dst,
     definition_dst->fields,
-    SVF_META_FieldDefinition
+    SVF_Meta_FieldDefinition
   );
   if (!fields_dst.pointer && fields_dst.count) {
     ctx->error_code = SVFRT_code_compatibility_internal__invalid_fields;
@@ -383,7 +383,7 @@ void SVFRT_check_struct(
   //
   // TODO @performance: N^2
   for (uint32_t i = 0; i < fields_dst.count; i++) {
-    SVF_META_FieldDefinition *field_dst = fields_dst.pointer + i;
+    SVF_Meta_FieldDefinition *field_dst = fields_dst.pointer + i;
 
     // Looping over potentially adversarial data, so limit work.
     if (!SVFRT_check_work(ctx, unsafe_fields_src.count)) {
@@ -392,7 +392,7 @@ void SVFRT_check_struct(
 
     bool found = false;
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
-      SVF_META_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
+      SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
       if (unsafe_field_src->nameHash == field_dst->nameHash) {
         if (
@@ -465,14 +465,14 @@ void SVFRT_check_choice(
   uint32_t choice_index_src,
   uint32_t choice_index_dst
 ) {
-  SVF_META_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + choice_index_src;
-  SVF_META_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
+  SVF_Meta_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + choice_index_src;
+  SVF_Meta_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
 
   // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
   SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->unsafe_schema_src,
     unsafe_definition_src->options,
-    SVF_META_OptionDefinition
+    SVF_Meta_OptionDefinition
   );
   if (!unsafe_options_src.pointer && unsafe_options_src.count) {
     ctx->error_code = SVFRT_code_compatibility__invalid_options;
@@ -483,7 +483,7 @@ void SVFRT_check_choice(
   SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->schema_dst,
     definition_dst->options,
-    SVF_META_OptionDefinition
+    SVF_Meta_OptionDefinition
   );
   if (!options_dst.pointer && options_dst.count) {
     ctx->error_code = SVFRT_code_compatibility_internal__invalid_options;
@@ -516,11 +516,11 @@ void SVFRT_check_choice(
   //
   // TODO @performance: N^2
   for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
-    SVF_META_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
+    SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
 
     bool found = false;
     for (uint32_t j = 0; j < options_dst.count; j++) {
-      SVF_META_OptionDefinition *option_dst = options_dst.pointer + j;
+      SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
 
       if (unsafe_option_src->nameHash == option_dst->nameHash) {
         if (
@@ -580,26 +580,26 @@ void SVFRT_check_compatibility(
 
   // Make sure we can read both schemas.
 
-  if (unsafe_schema_src.count < sizeof(SVF_META_SchemaDefinition)) {
+  if (unsafe_schema_src.count < sizeof(SVF_Meta_SchemaDefinition)) {
     out_result->error_code = SVFRT_code_compatibility__schema_too_small;
     return;
   }
   // TODO @proper-alignment.
-  SVF_META_SchemaDefinition *unsafe_definition_src = (SVF_META_SchemaDefinition *) (
+  SVF_Meta_SchemaDefinition *unsafe_definition_src = (SVF_Meta_SchemaDefinition *) (
     unsafe_schema_src.pointer
     + unsafe_schema_src.count
-    - sizeof(SVF_META_SchemaDefinition)
+    - sizeof(SVF_Meta_SchemaDefinition)
   );
 
-  if (schema_dst.count < sizeof(SVF_META_SchemaDefinition)) {
+  if (schema_dst.count < sizeof(SVF_Meta_SchemaDefinition)) {
     out_result->error_code = SVFRT_code_compatibility_internal__schema_too_small;
     return;
   }
   // TODO @proper-alignment.
-  SVF_META_SchemaDefinition *definition_dst = (SVF_META_SchemaDefinition *) (
+  SVF_Meta_SchemaDefinition *definition_dst = (SVF_Meta_SchemaDefinition *) (
     schema_dst.pointer
     + schema_dst.count
-    - sizeof(SVF_META_SchemaDefinition)
+    - sizeof(SVF_Meta_SchemaDefinition)
   );
 
   uint32_t scratch_misalignment = ((uintptr_t) scratch_memory.pointer) % sizeof(uint32_t);
@@ -681,7 +681,7 @@ void SVFRT_check_compatibility(
   SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     unsafe_schema_src,
     unsafe_definition_src->structs,
-    SVF_META_StructDefinition
+    SVF_Meta_StructDefinition
   );
   if (!unsafe_structs_src.pointer && unsafe_structs_src.count) {
     out_result->error_code = SVFRT_code_compatibility__invalid_structs;
@@ -692,7 +692,7 @@ void SVFRT_check_compatibility(
   SVFRT_RangeStructDefinition structs_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     schema_dst,
     definition_dst->structs,
-    SVF_META_StructDefinition
+    SVF_Meta_StructDefinition
   );
   if (!structs_dst.pointer && structs_dst.count) {
     out_result->error_code = SVFRT_code_compatibility_internal__invalid_structs;
@@ -704,7 +704,7 @@ void SVFRT_check_compatibility(
   SVFRT_RangeChoiceDefinition unsafe_choices_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     unsafe_schema_src,
     unsafe_definition_src->choices,
-    SVF_META_ChoiceDefinition
+    SVF_Meta_ChoiceDefinition
   );
   if (!unsafe_choices_src.pointer && unsafe_choices_src.count) {
     out_result->error_code = SVFRT_code_compatibility__invalid_choices;
@@ -715,7 +715,7 @@ void SVFRT_check_compatibility(
   SVFRT_RangeChoiceDefinition choices_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     schema_dst,
     definition_dst->choices,
-    SVF_META_ChoiceDefinition
+    SVF_Meta_ChoiceDefinition
   );
   if (!choices_dst.pointer && choices_dst.count) {
     out_result->error_code = SVFRT_code_compatibility_internal__invalid_choices;

@@ -136,14 +136,13 @@ void skip_whitespace_and_exactly_one_newline(Ctx ctx) {
   }
 }
 
-// Name kinds have different conventions:
-// - Type names start with an uppercase letter.
-// - Value names start with a lowercase letter.
-// - Generic names can be any of the above.
+// Name kinds (type, value, schema) have different conventions.
 enum class NameKind {
-  type,
-  value,
-  generic,
+  lowercase,
+  uppercase,
+  type = uppercase,
+  value = lowercase,
+  schema = uppercase,
 };
 
 // Parse a name. The name kind determines the allowed characters.
@@ -158,10 +157,6 @@ Range<U8> parse_name(Ctx ctx, NameKind kind) {
     if (0
       || (kind == NameKind::type && byte >= 'A' && byte <= 'Z')
       || (kind == NameKind::value && byte >= 'a' && byte <= 'z')
-      || (kind == NameKind::generic && (0
-        || (byte >= 'A' && byte <= 'Z')
-        || (byte >= 'a' && byte <= 'z')
-      ))
     ) {
       ctx->state.cursor++;
     } else {
@@ -546,7 +541,7 @@ void parse_top_level_definition(Ctx ctx) {
 Range<U8> parse_directive_name(Ctx ctx) {
   skip_specific_cstring(ctx, "#name");
   skip_whitespace(ctx);
-  auto result = parse_name(ctx, NameKind::generic);
+  auto result = parse_name(ctx, NameKind::schema);
   skip_whitespace_and_exactly_one_newline(ctx);
   return result;
 }

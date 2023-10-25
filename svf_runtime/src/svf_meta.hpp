@@ -7,52 +7,34 @@ namespace svf {
 
 #ifndef SVF_COMMON_CPP_TYPES_INCLUDED
 #define SVF_COMMON_CPP_TYPES_INCLUDED
-
-using U8 = uint8_t;
-using U16 = uint16_t;
-using U32 = uint32_t;
-using U64 = uint64_t;
-
-using I8 = int8_t;
-using I16 = int16_t;
-using I32 = int32_t;
-using I64 = int64_t;
-
-using F32 = float;
-using F64 = double;
-
 #pragma pack(push, 1)
+namespace runtime {
 
 template<typename T>
 struct Reference {
-  U32 data_offset_complement;
+  uint32_t data_offset_complement;
 };
 
 template<typename T>
 struct Sequence {
-  U32 data_offset_complement;
-  U32 count;
+  uint32_t data_offset_complement;
+  uint32_t count;
 };
 
+template<typename T> struct GetSchemaFromType;
+
+} // namespace runtime
 #pragma pack(pop)
 #endif // SVF_COMMON_CPP_TYPES_INCLUDED
 
-#ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
-#define SVF_COMMON_CPP_TRICKERY_INCLUDED
-
-template<typename T>
-struct GetSchemaFromType;
-
-#endif // SVF_COMMON_CPP_TRICKERY_INCLUDED
-
-namespace META {
+namespace Meta {
 #pragma pack(push, 1)
 
-extern U32 const struct_strides[];
+extern uint32_t const struct_strides[];
 
 namespace binary {
   size_t const size = 2101;
-  extern U8 const array[];
+  extern uint8_t const array[];
 } // namespace binary
 
 // Forward declarations.
@@ -66,68 +48,68 @@ struct Type_Reference;
 struct Type_Sequence;
 struct OptionDefinition;
 struct FieldDefinition;
-enum class ConcreteType_tag: U8;
+enum class ConcreteType_tag: uint8_t;
 union ConcreteType_payload;
-enum class Type_tag: U8;
+enum class Type_tag: uint8_t;
 union Type_payload;
 
 // Indexes of structs.
-U32 const SchemaDefinition_struct_index = 0;
-U32 const ChoiceDefinition_struct_index = 1;
-U32 const StructDefinition_struct_index = 2;
-U32 const ConcreteType_DefinedStruct_struct_index = 3;
-U32 const ConcreteType_DefinedChoice_struct_index = 4;
-U32 const Type_Concrete_struct_index = 5;
-U32 const Type_Reference_struct_index = 6;
-U32 const Type_Sequence_struct_index = 7;
-U32 const OptionDefinition_struct_index = 8;
-U32 const FieldDefinition_struct_index = 9;
+uint32_t const SchemaDefinition_struct_index = 0;
+uint32_t const ChoiceDefinition_struct_index = 1;
+uint32_t const StructDefinition_struct_index = 2;
+uint32_t const ConcreteType_DefinedStruct_struct_index = 3;
+uint32_t const ConcreteType_DefinedChoice_struct_index = 4;
+uint32_t const Type_Concrete_struct_index = 5;
+uint32_t const Type_Reference_struct_index = 6;
+uint32_t const Type_Sequence_struct_index = 7;
+uint32_t const OptionDefinition_struct_index = 8;
+uint32_t const FieldDefinition_struct_index = 9;
 
 // Hashes of top level definition names.
-U64 const SchemaDefinition_name_hash = 0x85B94A79B2A1A5EFull;
-U64 const ChoiceDefinition_name_hash = 0x2240FF3EC854982Full;
-U64 const StructDefinition_name_hash = 0x713C0B32A28A6581ull;
-U64 const ConcreteType_DefinedStruct_name_hash = 0xE1EBFBC1CB324605ull;
-U64 const ConcreteType_DefinedChoice_name_hash = 0x20ADB239462DD81Full;
-U64 const Type_Concrete_name_hash = 0xAD0D45DB75A2937Dull;
-U64 const Type_Reference_name_hash = 0x4CE48FE156562743ull;
-U64 const Type_Sequence_name_hash = 0x9E1FB822B59C8E77ull;
-U64 const OptionDefinition_name_hash = 0x1F70FAEE117DDC5Dull;
-U64 const FieldDefinition_name_hash = 0xDF03D0229D043C3Aull;
-U64 const ConcreteType_name_hash = 0x698D4BD276D7869Eull;
-U64 const Type_name_hash = 0xD2223AFB7D6B100Dull;
+uint64_t const SchemaDefinition_name_hash = 0x85B94A79B2A1A5EFull;
+uint64_t const ChoiceDefinition_name_hash = 0x2240FF3EC854982Full;
+uint64_t const StructDefinition_name_hash = 0x713C0B32A28A6581ull;
+uint64_t const ConcreteType_DefinedStruct_name_hash = 0xE1EBFBC1CB324605ull;
+uint64_t const ConcreteType_DefinedChoice_name_hash = 0x20ADB239462DD81Full;
+uint64_t const Type_Concrete_name_hash = 0xAD0D45DB75A2937Dull;
+uint64_t const Type_Reference_name_hash = 0x4CE48FE156562743ull;
+uint64_t const Type_Sequence_name_hash = 0x9E1FB822B59C8E77ull;
+uint64_t const OptionDefinition_name_hash = 0x1F70FAEE117DDC5Dull;
+uint64_t const FieldDefinition_name_hash = 0xDF03D0229D043C3Aull;
+uint64_t const ConcreteType_name_hash = 0x698D4BD276D7869Eull;
+uint64_t const Type_name_hash = 0xD2223AFB7D6B100Dull;
 
 // Full declarations.
 struct SchemaDefinition {
-  U64 nameHash;
-  Sequence<U8> name;
-  Sequence<StructDefinition> structs;
-  Sequence<ChoiceDefinition> choices;
+  uint64_t nameHash;
+  runtime::Sequence<uint8_t> name;
+  runtime::Sequence<StructDefinition> structs;
+  runtime::Sequence<ChoiceDefinition> choices;
 };
 
 struct ChoiceDefinition {
-  U64 nameHash;
-  Sequence<U8> name;
-  U32 payloadSize;
-  Sequence<OptionDefinition> options;
+  uint64_t nameHash;
+  runtime::Sequence<uint8_t> name;
+  uint32_t payloadSize;
+  runtime::Sequence<OptionDefinition> options;
 };
 
 struct StructDefinition {
-  U64 nameHash;
-  Sequence<U8> name;
-  U32 size;
-  Sequence<FieldDefinition> fields;
+  uint64_t nameHash;
+  runtime::Sequence<uint8_t> name;
+  uint32_t size;
+  runtime::Sequence<FieldDefinition> fields;
 };
 
 struct ConcreteType_DefinedStruct {
-  U32 index;
+  uint32_t index;
 };
 
 struct ConcreteType_DefinedChoice {
-  U32 index;
+  uint32_t index;
 };
 
-enum class ConcreteType_tag: U8 {
+enum class ConcreteType_tag: uint8_t {
   u8 = 0,
   u16 = 1,
   u32 = 2,
@@ -163,7 +145,7 @@ struct Type_Sequence {
   ConcreteType_payload elementType_payload;
 };
 
-enum class Type_tag: U8 {
+enum class Type_tag: uint8_t {
   concrete = 0,
   reference = 1,
   sequence = 2,
@@ -176,17 +158,17 @@ union Type_payload {
 };
 
 struct OptionDefinition {
-  U64 nameHash;
-  Sequence<U8> name;
-  U8 tag;
+  uint64_t nameHash;
+  runtime::Sequence<uint8_t> name;
+  uint8_t tag;
   Type_tag type_tag;
   Type_payload type_payload;
 };
 
 struct FieldDefinition {
-  U64 nameHash;
-  Sequence<U8> name;
-  U32 offset;
+  uint64_t nameHash;
+  runtime::Sequence<uint8_t> name;
+  uint32_t offset;
   Type_tag type_tag;
   Type_payload type_payload;
 };
@@ -198,136 +180,140 @@ struct SchemaDescription {
   template<typename T>
   struct PerType;
 
-  static constexpr U32 *schema_struct_strides = (U32 *) struct_strides;
-  static constexpr U8 *schema_binary_array = (U8 *) binary::array;
+  static constexpr uint32_t *schema_struct_strides = (uint32_t *) struct_strides;
+  static constexpr uint8_t *schema_binary_array = (uint8_t *) binary::array;
   static constexpr size_t schema_binary_size = binary::size;
-  static constexpr U32 schema_struct_count = 10;
-  static constexpr U32 min_read_scratch_memory_size = 187;
-  static constexpr U32 compatibility_work_base = 95;
-  static constexpr U64 name_hash = 0x80BE2AAF7FD058B8ull;
-  static constexpr U64 content_hash = 0x2D489E1549784EF0ull;
+  static constexpr uint32_t schema_struct_count = 10;
+  static constexpr uint32_t min_read_scratch_memory_size = 187;
+  static constexpr uint32_t compatibility_work_base = 95;
+  static constexpr uint64_t name_hash = 0x6DADEAAEE49D6D18ull;
+  static constexpr uint64_t content_hash = 0x28B39378619EAB1Eull;
 };
 
 // C++ trickery: SchemaDescription::PerType.
 template<>
 struct SchemaDescription::PerType<SchemaDefinition> {
-  static constexpr U64 name_hash = SchemaDefinition_name_hash;
-  static constexpr U32 index = SchemaDefinition_struct_index;
+  static constexpr uint64_t name_hash = SchemaDefinition_name_hash;
+  static constexpr uint32_t index = SchemaDefinition_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<ChoiceDefinition> {
-  static constexpr U64 name_hash = ChoiceDefinition_name_hash;
-  static constexpr U32 index = ChoiceDefinition_struct_index;
+  static constexpr uint64_t name_hash = ChoiceDefinition_name_hash;
+  static constexpr uint32_t index = ChoiceDefinition_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<StructDefinition> {
-  static constexpr U64 name_hash = StructDefinition_name_hash;
-  static constexpr U32 index = StructDefinition_struct_index;
+  static constexpr uint64_t name_hash = StructDefinition_name_hash;
+  static constexpr uint32_t index = StructDefinition_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<ConcreteType_DefinedStruct> {
-  static constexpr U64 name_hash = ConcreteType_DefinedStruct_name_hash;
-  static constexpr U32 index = ConcreteType_DefinedStruct_struct_index;
+  static constexpr uint64_t name_hash = ConcreteType_DefinedStruct_name_hash;
+  static constexpr uint32_t index = ConcreteType_DefinedStruct_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<ConcreteType_DefinedChoice> {
-  static constexpr U64 name_hash = ConcreteType_DefinedChoice_name_hash;
-  static constexpr U32 index = ConcreteType_DefinedChoice_struct_index;
+  static constexpr uint64_t name_hash = ConcreteType_DefinedChoice_name_hash;
+  static constexpr uint32_t index = ConcreteType_DefinedChoice_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<Type_Concrete> {
-  static constexpr U64 name_hash = Type_Concrete_name_hash;
-  static constexpr U32 index = Type_Concrete_struct_index;
+  static constexpr uint64_t name_hash = Type_Concrete_name_hash;
+  static constexpr uint32_t index = Type_Concrete_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<Type_Reference> {
-  static constexpr U64 name_hash = Type_Reference_name_hash;
-  static constexpr U32 index = Type_Reference_struct_index;
+  static constexpr uint64_t name_hash = Type_Reference_name_hash;
+  static constexpr uint32_t index = Type_Reference_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<Type_Sequence> {
-  static constexpr U64 name_hash = Type_Sequence_name_hash;
-  static constexpr U32 index = Type_Sequence_struct_index;
+  static constexpr uint64_t name_hash = Type_Sequence_name_hash;
+  static constexpr uint32_t index = Type_Sequence_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<OptionDefinition> {
-  static constexpr U64 name_hash = OptionDefinition_name_hash;
-  static constexpr U32 index = OptionDefinition_struct_index;
+  static constexpr uint64_t name_hash = OptionDefinition_name_hash;
+  static constexpr uint32_t index = OptionDefinition_struct_index;
 };
 
 template<>
 struct SchemaDescription::PerType<FieldDefinition> {
-  static constexpr U64 name_hash = FieldDefinition_name_hash;
-  static constexpr U32 index = FieldDefinition_struct_index;
+  static constexpr uint64_t name_hash = FieldDefinition_name_hash;
+  static constexpr uint32_t index = FieldDefinition_struct_index;
 };
 
-} // namespace META
+} // namespace Meta
+
+namespace runtime {
 
 // C++ trickery: GetSchemaFromType.
 template<>
-struct GetSchemaFromType<META::SchemaDefinition> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::SchemaDefinition> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::ChoiceDefinition> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::ChoiceDefinition> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::StructDefinition> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::StructDefinition> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::ConcreteType_DefinedStruct> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::ConcreteType_DefinedStruct> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::ConcreteType_DefinedChoice> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::ConcreteType_DefinedChoice> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::Type_Concrete> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::Type_Concrete> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::Type_Reference> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::Type_Reference> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::Type_Sequence> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::Type_Sequence> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::OptionDefinition> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::OptionDefinition> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
 
 template<>
-struct GetSchemaFromType<META::FieldDefinition> {
-  using SchemaDescription = META::SchemaDescription;
+struct GetSchemaFromType<Meta::FieldDefinition> {
+  using SchemaDescription = Meta::SchemaDescription;
 };
+
+} // namespace runtime
 
 // Binary schema.
 #if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
-#ifndef SVF_META_BINARY_INCLUDED_HPP
-namespace META {
+#ifndef SVF_Meta_BINARY_INCLUDED_HPP
+namespace Meta {
 
-U32 const struct_strides[] = {
+uint32_t const struct_strides[] = {
   32,
   28,
   28,
@@ -342,7 +328,7 @@ U32 const struct_strides[] = {
 
 namespace binary {
 
-U8 const array[] = {
+uint8_t const array[] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -601,16 +587,16 @@ U8 const array[] = {
   0x6F, 0x66, 0x66, 0x73, 0x65, 0x74, 0x74, 0x79,
   0x70, 0x65, 0x46, 0x69, 0x65, 0x6C, 0x64, 0x44,
   0x65, 0x66, 0x69, 0x6E, 0x69, 0x74, 0x69, 0x6F,
-  0x6E, 0x4D, 0x45, 0x54, 0x41, 0xB8, 0x58, 0xD0,
-  0x7F, 0xAF, 0x2A, 0xBE, 0x80, 0xEE, 0xF7, 0xFF,
+  0x6E, 0x4D, 0x65, 0x74, 0x61, 0x18, 0x6D, 0x9D,
+  0xE4, 0xAE, 0xEA, 0xAD, 0x6D, 0xEE, 0xF7, 0xFF,
   0xFF, 0x04, 0x00, 0x00, 0x00, 0xDF, 0xFE, 0xFF,
   0xFF, 0x0A, 0x00, 0x00, 0x00, 0xC7, 0xFD, 0xFF,
   0xFF, 0x02, 0x00, 0x00, 0x00
 };
 
 } // namespace binary
-} // namespace META
-#endif // SVF_META_BINARY_INCLUDED_HPP
+} // namespace Meta
+#endif // SVF_Meta_BINARY_INCLUDED_HPP
 #endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)
 
 } // namespace svf

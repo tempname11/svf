@@ -6,7 +6,7 @@
 
 template<typename T>
 inline static
-Range<T> to_range(Bytes bytes, svf::Sequence<T> sequence) {
+Range<T> to_range(Bytes bytes, svf::runtime::Sequence<T> sequence) {
   return range_from_bytes<T>(
     range_subrange(bytes, ~sequence.data_offset_complement, sequence.count * sizeof(T))
   );
@@ -24,10 +24,10 @@ struct TypePluralityAndSize {
 };
 
 TypePluralityAndSize get_plurality(
-  Range<svf::META::StructDefinition> structs,
-  Range<svf::META::ChoiceDefinition> choices,
-  svf::META::Type_tag in_tag,
-  svf::META::Type_payload *in_payload
+  Range<svf::Meta::StructDefinition> structs,
+  Range<svf::Meta::ChoiceDefinition> choices,
+  svf::Meta::Type_tag in_tag,
+  svf::Meta::Type_payload *in_payload
 );
 
 static inline
@@ -45,17 +45,17 @@ U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
   // structs are reachable from the entry.
 
   // TODO @proper-alignment.
-  auto definition_src = (svf::META::SchemaDefinition *) (
+  auto definition_src = (svf::Meta::SchemaDefinition *) (
     schema_src.pointer +
     schema_src.count -
-    sizeof(svf::META::SchemaDefinition)
+    sizeof(svf::Meta::SchemaDefinition)
   );
 
   // TODO @proper-alignment.
-  auto definition_dst = (svf::META::SchemaDefinition *) (
+  auto definition_dst = (svf::Meta::SchemaDefinition *) (
     schema_dst.pointer +
     schema_dst.count -
-    sizeof(svf::META::SchemaDefinition)
+    sizeof(svf::Meta::SchemaDefinition)
   );
 
   // See #compatibility-work.
@@ -99,7 +99,7 @@ U32 get_compatibility_work_base(Bytes schema_bytes) {
 }
 
 static inline
-UInt get_min_read_scratch_memory_size(svf::META::SchemaDefinition *definition) {
+UInt get_min_read_scratch_memory_size(svf::Meta::SchemaDefinition *definition) {
   // #scratch-memory-partitions.
   return (
     (sizeof(U32) - 1) // In case of misalignment.

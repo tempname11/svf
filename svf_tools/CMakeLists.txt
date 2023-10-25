@@ -256,7 +256,7 @@ generate_schema_files(A0)
 generate_schema_files(A1)
 generate_schema_files(B0)
 generate_schema_files(B1)
-generate_schema_files(META)
+generate_schema_files(Meta)
 generate_schema_files(JSON)
 generate_schema_files(Hello)
 
@@ -325,12 +325,12 @@ enable_testing()
 # Check consistency of generated file for the metaschema.
 add_test(NAME meta_hpp_consistency COMMAND
   ${CMAKE_COMMAND} -E compare_files
-  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp/META.hpp
+  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/hpp/Meta.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../svf_runtime/src/svf_meta.hpp
 )
 add_test(NAME meta_h_consistency COMMAND
   ${CMAKE_COMMAND} -E compare_files
-  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h/META.h
+  ${CMAKE_CURRENT_BINARY_DIR}/custom/generated/h/Meta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/../svf_runtime/src/svf_meta.h
 )
 

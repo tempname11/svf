@@ -22,31 +22,31 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     .schema_content_hash = 0,
   };
 
-  svf::runtime::WriteContext<svf::META::SchemaDefinition> ctx = {};
+  svf::runtime::WriteContext<svf::Meta::SchemaDefinition> ctx = {};
   ctx.writer_fn = write_arena;
   ctx.writer_ptr = arena;
   auto schema_pointer = vm::realign(arena);
 
   U32 field_name_hash_delta = (params->change_field_name_hashes ? 0x10000 : 0);
   U32 field_offset_delta = (params->change_field_offsets ? 8 : 0);
-  svf::META::FieldDefinition base_fields[5] = {
+  svf::Meta::FieldDefinition base_fields[5] = {
     {
       .nameHash = 0xFD00 + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = field_offset_delta,
-      .type_tag = params->change_type_tag ? svf::META::Type_tag::sequence : svf::META::Type_tag::concrete,
+      .type_tag = params->change_type_tag ? svf::Meta::Type_tag::sequence : svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = params->change_concrete_type_tag ? svf::META::ConcreteType_tag::f64 : svf::META::ConcreteType_tag::u64,
+          .type_tag = params->change_concrete_type_tag ? svf::Meta::ConcreteType_tag::f64 : svf::Meta::ConcreteType_tag::u64,
         },
       },
     },
     {
       .nameHash = 0xFD01 + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = safe_int_cast<U32>(field_offset_delta + sizeof(U64)),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::definedStruct,
+          .type_tag = svf::Meta::ConcreteType_tag::definedStruct,
           .type_payload = {
             .definedChoice = {
               .index = params->corrupt_struct_index ? U32(0xDEAD) : 1,
@@ -58,10 +58,10 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     {
       .nameHash = 0xFD02 + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = safe_int_cast<U32>(field_offset_delta + sizeof(U64) + sizeof(U8)),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::definedStruct,
+          .type_tag = svf::Meta::ConcreteType_tag::definedStruct,
           .type_payload = {
             .definedChoice = {
               .index = params->corrupt_struct_index ? U32(0xDEAD) : (params->different_struct_refs ? 2 : 1),
@@ -73,10 +73,10 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     {
       .nameHash = 0xFD03 + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = safe_int_cast<U32>(field_offset_delta + sizeof(U64) + 2 * sizeof(U8)),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::definedChoice,
+          .type_tag = svf::Meta::ConcreteType_tag::definedChoice,
           .type_payload = {
             .definedChoice = {
               .index = params->corrupt_choice_index ? U32(0xDEAD) : 0,
@@ -88,10 +88,10 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     {
       .nameHash = 0xFD04 + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = safe_int_cast<U32>(field_offset_delta + sizeof(U64) + 3 * sizeof(U8)),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::definedChoice,
+          .type_tag = svf::Meta::ConcreteType_tag::definedChoice,
           .type_payload = {
             .definedChoice = {
               .index = params->corrupt_choice_index ? U32(0xDEAD) : (params->different_choice_refs ? 1 : 0),
@@ -104,13 +104,13 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   auto fields = svf::runtime::write_sequence(&ctx, base_fields, params->less_fields ? 1 : 5);
 
   for (UInt i = 0; i < params->extra_fields; i++) {
-    svf::META::FieldDefinition extra_field = {
+    svf::Meta::FieldDefinition extra_field = {
       .nameHash = 0xFD0E + i + field_name_hash_delta, // "FD" for "Field Definition".
       .offset = safe_int_cast<U32>(field_offset_delta + sizeof(U64) + (4 + i) * sizeof(U8)),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::u8,
+          .type_tag = svf::Meta::ConcreteType_tag::u8,
         },
       },
     };
@@ -131,7 +131,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     end_padding = 2;
   }
 
-  svf::META::StructDefinition base_structs[3] = {
+  svf::Meta::StructDefinition base_structs[3] = {
     {
       .nameHash = 0x5D00, // "SD" for "Struct Definition".
       .size = safe_int_cast<U32>(
@@ -155,7 +155,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   auto structs = svf::runtime::write_sequence(&ctx, base_structs, 3);
 
   for (UInt i = 0; i < params->extra_structs; i++) {
-    svf::META::StructDefinition extra_struct = {
+    svf::Meta::StructDefinition extra_struct = {
       .nameHash = 0x5D00 + i, // "SD" for "Struct Definition".,
       .size = 1,
       // TODO: valid fields should be here.
@@ -170,7 +170,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
 
   U32 option_name_hash_delta = (params->change_option_name_hashes ? 0x10000 : 0);
   U8 option_tag_delta = (params->change_option_tags ? 128 : 0);
-  svf::META::OptionDefinition base_options[2] = {
+  svf::Meta::OptionDefinition base_options[2] = {
     {
       .nameHash = 0x0D00 + option_name_hash_delta, // "OD" for "Option Definition".
 
@@ -178,20 +178,20 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
       // valid, which means that a zero-tag option should exists.
       .tag = 0,
 
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
         },
       },
     },
     {
       .nameHash = 0x0D01 + option_name_hash_delta, // "OD" for "Option Definition".
       .tag = safe_int_cast<U8>(1 + option_tag_delta),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
         },
       },
     },
@@ -199,13 +199,13 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   auto options = svf::runtime::write_sequence(&ctx, base_options, 2);
 
   for (UInt i = 0; i < params->extra_options; i++) {
-    svf::META::OptionDefinition extra_option = {
+    svf::Meta::OptionDefinition extra_option = {
       .nameHash = 0x0D0E + i + option_name_hash_delta, // "OD" for "Option Definition".
       .tag = safe_int_cast<U8>(2 + i + option_tag_delta),
-      .type_tag = svf::META::Type_tag::concrete,
+      .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::META::ConcreteType_tag::zeroSized,
+          .type_tag = svf::Meta::ConcreteType_tag::zeroSized,
         },
       },
     };
@@ -217,7 +217,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     options.count = 0xBEEF;
   }
 
-  svf::META::ChoiceDefinition choice_definitions[2] = {
+  svf::Meta::ChoiceDefinition choice_definitions[2] = {
     {
       .nameHash = 0xCD00, // "CD" for "Choice Definition".
       .payloadSize = 0,
@@ -236,7 +236,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     choices.count = 0xBEEF;
   }
 
-  svf::META::SchemaDefinition schema_definition = {
+  svf::Meta::SchemaDefinition schema_definition = {
     .nameHash = 0xEDED, // "ED" for "Entry Definition".
     .structs = structs,
     .choices = choices,

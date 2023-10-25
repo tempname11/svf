@@ -35,7 +35,7 @@ void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "_payload;\n");
 }
 
-void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
+void output_struct_index(Ctx ctx, svf::runtime::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
@@ -45,7 +45,7 @@ void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "\n");
 }
 
-void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
+void output_name_hash(Ctx ctx, svf::runtime::Sequence<U8> name, U64 hash) {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");

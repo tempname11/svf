@@ -4,7 +4,7 @@
 
 namespace core::generation {
 
-namespace meta = svf::META;
+namespace meta = svf::Meta;
 
 // TODO @performance: should this be replaced by a hash table?
 grammar::TopLevelDefinition *resolve_by_name_hash(
@@ -188,7 +188,7 @@ OutputTypeResult output_type(
         false, // allow_tag
         true // force_size
       );
-      result.main_size = sizeof(svf::Reference<void>);
+      result.main_size = sizeof(svf::runtime::Reference<void>);
       return result;
     }
     case grammar::Type::Which::sequence: {
@@ -204,7 +204,7 @@ OutputTypeResult output_type(
         false, // allow_tag
         true // force_size
       );
-      result.main_size = sizeof(svf::Sequence<void>);
+      result.main_size = sizeof(svf::runtime::Sequence<void>);
       return result;
     }
     default: {

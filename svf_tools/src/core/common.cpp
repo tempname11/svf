@@ -2,12 +2,12 @@
 #include "common.hpp"
 
 TypePluralityAndSize get_plurality(
-  Range<svf::META::StructDefinition> structs,
-  Range<svf::META::ChoiceDefinition> choices,
-  svf::META::Type_tag in_tag,
-  svf::META::Type_payload *in_payload
+  Range<svf::Meta::StructDefinition> structs,
+  Range<svf::Meta::ChoiceDefinition> choices,
+  svf::Meta::Type_tag in_tag,
+  svf::Meta::Type_payload *in_payload
 ) {
-  namespace meta = svf::META;
+  namespace meta = svf::Meta;
 
   switch (in_tag) {
     case meta::Type_tag::concrete: {

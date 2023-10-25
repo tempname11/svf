@@ -4,7 +4,7 @@
 
 namespace core::validation {
 
-namespace meta = svf::META;
+namespace meta = svf::Meta;
 
 bool has_higher_dependencies(
   Range<UInt> assigned_struct_orders,

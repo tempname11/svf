@@ -5,7 +5,7 @@
 #include <src/svf_runtime.hpp>
 #include "../core.hpp"
 
-namespace meta = svf::META;
+namespace meta = svf::Meta;
 
 struct CommandLineOptions {
   enum class Subcommand {

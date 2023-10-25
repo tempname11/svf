@@ -1,4 +1,4 @@
-#name META
+#name Meta
 
 SchemaDefinition: struct {
   nameHash: U64;

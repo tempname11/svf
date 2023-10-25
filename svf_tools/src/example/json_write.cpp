@@ -16,12 +16,12 @@ void example_write(FILE *file) {
   JSON::Field fields[2] = {};
 
   // TODO: null-termination is not what we want.
-  fields[0].name = RT::write_fixed_size_string<svf::U8>(&ctx, "hello");
+  fields[0].name = RT::write_fixed_size_string<uint8_t>(&ctx, "hello");
   fields[0].value_tag = JSON::Value_tag::number;
   fields[0].value_payload.number = 42.0;
 
   // TODO: null-termination is not what we want.
-  fields[1].name = RT::write_fixed_size_string<svf::U8>(&ctx, "world");
+  fields[1].name = RT::write_fixed_size_string<uint8_t>(&ctx, "world");
   fields[1].value_tag = JSON::Value_tag::array;
   for (int i = 0; i < 42; i++) {
     JSON::Item item = {};

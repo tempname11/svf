@@ -13,59 +13,40 @@
   #include "svf_runtime.h"
 #endif
 
-//
-
 namespace svf {
+namespace runtime {
 
 #ifndef SVF_COMMON_CPP_TYPES_INCLUDED
 #define SVF_COMMON_CPP_TYPES_INCLUDED
-using U8 = uint8_t;
-using U16 = uint16_t;
-using U32 = uint32_t;
-using U64 = uint64_t;
-
-using I8 = int8_t;
-using I16 = int16_t;
-using I32 = int32_t;
-using I64 = int64_t;
-
-using F32 = float;
-using F64 = double;
-
 #pragma pack(push, 1)
 
 template<typename T>
 struct Reference {
-  U32 data_offset_complement;
+  uint32_t data_offset_complement;
 };
 
 template<typename T>
 struct Sequence {
-  U32 data_offset_complement;
-  U32 count;
+  uint32_t data_offset_complement;
+  uint32_t count;
 };
+
+template<typename T> struct GetSchemaFromType;
 
 #pragma pack(pop)
 #endif // SVF_COMMON_CPP_TYPES_INCLUDED
 
-#ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
-#define SVF_COMMON_CPP_TRICKERY_INCLUDED
-template<typename T> struct GetSchemaFromType;
-#endif // SVF_COMMON_CPP_TRICKERY_INCLUDED
-
 template<typename T> struct IsPrimitive { using No = char; };
-template<> struct IsPrimitive<U8> { using Yes = char; };
-template<> struct IsPrimitive<U16> { using Yes = char; };
-template<> struct IsPrimitive<U32> { using Yes = char; };
-template<> struct IsPrimitive<U64> { using Yes = char; };
-template<> struct IsPrimitive<I8> { using Yes = char; };
-template<> struct IsPrimitive<I16> { using Yes = char; };
-template<> struct IsPrimitive<I32> { using Yes = char; };
-template<> struct IsPrimitive<I64> { using Yes = char; };
-template<> struct IsPrimitive<F32> { using Yes = char; };
-template<> struct IsPrimitive<F64> { using Yes = char; };
-
-namespace runtime {
+template<> struct IsPrimitive<uint8_t> { using Yes = char; };
+template<> struct IsPrimitive<uint16_t> { using Yes = char; };
+template<> struct IsPrimitive<uint32_t> { using Yes = char; };
+template<> struct IsPrimitive<uint64_t> { using Yes = char; };
+template<> struct IsPrimitive<int8_t> { using Yes = char; };
+template<> struct IsPrimitive<int16_t> { using Yes = char; };
+template<> struct IsPrimitive<int32_t> { using Yes = char; };
+template<> struct IsPrimitive<int64_t> { using Yes = char; };
+template<> struct IsPrimitive<float> { using Yes = char; };
+template<> struct IsPrimitive<double> { using Yes = char; };
 
 constexpr size_t MESSAGE_PART_ALIGNMENT = SVFRT_MESSAGE_PART_ALIGNMENT;
 typedef SVFRT_MessageHeader MessageHeader;
@@ -73,10 +54,10 @@ static_assert(sizeof(MessageHeader) % MESSAGE_PART_ALIGNMENT == 0);
 
 template<typename T> struct Range {
   T *pointer;
-  U32 count;
+  uint32_t count;
 };
 
-typedef Range<U8> Bytes;
+typedef Range<uint8_t> Bytes;
 typedef SVFRT_ReadContext ReadContext;
 typedef SVFRT_AllocatorFn AllocatorFn;
 typedef SVFRT_WriterFn WriterFn;
@@ -105,21 +86,21 @@ template<typename T> struct WriteContext: SVFRT_WriteContext {};
 template<typename Entry>
 static inline
 ReadMessageResult<Entry> read_message(
-  Range<U8> message,
-  Range<U8> scratch,
+  Range<uint8_t> message,
+  Range<uint8_t> scratch,
   CompatibilityLevel required_level,
   AllocatorFn *allocator_fn = NULL,
   void *allocator_ptr = NULL,
   SchemaLookupFn *schema_lookup_fn = NULL,
   void *schema_lookup_ptr = NULL
 ) noexcept {
-  using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
+  using SchemaDescription = typename svf::runtime::GetSchemaFromType<Entry>::SchemaDescription;
   SVFRT_ReadMessageParams params;
   SVFRT_ReadMessageResult result;
   params.expected_schema_content_hash = SchemaDescription::content_hash;
-  params.expected_schema_struct_strides.pointer = (U32 *) SchemaDescription::schema_struct_strides;
+  params.expected_schema_struct_strides.pointer = (uint32_t *) SchemaDescription::schema_struct_strides;
   params.expected_schema_struct_strides.count = SchemaDescription::schema_struct_count;
-  params.expected_schema.pointer = (U8 *) SchemaDescription::schema_binary_array;
+  params.expected_schema.pointer = (uint8_t *) SchemaDescription::schema_binary_array;
   params.expected_schema.count = SchemaDescription::schema_binary_size;
   params.required_level = (SVFRT_CompatibilityLevel) required_level;
   params.entry_struct_name_hash = SchemaDescription::template PerType<Entry>::name_hash,
@@ -188,9 +169,9 @@ static inline
 T const *read_sequence_element(
   ReadContext *ctx,
   Sequence<T> sequence,
-  U32 element_index
+  uint32_t element_index
 ) noexcept {
-  using SchemaDescription = typename svf::GetSchemaFromType<T>::SchemaDescription;
+  using SchemaDescription = typename svf::runtime::GetSchemaFromType<T>::SchemaDescription;
   return (T const *) SVFRT_read_sequence_element(
     ctx,
     SVFRT_Sequence { sequence.data_offset_complement, sequence.count },
@@ -205,7 +186,7 @@ WriteContext<Entry> write_start(
   WriterFn *writer_fn,
   void *writer_ptr
 ) noexcept {
-  using SchemaDescription = typename svf::GetSchemaFromType<Entry>::SchemaDescription;
+  using SchemaDescription = typename svf::runtime::GetSchemaFromType<Entry>::SchemaDescription;
   WriteContext<Entry> ctx_value = {};
   SVFRT_write_start(
     &ctx_value,
@@ -242,7 +223,7 @@ static inline
 Sequence<T> write_sequence(
   WriteContext<E> *ctx,
   T const *pointer,
-  U32 count
+  uint32_t count
 ) noexcept {
   auto result = SVFRT_write_sequence(ctx, (void *) pointer, sizeof(T), count);
   return {
@@ -257,7 +238,7 @@ Sequence<T> write_fixed_size_array(
   WriteContext<E> *ctx,
   T const (&array)[N]
 ) noexcept {
-  return write_sequence(ctx, (T const *) array, (U32) N);
+  return write_sequence(ctx, (T const *) array, (uint32_t) N);
 }
 
 // Same as `write_fixed_size_array`, but with casting. Intended for use with
@@ -271,7 +252,7 @@ Sequence<S> write_fixed_size_string(
   static_assert(sizeof(typename IsPrimitive<S>::Yes) > 0);
   static_assert(sizeof(S) == sizeof(T));
 
-  return write_sequence(ctx, (S const *) array, (U32) N);
+  return write_sequence(ctx, (S const *) array, (uint32_t) N);
 }
 
 template<typename T, typename E>

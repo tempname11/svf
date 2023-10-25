@@ -15,23 +15,23 @@ void output_struct_declaration(Ctx ctx, meta::StructDefinition *it) {
 void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "enum class ");
   output_u8_array(ctx, it->name);
-  output_cstring(ctx, "_tag: U8;\n");
+  output_cstring(ctx, "_tag: uint8_t;\n");
 
   output_cstring(ctx, "union ");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_payload;\n");
 }
 
-void output_struct_index(Ctx ctx, svf::Sequence<U8> name, U32 index) {
-  output_cstring(ctx, "U32 const ");
+void output_struct_index(Ctx ctx, svf::runtime::Sequence<U8> name, U32 index) {
+  output_cstring(ctx, "uint32_t const ");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_struct_index = ");
   output_decimal(ctx, index);
   output_cstring(ctx, ";\n");
 }
 
-void output_name_hash(Ctx ctx, svf::Sequence<U8> name, U64 hash) {
-  output_cstring(ctx, "U64 const ");
+void output_name_hash(Ctx ctx, svf::runtime::Sequence<U8> name, U64 hash) {
+  output_cstring(ctx, "uint64_t const ");
   output_u8_array(ctx, name);
   output_cstring(ctx, "_name_hash = 0x");
   output_hexadecimal(ctx, hash);
@@ -55,43 +55,43 @@ void output_concrete_type_name(
       break;
     }
     case meta::ConcreteType_tag::u8: {
-      output_cstring(ctx, "U8");
+      output_cstring(ctx, "uint8_t");
       break;
     }
     case meta::ConcreteType_tag::u16: {
-      output_cstring(ctx, "U16");
+      output_cstring(ctx, "uint16_t");
       break;
     }
     case meta::ConcreteType_tag::u32: {
-      output_cstring(ctx, "U32");
+      output_cstring(ctx, "uint32_t");
       break;
     }
     case meta::ConcreteType_tag::u64: {
-      output_cstring(ctx, "U64");
+      output_cstring(ctx, "uint64_t");
       break;
     }
     case meta::ConcreteType_tag::i8: {
-      output_cstring(ctx, "I8");
+      output_cstring(ctx, "int8_t");
       break;
     }
     case meta::ConcreteType_tag::i16: {
-      output_cstring(ctx, "I16");
+      output_cstring(ctx, "int16_t");
       break;
     }
     case meta::ConcreteType_tag::i32: {
-      output_cstring(ctx, "I32");
+      output_cstring(ctx, "int32_t");
       break;
     }
     case meta::ConcreteType_tag::i64: {
-      output_cstring(ctx, "I64");
+      output_cstring(ctx, "int64_t");
       break;
     }
     case meta::ConcreteType_tag::f32: {
-      output_cstring(ctx, "F32");
+      output_cstring(ctx, "float");
       break;
     }
     case meta::ConcreteType_tag::f64: {
-      output_cstring(ctx, "F64");
+      output_cstring(ctx, "double");
       break;
     }
     default: {
@@ -111,7 +111,7 @@ void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload)
       break;
     }
     case meta::Type_tag::reference: {
-      output_cstring(ctx, "Reference<");
+      output_cstring(ctx, "runtime::Reference<");
       output_concrete_type_name(
         ctx,
         in_payload->concrete.type_tag,
@@ -121,7 +121,7 @@ void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload)
       break;
     }
     case meta::Type_tag::sequence: {
-      output_cstring(ctx, "Sequence<");
+      output_cstring(ctx, "runtime::Sequence<");
       output_concrete_type_name(
         ctx,
         in_payload->concrete.type_tag,
@@ -223,7 +223,7 @@ Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
   output_cstring(ctx, "enum class ");
   output_u8_array(ctx, it->name);
   static_assert(SVFRT_TAG_SIZE == 1);
-  output_cstring(ctx, "_tag: U8 {\n");
+  output_cstring(ctx, "_tag: uint8_t {\n");
 
   auto options = to_range(ctx->schema_bytes, it->options);
   UInt size_max = 0;
@@ -283,46 +283,27 @@ namespace svf {
 
 #ifndef SVF_COMMON_CPP_TYPES_INCLUDED
 #define SVF_COMMON_CPP_TYPES_INCLUDED
-
-using U8 = uint8_t;
-using U16 = uint16_t;
-using U32 = uint32_t;
-using U64 = uint64_t;
-
-using I8 = int8_t;
-using I16 = int16_t;
-using I32 = int32_t;
-using I64 = int64_t;
-
-using F32 = float;
-using F64 = double;
-
 #pragma pack(push, 1)
+namespace runtime {
 
 template<typename T>
 struct Reference {
-  U32 data_offset_complement;
+  uint32_t data_offset_complement;
 };
 
 template<typename T>
 struct Sequence {
-  U32 data_offset_complement;
-  U32 count;
+  uint32_t data_offset_complement;
+  uint32_t count;
 };
 
+template<typename T> struct GetSchemaFromType;
+
+} // namespace runtime
 #pragma pack(pop)
 #endif // SVF_COMMON_CPP_TYPES_INCLUDED
 
-#ifndef SVF_COMMON_CPP_TRICKERY_INCLUDED
-#define SVF_COMMON_CPP_TRICKERY_INCLUDED
-
-template<typename T>
-struct GetSchemaFromType;
-
-#endif // SVF_COMMON_CPP_TRICKERY_INCLUDED
-
 )";
-
 
 Bytes as_code(
   vm::LinearArena *arena,
@@ -356,7 +337,7 @@ Bytes as_code(
   output_cstring(ctx, "#pragma pack(push, 1)\n");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "extern U32 const struct_strides[];\n");
+  output_cstring(ctx, "extern uint32_t const struct_strides[];\n");
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "namespace binary {\n");
@@ -364,7 +345,7 @@ Bytes as_code(
   output_decimal(ctx, schema_bytes.count);
   output_cstring(ctx, ";\n");
 
-  output_cstring(ctx, "  extern U8 const array[];\n");
+  output_cstring(ctx, "  extern uint8_t const array[];\n");
   output_cstring(ctx, "} // namespace binary\n");
 
   output_cstring(ctx, "\n// Forward declarations.\n");
@@ -418,28 +399,28 @@ Bytes as_code(
   template<typename T>
   struct PerType;
 
-  static constexpr U32 *schema_struct_strides = (U32 *) struct_strides;
-  static constexpr U8 *schema_binary_array = (U8 *) binary::array;
+  static constexpr uint32_t *schema_struct_strides = (uint32_t *) struct_strides;
+  static constexpr uint8_t *schema_binary_array = (uint8_t *) binary::array;
   static constexpr size_t schema_binary_size = binary::size;)");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "  static constexpr U32 schema_struct_count = ");
+  output_cstring(ctx, "  static constexpr uint32_t schema_struct_count = ");
   output_decimal(ctx, structs.count);
   output_cstring(ctx, ";\n");
 
-  output_cstring(ctx, "  static constexpr U32 min_read_scratch_memory_size = ");
+  output_cstring(ctx, "  static constexpr uint32_t min_read_scratch_memory_size = ");
   output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
   output_cstring(ctx, ";\n");
 
-  output_cstring(ctx, "  static constexpr U32 compatibility_work_base = ");
+  output_cstring(ctx, "  static constexpr uint32_t compatibility_work_base = ");
   output_decimal(ctx, get_compatibility_work_base(schema_bytes));
   output_cstring(ctx, ";\n");
 
-  output_cstring(ctx, "  static constexpr U64 name_hash = 0x");
+  output_cstring(ctx, "  static constexpr uint64_t name_hash = 0x");
   output_hexadecimal(ctx, schema_definition->nameHash);
   output_cstring(ctx, "ull;\n");
 
-  output_cstring(ctx, "  static constexpr U64 content_hash = 0x");
+  output_cstring(ctx, "  static constexpr uint64_t content_hash = 0x");
   output_hexadecimal(ctx, get_content_hash(schema_bytes));
   output_cstring(ctx, "ull;\n");
 
@@ -452,9 +433,9 @@ Bytes as_code(
     auto it = structs.pointer + i;
     output_cstring(ctx, "template<>\nstruct SchemaDescription::PerType<");
     output_u8_array(ctx, it->name);
-    output_cstring(ctx, "> {\n  static constexpr U64 name_hash = ");
+    output_cstring(ctx, "> {\n  static constexpr uint64_t name_hash = ");
     output_u8_array(ctx, it->name);
-    output_cstring(ctx, "_name_hash;\n  static constexpr U32 index = ");
+    output_cstring(ctx, "_name_hash;\n  static constexpr uint32_t index = ");
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "_struct_index;\n");
     output_cstring(ctx, "};\n\n");
@@ -464,6 +445,8 @@ Bytes as_code(
   output_u8_array(ctx, schema_definition->name);
   output_cstring(ctx, "\n\n");
 
+  output_cstring(ctx, "namespace runtime {\n");
+  output_cstring(ctx, "\n");
   output_cstring(ctx, "// C++ trickery: GetSchemaFromType.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
@@ -475,6 +458,9 @@ Bytes as_code(
     output_u8_array(ctx, schema_definition->name);
     output_cstring(ctx, "::SchemaDescription;\n};\n\n");
   }
+
+  output_cstring(ctx, "} // namespace runtime\n");
+  output_cstring(ctx, "\n");
 
   // Note: ".h" and ".hpp" generated files currently embed the binary schema
   // separately, and if a program uses both for some reason, it will have to
@@ -491,7 +477,7 @@ Bytes as_code(
   output_cstring(ctx, " {\n");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "U32 const struct_strides[] = {\n");
+  output_cstring(ctx, "uint32_t const struct_strides[] = {\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     if (i != 0) {
@@ -507,7 +493,7 @@ Bytes as_code(
   output_cstring(ctx, "namespace binary {\n");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "U8 const array[] = {\n");
+  output_cstring(ctx, "uint8_t const array[] = {\n");
   output_raw_bytes(ctx, schema_bytes);
   output_cstring(ctx, "};\n");
 

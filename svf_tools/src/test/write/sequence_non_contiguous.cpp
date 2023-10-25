@@ -13,7 +13,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     auto ctx = svf::runtime::write_start<schema::Entry>(test_write, 0);
 
     schema::SomeStruct x = {};
-    svf::Sequence<schema::SomeStruct> sequence = {};
+    svf::runtime::Sequence<schema::SomeStruct> sequence = {};
 
     svf::runtime::write_sequence_element(&ctx, &x, &sequence);
     ASSERT(ctx.error_code == 0);
@@ -30,7 +30,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     auto ctx = svf::runtime::write_start<schema::Entry>(test_write, 0);
 
     schema::SomeStruct x = {};
-    svf::Sequence<schema::SomeStruct> sequence = {};
+    svf::runtime::Sequence<schema::SomeStruct> sequence = {};
 
     svf::runtime::write_sequence_element(&ctx, &x, &sequence);
     ASSERT(ctx.error_code == 0);
