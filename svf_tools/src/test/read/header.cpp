@@ -113,7 +113,7 @@ int main(int /*argc*/, char */*argv*/[]) {
       svf::runtime::CompatibilityLevel::compatibility_exact
     );
 
-    ASSERT(read_result.error_code == SVFRT_code_read__entry_struct_name_hash_mismatch);
+    ASSERT(read_result.error_code == SVFRT_code_read__entry_struct_id_mismatch);
   }
 
   // Fail when schema is specified as out of bounds.

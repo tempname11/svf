@@ -17,7 +17,7 @@ int main(int /*argc*/, char */*argv*/[]) {
   default_read_params.expected_schema_struct_strides = { .pointer = strides_dst, .count = 1 };
   default_read_params.expected_schema = schema_dst.schema;
   default_read_params.required_level = SVFRT_compatibility_logical;
-  default_read_params.entry_struct_name_hash = schema_dst.entry_struct_name_hash;
+  default_read_params.entry_struct_id = schema_dst.entry_struct_id;
   default_read_params.entry_struct_index = 0;
   default_read_params.max_schema_work = SVFRT_NO_SIZE_LIMIT;
   default_read_params.max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH;
@@ -80,13 +80,13 @@ int main(int /*argc*/, char */*argv*/[]) {
     // Use identical schemas.
     auto schema_src = schema_dst;
     schema_src.schema_content_hash += 1; // Ensure mismatch.
-    schema_src.entry_struct_name_hash = 0xDEAD; // Force header to contain the new hash.
+    schema_src.entry_struct_id = 0xDEAD; // Force header to contain the new hash.
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
-    read_params.entry_struct_name_hash = 0xDEAD;
+    read_params.entry_struct_id = 0xDEAD;
     SVFRT_read_message(&read_params, &read_result, message, scratch);
-    ASSERT(read_result.error_code == SVFRT_code_compatibility__entry_struct_name_hash_not_found);
+    ASSERT(read_result.error_code == SVFRT_code_compatibility__entry_struct_id_not_found);
   }
 
   // Success.

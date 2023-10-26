@@ -73,7 +73,7 @@ U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
     for (UInt j = 0; j < structs_src.count; j++) {
       auto definition_src = structs_src.pointer + j;
 
-      if (definition_dst->nameHash != definition_src->nameHash) {
+      if (definition_dst->typeId != definition_src->typeId) {
         continue;
       }
 

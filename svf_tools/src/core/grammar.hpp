@@ -67,25 +67,25 @@ struct Type {
 
 struct FieldDefinition {
   Range<U8> name;
-  U64 name_hash;
+  U64 name_hash; // Now called "fieldId" in the metaschema.
   Type type;
 };
 
 struct OptionDefinition {
   Range<U8> name;
-  U64 name_hash;
+  U64 name_hash; // Now called "optionId" in the metaschema.
   Type type;
 };
 
 struct StructDefinition {
   Range<U8> name;
-  U64 name_hash;
+  U64 name_hash; // Now called "typeId" in the metaschema.
   Range<FieldDefinition> fields;
 };
 
 struct ChoiceDefinition {
   Range<U8> name;
-  U64 name_hash;
+  U64 name_hash; // Now called "typeId" in the metaschema.
   Range<OptionDefinition> options;
 };
 
@@ -103,7 +103,7 @@ struct TopLevelDefinition {
 
 struct Root {
   Range<U8> schema_name;
-  U64 schema_name_hash;
+  U64 schema_name_hash; // Now called "schemaId" in the metaschema.
   Range<TopLevelDefinition> definitions;
 };
 

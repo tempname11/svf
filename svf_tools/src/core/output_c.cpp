@@ -45,13 +45,13 @@ void output_struct_index(Ctx ctx, svf::runtime::Sequence<U8> name, U32 index) {
   output_cstring(ctx, "\n");
 }
 
-void output_name_hash(Ctx ctx, svf::runtime::Sequence<U8> name, U64 hash) {
+void output_type_id(Ctx ctx, svf::runtime::Sequence<U8> name, U64 type_id) {
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, ctx->schema_definition->name);
   output_cstring(ctx, "_");
   output_u8_array(ctx, name);
-  output_cstring(ctx, "_name_hash 0x");
-  output_hexadecimal(ctx, hash);
+  output_cstring(ctx, "_type_id 0x");
+  output_hexadecimal(ctx, type_id);
   output_cstring(ctx, "ull\n");
 }
 
@@ -379,8 +379,8 @@ typedef struct SVFRT_Sequence {
 
   output_cstring(ctx, "#define SVF_");
   output_u8_array(ctx, schema_definition->name);
-  output_cstring(ctx, "_schema_name_hash 0x");
-  output_hexadecimal(ctx, schema_definition->nameHash);
+  output_cstring(ctx, "_schema_id 0x");
+  output_hexadecimal(ctx, schema_definition->schemaId);
   output_cstring(ctx, "ull\n");
 
   output_cstring(ctx, "#define SVF_");
@@ -425,11 +425,11 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "\n// Hashes of top level definition names.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_name_hash(ctx, it->name, it->nameHash);
+    output_type_id(ctx, it->name, it->typeId);
   }
   for (UInt i = 0; i < choices.count; i++) {
     auto it = choices.pointer + i;
-    output_name_hash(ctx, it->name, it->nameHash);
+    output_type_id(ctx, it->name, it->typeId);
   }
 
   output_cstring(ctx, "\n// Full declarations.\n");

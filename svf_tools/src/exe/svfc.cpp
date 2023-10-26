@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
       (void *) output_file,
       svf::Meta::_SchemaDescription::content_hash,
       {}, // Omit the schema part (here, the meta-schema).
-      svf::Meta::SchemaDefinition_name_hash
+      svf::Meta::SchemaDefinition_type_id
     );
 
     // Write the data part (here, the input schema).

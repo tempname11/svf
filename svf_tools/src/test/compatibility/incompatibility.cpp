@@ -16,7 +16,7 @@ int main(int /*argc*/, char */*argv*/[]) {
   default_read_params.expected_schema_struct_strides = { .pointer = strides_dst, .count = 1 };
   default_read_params.expected_schema = schema_dst.schema;
   default_read_params.required_level = SVFRT_compatibility_binary;
-  default_read_params.entry_struct_name_hash = schema_dst.entry_struct_name_hash;
+  default_read_params.entry_struct_id = schema_dst.entry_struct_id;
   default_read_params.entry_struct_index = 0;
   default_read_params.max_schema_work = UINT32_MAX;
   default_read_params.max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH;
@@ -36,7 +36,7 @@ int main(int /*argc*/, char */*argv*/[]) {
 
   // Fail, when src-entry-struct has different fields to dst-entry-struct.
   {
-    PreparedSchemaParams prepare_params = { .change_field_name_hashes = true };
+    PreparedSchemaParams prepare_params = { .change_field_ids = true };
     auto schema_src = prepare_schema(arena, &prepare_params);
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
@@ -57,7 +57,7 @@ int main(int /*argc*/, char */*argv*/[]) {
 
   // Fail, when a reachable src-choice has different options to the corresponding dst-choice.
   {
-    PreparedSchemaParams prepare_params = { .change_option_name_hashes = true };
+    PreparedSchemaParams prepare_params = { .change_option_ids = true };
     auto schema_src = prepare_schema(arena, &prepare_params);
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};

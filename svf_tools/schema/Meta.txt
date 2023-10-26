@@ -1,35 +1,35 @@
 #name Meta
 
 SchemaDefinition: struct {
-  nameHash: U64;
+  schemaId: U64;
   name: U8[];
   structs: StructDefinition[];
   choices: ChoiceDefinition[];
 };
 
 ChoiceDefinition: struct {
-  nameHash: U64;
+  typeId: U64;
   name: U8[];
   payloadSize: U32;
   options: OptionDefinition[];
 };
 
 OptionDefinition: struct {
-  nameHash: U64;
+  optionId: U64;
   name: U8[];
   tag: U8;
   type: Type;
 };
 
 StructDefinition: struct {
-  nameHash: U64;
+  typeId: U64;
   name: U8[];
   size: U32;
   fields: FieldDefinition[];
 };
 
 FieldDefinition: struct {
-  nameHash: U64;
+  fieldId: U64;
   name: U8[];
   offset: U32;
   type: Type;

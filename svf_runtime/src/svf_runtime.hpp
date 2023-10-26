@@ -103,7 +103,7 @@ ReadMessageResult<Entry> read_message(
   params.expected_schema.pointer = (uint8_t *) SchemaDescription::schema_binary_array;
   params.expected_schema.count = SchemaDescription::schema_binary_size;
   params.required_level = (SVFRT_CompatibilityLevel) required_level;
-  params.entry_struct_name_hash = SchemaDescription::template PerType<Entry>::name_hash,
+  params.entry_struct_id = SchemaDescription::template PerType<Entry>::type_id,
   params.entry_struct_index = SchemaDescription::template PerType<Entry>::index,
   params.max_schema_work = SchemaDescription::compatibility_work_base * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR;
   params.max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH;
@@ -194,7 +194,7 @@ WriteContext<Entry> write_start(
     writer_ptr,
     SchemaDescription::content_hash,
     { SchemaDescription::schema_binary_array, SchemaDescription::schema_binary_size },
-    SchemaDescription::template PerType<Entry>::name_hash
+    SchemaDescription::template PerType<Entry>::type_id
   );
   return ctx_value;
 }

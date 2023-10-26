@@ -375,7 +375,7 @@ void SVFRT_conversion_traverse_struct(
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
       SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
-      if (unsafe_field_src->nameHash != field_dst->nameHash) {
+      if (unsafe_field_src->fieldId != field_dst->fieldId) {
         continue;
       }
 
@@ -565,7 +565,7 @@ void SVFRT_conversion_traverse_concrete_type(
         for (uint32_t j = 0; j < options_dst.count; j++) {
           SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
 
-          if (option_dst->nameHash != unsafe_option_src->nameHash) {
+          if (option_dst->optionId != unsafe_option_src->optionId) {
             continue;
           }
 

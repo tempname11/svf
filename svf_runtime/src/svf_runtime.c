@@ -62,8 +62,8 @@ void SVFRT_read_message(
   }
 
   // Make sure the declared entry is the same as we expect.
-  if (header->entry_struct_name_hash != params->entry_struct_name_hash) {
-    out_result->error_code = SVFRT_code_read__entry_struct_name_hash_mismatch;
+  if (header->entry_struct_id != params->entry_struct_id) {
+    out_result->error_code = SVFRT_code_read__entry_struct_id_mismatch;
     return;
   }
 
@@ -121,7 +121,7 @@ void SVFRT_read_message(
       scratch,
       schema_range,
       params->expected_schema,
-      params->entry_struct_name_hash,
+      params->entry_struct_id,
       params->required_level,
       SVFRT_compatibility_exact, // `sufficient_level`.
       params->max_schema_work
@@ -205,14 +205,14 @@ void SVFRT_write_start(
   void *writer_ptr,
   uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
-  uint64_t entry_struct_name_hash
+  uint64_t entry_struct_id
 ) {
   SVFRT_MessageHeader header = {
     /*.magic =*/ { 'S', 'V', 'F' },
     /*.version =*/ 0,
     /*.schema_length =*/ (uint32_t) schema_bytes.count,
     /*.schema_content_hash =*/ schema_content_hash,
-    /*.entry_struct_name_hash =*/ entry_struct_name_hash
+    /*.entry_struct_id =*/ entry_struct_id
   };
 
   SVFRT_Bytes header_bytes = {

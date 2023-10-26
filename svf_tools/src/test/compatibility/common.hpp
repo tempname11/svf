@@ -9,7 +9,7 @@ void *allocate_arena(void *it, size_t size);
 struct PreparedSchema {
   SVFRT_Bytes schema;
   U64 schema_content_hash;
-  U64 entry_struct_name_hash;
+  U64 entry_struct_id;
   U32 entry_stride;
 };
 
@@ -25,9 +25,9 @@ struct PreparedSchemaParams {
   U32 extra_fields;
   U32 extra_options;
   bool less_fields;
-  bool change_field_name_hashes;
+  bool change_field_ids;
   bool change_field_offsets;
-  bool change_option_name_hashes;
+  bool change_option_ids;
   bool change_option_tags;
   bool change_type_tag;
   bool change_concrete_type_tag;

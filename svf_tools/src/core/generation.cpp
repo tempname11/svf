@@ -389,7 +389,7 @@ GenerationResult as_bytes(
           range_copy(out_name, in_field->name);
 
           *out_field = Meta::FieldDefinition {
-            .nameHash = in_field->name_hash,
+            .fieldId = in_field->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
@@ -429,7 +429,7 @@ GenerationResult as_bytes(
         range_copy(out_name, in_struct->name);
 
         *out_struct = Meta::StructDefinition {
-          .nameHash = in_struct->name_hash,
+          .typeId = in_struct->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
@@ -461,7 +461,7 @@ GenerationResult as_bytes(
           range_copy(out_name, in_option->name);
 
           *out_option = Meta::OptionDefinition {
-            .nameHash = in_option->name_hash,
+            .optionId = in_option->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
               .count = safe_int_cast<U32>(out_name.count),
@@ -500,7 +500,7 @@ GenerationResult as_bytes(
         range_copy(out_name, in_choice->name);
 
         *out_choice = Meta::ChoiceDefinition {
-          .nameHash = in_choice->name_hash,
+          .typeId = in_choice->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
             .count = safe_int_cast<U32>(out_name.count),
@@ -522,7 +522,7 @@ GenerationResult as_bytes(
 
   auto out_definition = vm::one<Meta::SchemaDefinition>(arena);
   *out_definition = Meta::SchemaDefinition {
-    .nameHash = in_root->schema_name_hash,
+    .schemaId = in_root->schema_name_hash,
     .name = {
       .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
       .count = safe_int_cast<U32>(out_name.count),

@@ -30,11 +30,11 @@ void output_struct_index(Ctx ctx, svf::runtime::Sequence<U8> name, U32 index) {
   output_cstring(ctx, ";\n");
 }
 
-void output_name_hash(Ctx ctx, svf::runtime::Sequence<U8> name, U64 hash) {
+void output_type_id(Ctx ctx, svf::runtime::Sequence<U8> name, U64 type_id) {
   output_cstring(ctx, "uint64_t const ");
   output_u8_array(ctx, name);
-  output_cstring(ctx, "_name_hash = 0x");
-  output_hexadecimal(ctx, hash);
+  output_cstring(ctx, "_type_id = 0x");
+  output_hexadecimal(ctx, type_id);
   output_cstring(ctx, "ull;\n");
 }
 
@@ -367,11 +367,11 @@ Bytes as_code(
   output_cstring(ctx, "\n// Hashes of top level definition names.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_name_hash(ctx, it->name, it->nameHash);
+    output_type_id(ctx, it->name, it->typeId);
   }
   for (UInt i = 0; i < choices.count; i++) {
     auto it = choices.pointer + i;
-    output_name_hash(ctx, it->name, it->nameHash);
+    output_type_id(ctx, it->name, it->typeId);
   }
 
   output_cstring(ctx, "\n// Full declarations.\n");
@@ -416,8 +416,8 @@ Bytes as_code(
   output_decimal(ctx, get_compatibility_work_base(schema_bytes));
   output_cstring(ctx, ";\n");
 
-  output_cstring(ctx, "  static constexpr uint64_t name_hash = 0x");
-  output_hexadecimal(ctx, schema_definition->nameHash);
+  output_cstring(ctx, "  static constexpr uint64_t schema_id = 0x");
+  output_hexadecimal(ctx, schema_definition->schemaId);
   output_cstring(ctx, "ull;\n");
 
   output_cstring(ctx, "  static constexpr uint64_t content_hash = 0x");
@@ -433,9 +433,9 @@ Bytes as_code(
     auto it = structs.pointer + i;
     output_cstring(ctx, "template<>\nstruct _SchemaDescription::PerType<");
     output_u8_array(ctx, it->name);
-    output_cstring(ctx, "> {\n  static constexpr uint64_t name_hash = ");
+    output_cstring(ctx, "> {\n  static constexpr uint64_t type_id = ");
     output_u8_array(ctx, it->name);
-    output_cstring(ctx, "_name_hash;\n  static constexpr uint32_t index = ");
+    output_cstring(ctx, "_type_id;\n  static constexpr uint32_t index = ");
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "_struct_index;\n");
     output_cstring(ctx, "};\n\n");

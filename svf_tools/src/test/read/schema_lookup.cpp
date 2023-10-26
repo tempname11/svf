@@ -37,7 +37,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     &arena_value,
     schema::_SchemaDescription::content_hash,
     {}, // Empty schema!
-    schema::_SchemaDescription::PerType<schema::Entry>::name_hash
+    schema::_SchemaDescription::PerType<schema::Entry>::type_id
   );
   schema::Entry entry = {};
   svf::runtime::write_finish(&ctx, &entry);

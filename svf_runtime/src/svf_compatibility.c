@@ -360,14 +360,14 @@ void SVFRT_check_struct(
   // TODO: this will be more complicated with @optional-types.
 
   // Logical compatibility: all dst-schema fields must be present in src-schema,
-  // with the same `name_hash`. Their types must be logically compatible.
+  // with the same ID. Their types must be logically compatible.
 
   // Binary compatibility: all dst-schema fields must be present in src-schema, with
-  // the same `name_hash` and `offset`. Their types must be binary compatible.
+  // the same ID and offset. Their types must be binary compatible.
 
   // Exact compatibility: all dst-schema fields must be present in src-schema, with
-  // the same `name_hash` and `offset`. Their types must be exactly compatible.
-  // The sizes of structs must be equal.
+  // the same ID and offset. Their types must be exactly compatible. The sizes
+  // of structs must be equal.
 
   if (unsafe_fields_src.count < fields_dst.count) {
     // Early exit, because we know that at least one field from dst-schema is not
@@ -394,7 +394,7 @@ void SVFRT_check_struct(
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
       SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
-      if (unsafe_field_src->nameHash == field_dst->nameHash) {
+      if (unsafe_field_src->fieldId == field_dst->fieldId) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
           && (unsafe_field_src->offset != field_dst->offset)
@@ -493,13 +493,13 @@ void SVFRT_check_choice(
   // TODO: this will be more complicated with @optional-types.
 
   // Logical compatibility: all src-schema options must be present in dst-schema,
-  // with the same `name_hash`. Their types must be logically compatible.
+  // with the same ID. Their types must be logically compatible.
 
   // Binary compatibility: all src-schema options must be present in dst-schema, with
-  // the same `name_hash` and `index`. Their types must be binary compatible.
+  // the same ID and tag. Their types must be binary compatible.
 
   // Exact compatibility: all src-schema options must be present in dst-schema, with
-  // the same `name_hash` and `index`. Their types must be exactly compatible.
+  // the same ID and tag. Their types must be exactly compatible.
 
   if (options_dst.count < unsafe_options_src.count) {
     // Early exit, because we know that at least one option from src-schema is not
@@ -522,7 +522,7 @@ void SVFRT_check_choice(
     for (uint32_t j = 0; j < options_dst.count; j++) {
       SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
 
-      if (unsafe_option_src->nameHash == option_dst->nameHash) {
+      if (unsafe_option_src->optionId == option_dst->optionId) {
         if (
           (ctx->current_level >= SVFRT_compatibility_binary)
           && (unsafe_option_src->tag != option_dst->tag)
@@ -563,7 +563,7 @@ void SVFRT_check_compatibility(
   SVFRT_Bytes scratch_memory,
   SVFRT_Bytes unsafe_schema_src,
   SVFRT_Bytes schema_dst,
-  uint64_t entry_struct_name_hash,
+  uint64_t entry_struct_id,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_CompatibilityLevel sufficient_level,
   uint32_t max_schema_work
@@ -753,7 +753,7 @@ void SVFRT_check_compatibility(
 
   uint32_t entry_struct_index_src = (uint32_t) (-1);
   for (uint32_t i = 0; i < unsafe_structs_src.count; i++) {
-    if (unsafe_structs_src.pointer[i].nameHash == entry_struct_name_hash) {
+    if (unsafe_structs_src.pointer[i].typeId == entry_struct_id) {
       entry_struct_index_src = i;
       break;
     }
@@ -761,14 +761,14 @@ void SVFRT_check_compatibility(
 
   uint32_t entry_struct_index_dst = (uint32_t) (-1);
   for (uint32_t i = 0; i < structs_dst.count; i++) {
-    if (structs_dst.pointer[i].nameHash == entry_struct_name_hash) {
+    if (structs_dst.pointer[i].typeId == entry_struct_id) {
       entry_struct_index_dst = i;
       break;
     }
   }
 
   if (entry_struct_index_src == (uint32_t) (-1) || entry_struct_index_dst == (uint32_t) (-1)) {
-    out_result->error_code = SVFRT_code_compatibility__entry_struct_name_hash_not_found;
+    out_result->error_code = SVFRT_code_compatibility__entry_struct_id_not_found;
     return;
   }
 

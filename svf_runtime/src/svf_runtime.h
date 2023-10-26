@@ -68,7 +68,7 @@ typedef struct SVFRT_MessageHeader {
   uint8_t version;
   uint32_t schema_length;
   uint64_t schema_content_hash;
-  uint64_t entry_struct_name_hash;
+  uint64_t entry_struct_id;
 } SVFRT_MessageHeader;
 #pragma pack(pop)
 
@@ -117,7 +117,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility__required_level_is_none              0x00010002
 #define SVFRT_code_compatibility__invalid_sufficient_level            0x00010003
 #define SVFRT_code_compatibility__not_enough_scratch_memory           0x00010004
-#define SVFRT_code_compatibility__entry_struct_name_hash_not_found    0x00010005
+#define SVFRT_code_compatibility__entry_struct_id_not_found           0x00010005
 #define SVFRT_code_compatibility__struct_index_mismatch               0x00010006
 #define SVFRT_code_compatibility__invalid_structs                     0x00010007
 #define SVFRT_code_compatibility__invalid_choices                     0x00010008
@@ -186,7 +186,7 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_read__header_not_aligned                           0x00050002
 #define SVFRT_code_read__header_magic_mismatch                        0x00050003
 #define SVFRT_code_read__header_version_mismatch                      0x00050004
-#define SVFRT_code_read__entry_struct_name_hash_mismatch              0x00050005
+#define SVFRT_code_read__entry_struct_id_mismatch                     0x00050005
 #define SVFRT_code_read__bad_schema_length                            0x00050006
 #define SVFRT_code_read__no_schema_lookup_function                    0x00050007
 #define SVFRT_code_read__schema_lookup_failed                         0x00050008
@@ -222,7 +222,7 @@ typedef struct SVFRT_ReadMessageParams {
   SVFRT_Bytes expected_schema;
   SVFRT_CompatibilityLevel required_level;
 
-  uint64_t entry_struct_name_hash;
+  uint64_t entry_struct_id;
   uint32_t entry_struct_index;
 
   uint32_t max_schema_work;
@@ -273,7 +273,7 @@ void SVFRT_write_start(
   void *writer_ptr,
   uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
-  uint64_t entry_struct_name_hash
+  uint64_t entry_struct_id
 );
 
 static inline
@@ -525,7 +525,7 @@ void const *SVFRT_read_sequence_element(
     (writer_ptr), \
     (schema_name ## _schema_content_hash), \
     (SVFRT_Bytes) { (void *) schema_name ## _schema_binary_array, schema_name ## _schema_binary_size }, \
-    entry_name ## _name_hash \
+    entry_name ## _type_id \
   )
 
 #define SVFRT_WRITE_REFERENCE(ctx, data_ptr) \
@@ -556,7 +556,7 @@ void const *SVFRT_read_sequence_element(
     (out_params)->expected_schema.pointer = (void *) (schema_name ## _schema_binary_array); \
     (out_params)->expected_schema.count = (schema_name ## _schema_binary_size); \
     (out_params)->required_level = SVFRT_compatibility_binary; \
-    (out_params)->entry_struct_name_hash = (entry_name ## _name_hash); \
+    (out_params)->entry_struct_id = (entry_name ## _type_id); \
     (out_params)->entry_struct_index = (entry_name ## _struct_index); \
     (out_params)->max_schema_work = (schema_name ## _compatibility_work_base) * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR; \
     (out_params)->max_recursion_depth = SVFRT_DEFAULT_MAX_RECURSION_DEPTH; \

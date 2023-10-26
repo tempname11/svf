@@ -89,7 +89,7 @@ void SVFRT_check_compatibility(
   SVFRT_Bytes scratch_memory,
   SVFRT_Bytes unsafe_schema_src,
   SVFRT_Bytes schema_dst,
-  uint64_t entry_struct_name_hash,
+  uint64_t entry_struct_id,
   SVFRT_CompatibilityLevel required_level,
   SVFRT_CompatibilityLevel sufficient_level,
   uint32_t max_schema_work
