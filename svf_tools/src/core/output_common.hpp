@@ -9,7 +9,7 @@ namespace core::output {
 
 struct OutputContext {
   vm::LinearArena *dedicated_arena;
-  meta::SchemaDefinition *schema_definition;
+  Meta::SchemaDefinition *schema_definition;
   Bytes schema_bytes;
 };
 

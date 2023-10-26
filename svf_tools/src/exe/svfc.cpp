@@ -7,8 +7,6 @@
 #include <src/svf_stdio.h>
 #include "../core.hpp"
 
-namespace meta = svf::Meta;
-
 struct CommandLineOptions {
   enum class Subcommand {
     unknown = 0,

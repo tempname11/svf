@@ -6,13 +6,13 @@
 
 namespace core::output::cpp {
 
-void output_struct_declaration(Ctx ctx, meta::StructDefinition *it) {
+void output_struct_declaration(Ctx ctx, Meta::StructDefinition *it) {
   output_cstring(ctx, "struct ");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, ";\n");
 }
 
-void output_choice_declaration(Ctx ctx, meta::ChoiceDefinition *it) {
+void output_choice_declaration(Ctx ctx, Meta::ChoiceDefinition *it) {
   output_cstring(ctx, "enum class ");
   output_u8_array(ctx, it->name);
   output_cstring(ctx, "_tag: uint8_t;\n");
@@ -40,57 +40,57 @@ void output_name_hash(Ctx ctx, svf::runtime::Sequence<U8> name, U64 hash) {
 
 void output_concrete_type_name(
   Ctx ctx,
-  meta::ConcreteType_tag in_tag,
-  meta::ConcreteType_payload *in_payload
+  Meta::ConcreteType_tag in_tag,
+  Meta::ConcreteType_payload *in_payload
 ) {
   switch (in_tag) {
-    case meta::ConcreteType_tag::definedStruct: {
+    case Meta::ConcreteType_tag::definedStruct: {
       auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
       output_u8_array(ctx, structs.pointer[in_payload->definedStruct.index].name);
       break;
     }
-    case meta::ConcreteType_tag::definedChoice: {
+    case Meta::ConcreteType_tag::definedChoice: {
       auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
       output_u8_array(ctx, choices.pointer[in_payload->definedChoice.index].name);
       break;
     }
-    case meta::ConcreteType_tag::u8: {
+    case Meta::ConcreteType_tag::u8: {
       output_cstring(ctx, "uint8_t");
       break;
     }
-    case meta::ConcreteType_tag::u16: {
+    case Meta::ConcreteType_tag::u16: {
       output_cstring(ctx, "uint16_t");
       break;
     }
-    case meta::ConcreteType_tag::u32: {
+    case Meta::ConcreteType_tag::u32: {
       output_cstring(ctx, "uint32_t");
       break;
     }
-    case meta::ConcreteType_tag::u64: {
+    case Meta::ConcreteType_tag::u64: {
       output_cstring(ctx, "uint64_t");
       break;
     }
-    case meta::ConcreteType_tag::i8: {
+    case Meta::ConcreteType_tag::i8: {
       output_cstring(ctx, "int8_t");
       break;
     }
-    case meta::ConcreteType_tag::i16: {
+    case Meta::ConcreteType_tag::i16: {
       output_cstring(ctx, "int16_t");
       break;
     }
-    case meta::ConcreteType_tag::i32: {
+    case Meta::ConcreteType_tag::i32: {
       output_cstring(ctx, "int32_t");
       break;
     }
-    case meta::ConcreteType_tag::i64: {
+    case Meta::ConcreteType_tag::i64: {
       output_cstring(ctx, "int64_t");
       break;
     }
-    case meta::ConcreteType_tag::f32: {
+    case Meta::ConcreteType_tag::f32: {
       output_cstring(ctx, "float");
       break;
     }
-    case meta::ConcreteType_tag::f64: {
+    case Meta::ConcreteType_tag::f64: {
       output_cstring(ctx, "double");
       break;
     }
@@ -100,9 +100,9 @@ void output_concrete_type_name(
   }
 }
 
-void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload) {
+void output_type(Ctx ctx, Meta::Type_tag in_tag, Meta::Type_payload *in_payload) {
   switch(in_tag) {
-    case meta::Type_tag::concrete: {
+    case Meta::Type_tag::concrete: {
       output_concrete_type_name(
         ctx,
         in_payload->concrete.type_tag,
@@ -110,7 +110,7 @@ void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload)
       );
       break;
     }
-    case meta::Type_tag::reference: {
+    case Meta::Type_tag::reference: {
       output_cstring(ctx, "runtime::Reference<");
       output_concrete_type_name(
         ctx,
@@ -120,7 +120,7 @@ void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload)
       output_cstring(ctx, ">");
       break;
     }
-    case meta::Type_tag::sequence: {
+    case Meta::Type_tag::sequence: {
       output_cstring(ctx, "runtime::Sequence<");
       output_concrete_type_name(
         ctx,
@@ -136,7 +136,7 @@ void output_type(Ctx ctx, meta::Type_tag in_tag, meta::Type_payload *in_payload)
   }
 }
 
-Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
+Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
   auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
   auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
@@ -178,7 +178,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
         break;
       }
       case TypePlurality::tag_and_payload: {
-        if (field->type_tag != meta::Type_tag::concrete) {
+        if (field->type_tag != Meta::Type_tag::concrete) {
           return false;
         }
 
@@ -216,7 +216,7 @@ Bool output_struct(Ctx ctx, meta::StructDefinition *it) {
   return true;
 }
 
-Bool output_choice(Ctx ctx, meta::ChoiceDefinition *it) {
+Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
   auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
@@ -311,10 +311,10 @@ Bytes as_code(
   validation::Result *validation_result
 ) {
   // TODO @proper-alignment.
-  auto schema_definition = (meta::SchemaDefinition *) (
+  auto schema_definition = (Meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
-    sizeof(meta::SchemaDefinition)
+    sizeof(Meta::SchemaDefinition)
   );
 
   auto start = vm::realign(arena);
@@ -379,11 +379,11 @@ Bytes as_code(
   for (UInt i = 0; i < validation_result->ordering.count; i++) {
     auto item = validation_result->ordering.pointer + i;
 
-    if (item->type == meta::ConcreteType_tag::definedStruct) {
+    if (item->type == Meta::ConcreteType_tag::definedStruct) {
       if (!output_struct(ctx, structs.pointer + item->index)) {
         return {};
       }
-    } else if (item->type == meta::ConcreteType_tag::definedChoice) {
+    } else if (item->type == Meta::ConcreteType_tag::definedChoice) {
       if (!output_choice(ctx, choices.pointer + item->index)) {
         return {};
       }

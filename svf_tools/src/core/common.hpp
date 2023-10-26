@@ -4,6 +4,8 @@
 #include <src/svf_runtime.h>
 #include "../core.hpp"
 
+namespace core {
+
 template<typename T>
 inline static
 Range<T> to_range(Bytes bytes, svf::runtime::Sequence<T> sequence) {
@@ -107,3 +109,5 @@ UInt get_min_read_scratch_memory_size(svf::Meta::SchemaDefinition *definition) {
     + definition->choices.count * sizeof(U32) * 3 // Matches, 2x queue.
   );
 }
+
+} // namespace core

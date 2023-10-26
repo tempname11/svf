@@ -4,23 +4,21 @@
 
 namespace core::validation {
 
-namespace meta = svf::Meta;
-
 bool has_higher_dependencies(
   Range<UInt> assigned_struct_orders,
   Range<UInt> assigned_choice_orders,
   UInt current_order,
-  meta::Type_tag in_tag,
-  meta::Type_payload *in_payload
+  Meta::Type_tag in_tag,
+  Meta::Type_payload *in_payload
 ) {
-  if (in_tag == meta::Type_tag::concrete) {
+  if (in_tag == Meta::Type_tag::concrete) {
     auto type = in_payload->concrete.type_tag;
-    if (type == meta::ConcreteType_tag::definedStruct) {
+    if (type == Meta::ConcreteType_tag::definedStruct) {
       auto it = &in_payload->concrete.type_payload.definedStruct;
       if (assigned_struct_orders.pointer[it->index] >= current_order) {
         return true;
       }
-    } else if (type == meta::ConcreteType_tag::definedChoice) {
+    } else if (type == Meta::ConcreteType_tag::definedChoice) {
       auto it = &in_payload->concrete.type_payload.definedChoice;
       if (assigned_choice_orders.pointer[it->index] >= current_order) {
         return true;
@@ -38,13 +36,13 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
   // as an input. We need to check _everything_ here, and right now, the only
   // thing checked is cyclical dependencies.
 
-  ASSERT(schema_bytes.count >= sizeof(meta::SchemaDefinition));
+  ASSERT(schema_bytes.count >= sizeof(Meta::SchemaDefinition));
 
   // TODO: @proper-alignment.
-  auto schema_definition = (meta::SchemaDefinition *) (
+  auto schema_definition = (Meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
-    sizeof(meta::SchemaDefinition)
+    sizeof(Meta::SchemaDefinition)
   );
 
   auto structs = to_range(schema_bytes, schema_definition->structs);
@@ -93,7 +91,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_struct_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_tag::definedStruct,
+          .type = Meta::ConcreteType_tag::definedStruct,
         };
         some_ok = true;
       } else {
@@ -127,7 +125,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
         assigned_choice_orders.pointer[i] = current_order;
         ordering.pointer[ordering_done++] = TLDRef {
           .index = i,
-          .type = meta::ConcreteType_tag::definedChoice,
+          .type = Meta::ConcreteType_tag::definedChoice,
         };
         some_ok = true;
       } else {

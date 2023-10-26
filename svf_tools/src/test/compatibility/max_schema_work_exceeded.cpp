@@ -44,7 +44,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
-    read_params.max_schema_work = get_compatibility_work_base({
+    read_params.max_schema_work = core::get_compatibility_work_base({
       schema_dst.schema.pointer,
       schema_dst.schema.count,
     }) * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR;
@@ -59,7 +59,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
-    read_params.max_schema_work = get_compatibility_work_base({
+    read_params.max_schema_work = core::get_compatibility_work_base({
       schema_dst.schema.pointer,
       schema_dst.schema.count,
     }) * SVFRT_DEFAULT_COMPATIBILITY_TRUST_FACTOR;
@@ -74,7 +74,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
-    read_params.max_schema_work = get_compatibility_work({
+    read_params.max_schema_work = core::get_compatibility_work({
       schema_src.schema.pointer,
       schema_src.schema.count,
     }, {

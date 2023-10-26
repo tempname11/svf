@@ -4,7 +4,7 @@
 #include "core/grammar.hpp"
 
 namespace core {
-  namespace meta = svf::Meta;
+  namespace Meta = svf::Meta;
 
   namespace parsing {
     enum class FailCode {
@@ -63,7 +63,7 @@ namespace core {
   namespace validation {
     struct TLDRef {
       UInt index;
-      meta::ConcreteType_tag type; // Must be a struct or a choice.
+      Meta::ConcreteType_tag type; // Must be a struct or a choice.
     };
 
     struct Result {

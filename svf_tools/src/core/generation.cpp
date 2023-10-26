@@ -4,8 +4,6 @@
 
 namespace core::generation {
 
-namespace meta = svf::Meta;
-
 // TODO @performance: should this be replaced by a hash table?
 grammar::TopLevelDefinition *resolve_by_name_hash(
   grammar::Root *in_root,
@@ -43,58 +41,58 @@ struct OutputTypeResult {
 
 OutputTypeResult output_concrete_type(
   grammar::Root *in_root,
-  Range<meta::StructDefinition> structs,
-  Range<meta::ChoiceDefinition> choices,
+  Range<Meta::StructDefinition> structs,
+  Range<Meta::ChoiceDefinition> choices,
   Range<UInt> assigned_indices,
   grammar::ConcreteType *in_concrete,
-  meta::ConcreteType_tag *out_tag,
-  meta::ConcreteType_payload *out_payload,
+  Meta::ConcreteType_tag *out_tag,
+  Meta::ConcreteType_payload *out_payload,
   Bool allow_tag,
   Bool force_size
 ) {
   switch (in_concrete->which) {
     case grammar::ConcreteType::Which::u8: {
-      *out_tag = meta::ConcreteType_tag::u8;
+      *out_tag = Meta::ConcreteType_tag::u8;
       return { .main_size = 1 };
     }
     case grammar::ConcreteType::Which::u16: {
-      *out_tag = meta::ConcreteType_tag::u16;
+      *out_tag = Meta::ConcreteType_tag::u16;
       return { .main_size = 2};
     }
     case grammar::ConcreteType::Which::u32: {
-      *out_tag = meta::ConcreteType_tag::u32;
+      *out_tag = Meta::ConcreteType_tag::u32;
       return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::u64: {
-      *out_tag = meta::ConcreteType_tag::u64;
+      *out_tag = Meta::ConcreteType_tag::u64;
       return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::i8: {
-      *out_tag = meta::ConcreteType_tag::i8;
+      *out_tag = Meta::ConcreteType_tag::i8;
       return { .main_size = 1};
     }
     case grammar::ConcreteType::Which::i16: {
-      *out_tag = meta::ConcreteType_tag::i16;
+      *out_tag = Meta::ConcreteType_tag::i16;
       return { .main_size = 2};
     }
     case grammar::ConcreteType::Which::i32: {
-      *out_tag = meta::ConcreteType_tag::i32;
+      *out_tag = Meta::ConcreteType_tag::i32;
       return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::i64: {
-      *out_tag = meta::ConcreteType_tag::i64;
+      *out_tag = Meta::ConcreteType_tag::i64;
       return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::f32: {
-      *out_tag = meta::ConcreteType_tag::f32;
+      *out_tag = Meta::ConcreteType_tag::f32;
       return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::f64: {
-      *out_tag = meta::ConcreteType_tag::f64;
+      *out_tag = Meta::ConcreteType_tag::f64;
       return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::zero_sized: {
-      *out_tag = meta::ConcreteType_tag::zeroSized;
+      *out_tag = Meta::ConcreteType_tag::zeroSized;
       return { .main_size = 0};
     }
     case grammar::ConcreteType::Which::defined: {
@@ -107,7 +105,7 @@ OutputTypeResult output_concrete_type(
       if (definition->which == grammar::TopLevelDefinition::Which::a_struct) {
         auto struct_index = assigned_indices.pointer[ix];
 
-        *out_tag = meta::ConcreteType_tag::definedStruct;
+        *out_tag = Meta::ConcreteType_tag::definedStruct;
         out_payload->definedStruct = {
           .index = safe_int_cast<U32>(struct_index),
         };
@@ -130,7 +128,7 @@ OutputTypeResult output_concrete_type(
 
         auto choice_index = assigned_indices.pointer[ix];
 
-        *out_tag = meta::ConcreteType_tag::definedChoice;
+        *out_tag = Meta::ConcreteType_tag::definedChoice;
         out_payload->definedChoice = {
           .index = safe_int_cast<U32>(choice_index),
         };
@@ -159,17 +157,17 @@ OutputTypeResult output_concrete_type(
 
 OutputTypeResult output_type(
   grammar::Root *in_root,
-  Range<meta::StructDefinition> structs,
-  Range<meta::ChoiceDefinition> choices,
+  Range<Meta::StructDefinition> structs,
+  Range<Meta::ChoiceDefinition> choices,
   Range<UInt> assigned_indices,
   grammar::Type *in_type,
-  meta::Type_tag *out_tag,
-  meta::Type_payload *out_payload,
+  Meta::Type_tag *out_tag,
+  Meta::Type_payload *out_payload,
   Bool allow_tag
 ) {
   switch (in_type->which) {
     case grammar::Type::Which::concrete: {
-      *out_tag = meta::Type_tag::concrete;
+      *out_tag = Meta::Type_tag::concrete;
       return output_concrete_type(
         in_root,
         structs,
@@ -183,7 +181,7 @@ OutputTypeResult output_type(
       );
     }
     case grammar::Type::Which::reference: {
-      *out_tag = meta::Type_tag::reference;
+      *out_tag = Meta::Type_tag::reference;
       auto result = output_concrete_type(
         in_root,
         structs,
@@ -199,7 +197,7 @@ OutputTypeResult output_type(
       return result;
     }
     case grammar::Type::Which::sequence: {
-      *out_tag = meta::Type_tag::sequence;
+      *out_tag = Meta::Type_tag::sequence;
       auto result = output_concrete_type(
         in_root,
         structs,
@@ -366,8 +364,8 @@ GenerationResult as_bytes(
   }
 
   // Third pass: fill in our output types.
-  auto out_structs = vm::many<meta::StructDefinition>(arena, num_structs);
-  auto out_choices = vm::many<meta::ChoiceDefinition>(arena, num_choices);
+  auto out_structs = vm::many<Meta::StructDefinition>(arena, num_structs);
+  auto out_choices = vm::many<Meta::ChoiceDefinition>(arena, num_choices);
 
   for (U64 i = 0; i < order_of_definitions.count; i++) {
     auto ix = order_of_definitions.pointer[i];
@@ -377,7 +375,7 @@ GenerationResult as_bytes(
         auto in_struct = &definition->a_struct;
         auto out_struct = out_structs.pointer + assigned_indices.pointer[ix];
 
-        auto out_fields = vm::many<meta::FieldDefinition>(
+        auto out_fields = vm::many<Meta::FieldDefinition>(
           arena,
           in_struct->fields.count
         );
@@ -390,7 +388,7 @@ GenerationResult as_bytes(
           auto out_name = vm::many<U8>(arena, in_field->name.count);
           range_copy(out_name, in_field->name);
 
-          *out_field = meta::FieldDefinition {
+          *out_field = Meta::FieldDefinition {
             .nameHash = in_field->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
@@ -430,7 +428,7 @@ GenerationResult as_bytes(
         auto out_name = vm::many<U8>(arena, in_struct->name.count);
         range_copy(out_name, in_struct->name);
 
-        *out_struct = meta::StructDefinition {
+        *out_struct = Meta::StructDefinition {
           .nameHash = in_struct->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
@@ -449,7 +447,7 @@ GenerationResult as_bytes(
         auto in_choice = &definition->a_choice;
         auto out_choice = out_choices.pointer + assigned_indices.pointer[ix];
 
-        auto out_options = vm::many<meta::OptionDefinition>(
+        auto out_options = vm::many<Meta::OptionDefinition>(
           arena,
           in_choice->options.count
         );
@@ -462,7 +460,7 @@ GenerationResult as_bytes(
           auto out_name = vm::many<U8>(arena, in_option->name.count);
           range_copy(out_name, in_option->name);
 
-          *out_option = meta::OptionDefinition {
+          *out_option = Meta::OptionDefinition {
             .nameHash = in_option->name_hash,
             .name = {
               .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
@@ -501,7 +499,7 @@ GenerationResult as_bytes(
         auto out_name = vm::many<U8>(arena, in_choice->name.count);
         range_copy(out_name, in_choice->name);
 
-        *out_choice = meta::ChoiceDefinition {
+        *out_choice = Meta::ChoiceDefinition {
           .nameHash = in_choice->name_hash,
           .name = {
             .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
@@ -522,8 +520,8 @@ GenerationResult as_bytes(
   auto out_name = vm::many<U8>(arena, in_root->schema_name.count);
   range_copy(out_name, in_root->schema_name);
 
-  auto out_definition = vm::one<meta::SchemaDefinition>(arena);
-  *out_definition = meta::SchemaDefinition {
+  auto out_definition = vm::one<Meta::SchemaDefinition>(arena);
+  *out_definition = Meta::SchemaDefinition {
     .nameHash = in_root->schema_name_hash,
     .name = {
       .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
@@ -548,4 +546,4 @@ GenerationResult as_bytes(
   };
 }
 
-} // namespace generation
+} // namespace core::generation
