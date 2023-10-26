@@ -3,7 +3,7 @@
 #include "common.hpp"
 
 int main(int /*argc*/, char */*argv*/[]) {
-  auto arena_value = vm::create_linear_arena(2ull << 20);
+  auto arena_value = vm::create_linear_arena(1ull << 20);
   auto arena = &arena_value;
   auto schema_dst = prepare_schema(arena, 0);
 

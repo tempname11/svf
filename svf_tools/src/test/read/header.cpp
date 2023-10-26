@@ -14,7 +14,7 @@ U32 write_arena(void *it, SVFRT_Bytes src) {
 
 int main(int /*argc*/, char */*argv*/[]) {
   // Prepare: create the message.
-  auto arena_value = vm::create_linear_arena(2ull << 20);
+  auto arena_value = vm::create_linear_arena(1ull << 20);
   auto ctx = svf::runtime::write_start<schema::Entry>(write_arena, &arena_value);
   schema::Entry entry = {};
   svf::runtime::write_finish(&ctx, &entry);

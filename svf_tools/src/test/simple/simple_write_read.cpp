@@ -6,7 +6,7 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr);
 void test_read(vm::LinearArena *arena, Bytes input_range);
 
 int main(int /*argc*/, char */*argv*/[]) {
-  auto arena_value = vm::create_linear_arena(2ull << 20);
+  auto arena_value = vm::create_linear_arena(1ull << 20);
   auto arena = &arena_value;
   if (!arena->reserved_range.pointer) {
     printf("Failed to create arena.\n");

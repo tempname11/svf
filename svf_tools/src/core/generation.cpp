@@ -36,7 +36,7 @@ grammar::TopLevelDefinition *resolve_by_name_hash(
 }
 
 struct OutputTypeResult {
-  Bool ok;
+  FailCode fail_code;
   U32 main_size;
   U32 tag_size;
 };
@@ -55,47 +55,47 @@ OutputTypeResult output_concrete_type(
   switch (in_concrete->which) {
     case grammar::ConcreteType::Which::u8: {
       *out_tag = meta::ConcreteType_tag::u8;
-      return { .ok = true, .main_size = 1 };
+      return { .main_size = 1 };
     }
     case grammar::ConcreteType::Which::u16: {
       *out_tag = meta::ConcreteType_tag::u16;
-      return { .ok = true, .main_size = 2};
+      return { .main_size = 2};
     }
     case grammar::ConcreteType::Which::u32: {
       *out_tag = meta::ConcreteType_tag::u32;
-      return { .ok = true, .main_size = 4};
+      return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::u64: {
       *out_tag = meta::ConcreteType_tag::u64;
-      return { .ok = true, .main_size = 8};
+      return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::i8: {
       *out_tag = meta::ConcreteType_tag::i8;
-      return { .ok = true, .main_size = 1};
+      return { .main_size = 1};
     }
     case grammar::ConcreteType::Which::i16: {
       *out_tag = meta::ConcreteType_tag::i16;
-      return { .ok = true, .main_size = 2};
+      return { .main_size = 2};
     }
     case grammar::ConcreteType::Which::i32: {
       *out_tag = meta::ConcreteType_tag::i32;
-      return { .ok = true, .main_size = 4};
+      return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::i64: {
       *out_tag = meta::ConcreteType_tag::i64;
-      return { .ok = true, .main_size = 8};
+      return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::f32: {
       *out_tag = meta::ConcreteType_tag::f32;
-      return { .ok = true, .main_size = 4};
+      return { .main_size = 4};
     }
     case grammar::ConcreteType::Which::f64: {
       *out_tag = meta::ConcreteType_tag::f64;
-      return { .ok = true, .main_size = 8};
+      return { .main_size = 8};
     }
     case grammar::ConcreteType::Which::zero_sized: {
       *out_tag = meta::ConcreteType_tag::zeroSized;
-      return { .ok = true, .main_size = 0};
+      return { .main_size = 0};
     }
     case grammar::ConcreteType::Which::defined: {
       auto definition = resolve_by_name_hash(
@@ -113,17 +113,19 @@ OutputTypeResult output_concrete_type(
         };
 
         if (force_size) {
-          return { .ok = true, .main_size = U32(-1) };
+          return { .main_size = U32(-1) };
         }
 
         // We rely on the fact that this type has already been output.
         auto size = structs.pointer[struct_index].size;
         ASSERT(size > 0);
-        return { .ok = true, .main_size = size };
+        return { .main_size = size };
 
       } else if (definition->which == grammar::TopLevelDefinition::Which::a_choice) {
         if (!allow_tag) {
-          return {};
+          return {
+            .fail_code = FailCode::choice_not_allowed,
+          };
         }
 
         auto choice_index = assigned_indices.pointer[ix];
@@ -134,12 +136,16 @@ OutputTypeResult output_concrete_type(
         };
 
         if (force_size) {
-          return { .ok = true, .main_size = U32(-1) };
+          return { .main_size = U32(-1) };
         }
 
         // We rely on the fact that this type has already been output.
         auto payload_size = choices.pointer[choice_index].payloadSize;
-        return {true, payload_size, SVFRT_TAG_SIZE};
+
+        return {
+          .main_size = payload_size,
+          .tag_size = SVFRT_TAG_SIZE,
+        };
 
       } else {
         ASSERT(false);
@@ -147,6 +153,7 @@ OutputTypeResult output_concrete_type(
     }
   }
 
+  ASSERT(false);
   return {};
 }
 
@@ -207,19 +214,19 @@ OutputTypeResult output_type(
       result.main_size = sizeof(svf::runtime::Sequence<void>);
       return result;
     }
-    default: {
-      ASSERT(false);
-    };
   }
 
-  return {};
+  ASSERT(false);
 }
 
-Bytes as_bytes(
+GenerationResult as_bytes(
   grammar::Root *in_root,
   vm::LinearArena *arena
 ) {
   auto start = vm::realign(arena);
+
+  // TODO: check struct/choice names for collisions. Currently, multiple
+  // definitions with the same name are accepted, which is not great.
 
   // First pass: count number of defined types.
   UInt num_structs = 0;
@@ -283,7 +290,9 @@ Bytes as_bytes(
               field->type.concrete.type.defined.top_level_definition_name_hash
             );
             if (!field_definition) {
-              return {};
+              return {
+                .fail_code = FailCode::type_not_found,
+              };
             }
             auto ix = field_definition - in_root->definitions.pointer;
             if (assigned_orders.pointer[ix] >= current_order) {
@@ -312,7 +321,9 @@ Bytes as_bytes(
               option->type.concrete.type.defined.top_level_definition_name_hash
             );
             if (!option_definition) {
-              return {};
+              return {
+                .fail_code = FailCode::type_not_found,
+              };
             }
             auto ix = option_definition - in_root->definitions.pointer;
             if (assigned_orders.pointer[ix] >= current_order) {
@@ -346,7 +357,9 @@ Bytes as_bytes(
     }
 
     if (!some_ok) {
-      return {};
+      return {
+        .fail_code = FailCode::cyclical_dependency,
+      };
     }
 
     current_order++;
@@ -401,12 +414,17 @@ Bytes as_bytes(
           size_sum += result.main_size;
           size_sum += result.tag_size;
 
-          if (!result.ok) {
-            return {};
+          if (result.fail_code != FailCode::ok) {
+            return {
+              .fail_code = result.fail_code,
+            };
           };
         }
+
         if (size_sum == 0) {
-          return {};
+          return {
+            .fail_code = FailCode::empty_struct,
+          };
         }
 
         auto out_name = vm::many<U8>(arena, in_struct->name.count);
@@ -467,8 +485,16 @@ Bytes as_bytes(
           ASSERT(result.tag_size == 0);
           size_max = maxi(size_max, result.main_size);
 
-          if (!result.ok) {
-            return {};
+          if (result.fail_code != FailCode::ok) {
+            return {
+              .fail_code = result.fail_code,
+            };
+          };
+        }
+
+        if (in_choice->options.count == 0) {
+          return {
+            .fail_code = FailCode::empty_choice,
           };
         }
 
@@ -514,9 +540,11 @@ Bytes as_bytes(
   };
 
   auto end = arena->reserved_range.pointer + arena->waterline;
-  return Bytes {
-    .pointer = (Byte *) start,
-    .count = offset_between<U64>(start, end),
+  return GenerationResult {
+    .schema = {
+      .pointer = (Byte *) start,
+      .count = offset_between<U64>(start, end),
+    },
   };
 }
 

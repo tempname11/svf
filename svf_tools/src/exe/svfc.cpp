@@ -140,10 +140,10 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto arena_ = vm::create_linear_arena(2ull << 30);
+  auto arena_value = vm::create_linear_arena(1ull << 30);
   // never free, we will just exit the program.
 
-  auto arena = &arena_;
+  auto arena = &arena_value;
   if (!arena->reserved_range.pointer) {
     printf("Error: could not create main memory arena.\n");
     return 1;
@@ -218,11 +218,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto schema_bytes = core::generation::as_bytes(parse_result.root, arena);
-  if (!schema_bytes.pointer) {
-    printf("Error: could not generate schema.\n");
+  auto generation_result = core::generation::as_bytes(parse_result.root, arena);
+  if (!generation_result.schema.pointer) {
+    // TODO: human-readable errors. This will require more failure information,
+    // than just the code. First approximation for what is needed:
+    // - `type_not_found`: the offending name/ID.
+    // - `cyclical_dependency`: at least one of the types involved.
+    // - `empty_struct`: the offending type name.
+    // - `empty_choice`: the offending type name.
+    // - `choice_not_allowed`: the context/reason as to why.
+
+    printf("Error: could not generate schema. Code 0x%x\n", int(generation_result.fail_code));
     return 1;
   }
+
+  auto schema = generation_result.schema;
 
   auto output_file = stdout;
   if (options.input_file_path.pointer) {
@@ -238,10 +248,10 @@ int main(int argc, char *argv[]) {
     || (options.subcommand == CommandLineOptions::Subcommand::c)
     || (options.subcommand == CommandLineOptions::Subcommand::cpp)
   ) {
-    auto validation_result = core::validation::validate(arena, schema_bytes);
+    auto validation_result = core::validation::validate(arena, schema);
 
     if (!validation_result.valid) {
-      printf("Error: could not validate generated schema.\n");
+      printf("Internal error: could not validate the generated schema, please report this.\n");
       return 1;
     }
 
@@ -249,13 +259,13 @@ int main(int argc, char *argv[]) {
     if (options.subcommand == CommandLineOptions::Subcommand::cpp) {
       output_range = core::output::cpp::as_code(
         arena,
-        schema_bytes,
+        schema,
         &validation_result
       );
     } else {
       output_range = core::output::c::as_code(
         arena,
-        schema_bytes,
+        schema,
         &validation_result
       );
     }
@@ -280,8 +290,8 @@ int main(int argc, char *argv[]) {
 
     // Write the data part (here, the input schema).
     {
-      auto result = fwrite(schema_bytes.pointer, 1, schema_bytes.count, output_file);
-      if (result != schema_bytes.count) {
+      auto result = fwrite(schema.pointer, 1, schema.count, output_file);
+      if (result != schema.count) {
         printf("Error: failed to write output.\n");
         return 1;
       }

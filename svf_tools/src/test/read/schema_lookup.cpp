@@ -29,7 +29,7 @@ SVFRT_Bytes schema_lookup(void *it, uint64_t schema_content_hash) {
 
 int main(int /*argc*/, char */*argv*/[]) {
   // Prepare: create the message.
-  auto arena_value = vm::create_linear_arena(2ull << 20);
+  auto arena_value = vm::create_linear_arena(1ull << 20);
   svf::runtime::WriteContext<schema::Entry> ctx = {};
   SVFRT_write_start(
     &ctx,

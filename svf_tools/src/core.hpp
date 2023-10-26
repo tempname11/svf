@@ -8,7 +8,7 @@ namespace core {
 
   namespace parsing {
     enum class FailCode {
-      ok                                                                 = 0,
+      ok = 0,
       expected_newline                                                   = 0x01,
       expected_name_directive                                            = 0x02,
       expected_uppercase_letter                                          = 0x03,
@@ -40,7 +40,21 @@ namespace core {
   }
 
   namespace generation {
-    Bytes as_bytes(
+    enum class FailCode {
+      ok = 0,
+      type_not_found                                                     = 0x01,
+      cyclical_dependency                                                = 0x02,
+      empty_struct                                                       = 0x03,
+      empty_choice                                                       = 0x04,
+      choice_not_allowed                                                 = 0x05,
+    };
+
+    struct GenerationResult {
+      Bytes schema;
+      FailCode fail_code;
+    };
+
+    GenerationResult as_bytes(
       grammar::Root *root,
       vm::LinearArena *arena
     );

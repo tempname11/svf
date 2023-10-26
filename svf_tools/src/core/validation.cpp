@@ -32,7 +32,15 @@ bool has_higher_dependencies(
 }
 
 Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
-  // TODO @proper-alignment.
+  // TODO: this is mostly a placeholder for now. The reason for separation
+  // between this and "generation.cpp" is that this is to also be exposed as a
+  // separate `svfc` subcommand, which would take a completely arbitrary schema
+  // as an input. We need to check _everything_ here, and right now, the only
+  // thing checked is cyclical dependencies.
+
+  ASSERT(schema_bytes.count >= sizeof(meta::SchemaDefinition));
+
+  // TODO: @proper-alignment.
   auto schema_definition = (meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -
