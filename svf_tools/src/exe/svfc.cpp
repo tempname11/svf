@@ -1,26 +1,28 @@
 #include <cstdio>
 #include <cstring>
+#include <cinttypes>
 #define SVF_INCLUDE_BINARY_SCHEMA
 #include <src/library.hpp>
 #include <src/svf_runtime.hpp>
+#include <src/svf_stdio.h>
 #include "../core.hpp"
 
 namespace meta = svf::Meta;
 
 struct CommandLineOptions {
   enum class Subcommand {
+    unknown = 0,
     c,
     cpp,
     binary,
   };
 
-  Bool valid;
   Subcommand subcommand;
   Range<U8> input_file_path; // Empty, if stdin.
   Range<U8> output_file_path; // Empty, if stdin.
 };
 
-Range<U8> parse_filename(Byte *arg) {
+Range<U8> parse_filename(U8 *arg) {
   Range<U8> result = {};
   if (strcmp((char const *) arg, "-") != 0) {
     result = {
@@ -31,7 +33,7 @@ Range<U8> parse_filename(Byte *arg) {
   return result;
 }
 
-CommandLineOptions parse_command_line_options(Range<Byte *> args) {
+CommandLineOptions parse_command_line_options(Range<U8 *> args) {
   CommandLineOptions result = {};
 
   if (args.count < 2) {
@@ -41,25 +43,22 @@ CommandLineOptions parse_command_line_options(Range<Byte *> args) {
 
   auto subcommand_cstr = (char const *) args.pointer[1];
   if (strcmp(subcommand_cstr, "c") == 0) {
+    if (args.count != 4) {
+      printf("Error: expected input/output file paths.\n");
+      return result;
+    }
+    result.input_file_path = parse_filename(args.pointer[2]);
+    result.output_file_path = parse_filename(args.pointer[3]);
     result.subcommand = CommandLineOptions::Subcommand::c;
-    if (args.count != 4) {
-      printf("Error: expected input/output file paths.\n");
-      return result;
-    }
-    result.input_file_path = parse_filename(args.pointer[2]);
-    result.output_file_path = parse_filename(args.pointer[3]);
-    result.valid = true;
   } else if (strcmp(subcommand_cstr, "cpp") == 0) {
-    result.subcommand = CommandLineOptions::Subcommand::cpp;
     if (args.count != 4) {
       printf("Error: expected input/output file paths.\n");
       return result;
     }
     result.input_file_path = parse_filename(args.pointer[2]);
     result.output_file_path = parse_filename(args.pointer[3]);
-    result.valid = true;
+    result.subcommand = CommandLineOptions::Subcommand::cpp;
   } else if (strcmp(subcommand_cstr, "binary") == 0) {
-    result.subcommand = CommandLineOptions::Subcommand::binary;
     if (args.count != 4) {
       printf("Error: expected input/output file paths.\n");
       return result;
@@ -70,7 +69,7 @@ CommandLineOptions parse_command_line_options(Range<Byte *> args) {
       printf("Writing to stdout is not allowed for `binary` subcommand.\n");
       return result;
     }
-    result.valid = true;
+    result.subcommand = CommandLineOptions::Subcommand::binary;
   } else {
     printf("Error: unknown subcommand '%s'.\n", subcommand_cstr);
     return result;
@@ -79,13 +78,65 @@ CommandLineOptions parse_command_line_options(Range<Byte *> args) {
   return result;
 }
 
+struct TextLocation {
+  Bool valid;
+  UInt line_index; // 0-based.
+  UInt column_index; // 0-based.
+  Range<U8> line;
+};
+
+TextLocation get_text_location(Range<U8> text, UInt cursor) {
+  UInt line_index = 0;
+  UInt column_index = 0;
+
+  UInt cursor_line_start = 0;
+
+  if (cursor > text.count) {
+    return {};
+  }
+
+  for (UInt i = 0; i < text.count; i++) {
+    if (i == cursor) {
+      break;
+    }
+
+    if (text.pointer[i] == '\n') {
+      line_index++;
+      column_index = 0;
+      cursor_line_start = i + 1; // [1 .. text.count]
+    } else {
+      column_index++;
+    }
+  }
+
+  Range<U8> line = {
+    .pointer = text.pointer + cursor_line_start,
+    .count = text.count - cursor_line_start,
+  };
+
+  for (UInt j = cursor; j < text.count; j++) {
+    if (text.pointer[j] == '\n') {
+      line.count = j - cursor_line_start;
+      break;
+    }
+  }
+
+  return {
+    .valid = true,
+    .line_index = line_index,
+    .column_index = column_index,
+    .line = line,
+  };
+}
+
 int main(int argc, char *argv[]) {
   auto options = parse_command_line_options({
-    .pointer = (Byte **) argv,
+    .pointer = (U8 **) argv,
     .count = safe_int_cast<U64>(argc),
   });
 
-  if (!options.valid) {
+  if (options.subcommand == CommandLineOptions::Subcommand::unknown) {
+    // Already printed the message, just return.
     return 1;
   }
 
@@ -109,13 +160,13 @@ int main(int argc, char *argv[]) {
   }
 
   auto input_buffer = Bytes {
-    .pointer = (Byte *) vm::realign(arena),
+    .pointer = (U8 *) vm::realign(arena),
     .count = 0,
   };
   U64 input_cstr_size = 0;
 
   while (!feof(input_file)) {
-    input_buffer.count += vm::many<Byte>(arena, 1024).count;
+    input_buffer.count += vm::many<U8>(arena, 1024).count;
     input_cstr_size += fread(input_buffer.pointer, 1, 1024, input_file);
 
     if (ferror(input_file)) {
@@ -133,13 +184,41 @@ int main(int argc, char *argv[]) {
     fclose(input_file);
   }
 
-  auto root = core::parsing::parse_input(arena, input);
-  if (!root) {
-    printf("Error: failed to parse input.\n");
+  auto parse_result = core::parsing::parse_input(arena, input);
+  if (!parse_result.root) {
+    auto description = core::parsing::get_fail_code_description(parse_result.fail.code);
+    printf(
+      "Error: failed to parse input. %.*s\n",
+      safe_int_cast<int>(description.count),
+      description.pointer
+    );
+
+    auto location = get_text_location(input, parse_result.fail.cursor);
+    if (location.valid) {
+      printf(
+        "Line: %" PRIu64 ", column: %" PRIu64 "\n\n",
+        location.line_index + 1, // 1-based
+        location.column_index + 1 // 1-based
+      );
+      for (UInt i = 0; i < location.line.count; i++) {
+        printf(i == location.column_index ? "v" : "-");
+      }
+      printf("\n%.*s\n", safe_int_cast<int>(location.line.count), location.line.pointer);
+      for (UInt i = 0; i < location.line.count; i++) {
+        printf(i == location.column_index ? "^" : "-");
+      }
+      printf("\n");
+    } else {
+      printf(
+        "Could not get the line and column because of an internal error, please report this. Cursor: %" PRIu64 "\n",
+        parse_result.fail.cursor
+      );
+    }
+
     return 1;
   }
 
-  auto schema_bytes = core::generation::as_bytes(root, arena);
+  auto schema_bytes = core::generation::as_bytes(parse_result.root, arena);
   if (!schema_bytes.pointer) {
     printf("Error: could not generate schema.\n");
     return 1;
@@ -188,49 +267,18 @@ int main(int argc, char *argv[]) {
     }
     fclose(output_file);
   } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
-    // TODO: use `write_start` instead here for the header & schema parts. The
-    // data part will have to be written using `fwrite` anyway.
-    //
-    // TODO: use content hash only in the schema part.
+    // Write the header part only via `SVFRT_write_start`.
+    SVFRT_WriteContext ctx;
+    SVFRT_write_start(
+      &ctx,
+      SVFRT_fwrite,
+      (void *) output_file,
+      svf::Meta::_SchemaDescription::content_hash,
+      {}, // Omit the schema part (here, the meta-schema).
+      svf::Meta::SchemaDefinition_name_hash
+    );
 
-    // Write the header.
-    {
-      svf::runtime::MessageHeader header = {
-        .magic = { 'S', 'V', 'F' },
-        .version = 0,
-        .schema_length = (uint32_t) meta::binary::size,
-        .schema_content_hash =  meta::SchemaDescription::content_hash,
-        .entry_struct_name_hash = meta::SchemaDefinition_name_hash,
-      };
-
-      auto result = fwrite(&header, 1, sizeof(header), output_file);
-      if (result != sizeof(header)) {
-        printf("Error: failed to write output.\n");
-        return 1;
-      }
-    }
-
-    // Write the schema part (metaschema).
-    {
-      auto result = fwrite(meta::binary::array, 1, meta::binary::size, output_file);
-      if (result != meta::binary::size) {
-        printf("Error: failed to write output.\n");
-        return 1;
-      }
-    }
-
-    // Align.
-    {
-      uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
-      size_t misaligned = meta::binary::size % SVFRT_MESSAGE_PART_ALIGNMENT;
-      auto result = fwrite(zeros, 1, SVFRT_MESSAGE_PART_ALIGNMENT - misaligned, output_file);
-      if (result != SVFRT_MESSAGE_PART_ALIGNMENT - misaligned) {
-        printf("Error: failed to write output.\n");
-        return 1;
-      }
-    }
-
-    // Write the data part (input schema).
+    // Write the data part (here, the input schema).
     {
       auto result = fwrite(schema_bytes.pointer, 1, schema_bytes.count, output_file);
       if (result != schema_bytes.count) {

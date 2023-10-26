@@ -1,8 +1,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <src/library.hpp>
-#include <src/library/crude_dynamic_array.hpp>
-#include "grammar.hpp"
+#include "../core.hpp"
 
 namespace core::parsing {
 
@@ -13,6 +12,100 @@ using namespace grammar;
 
 // General note: the functions here try to parse optimistically, and only
 // check failure when necessary. This leads to simpler, more straightforward code.
+
+// Simple growable array specifically for the parser.
+template<typename T>
+struct CrudeDynamicArray {
+  T* pointer;
+  UInt count;
+  UInt capacity;
+};
+
+// Makes sure that the array has enough capacity to hold the required count.
+// Preserves the contents of the old array even on reallocation.
+template<typename T>
+static inline
+void ensure_size(
+  CrudeDynamicArray<T> *dynamic,
+  vm::LinearArena *arena,
+  UInt required_count
+) {
+  // If capacity is already enough, do nothing.
+  if (dynamic->capacity >= required_count) {
+    return;
+  }
+
+  UInt final_count = round_up_to_power_of_two(required_count);
+  auto reserved_range = many<T>(arena, final_count);
+  if (dynamic->count != 0) {
+    memcpy(reserved_range.pointer, dynamic->pointer, dynamic->count * sizeof(T));
+  }
+
+  *dynamic = {
+    .pointer = reserved_range.pointer,
+    .count = dynamic->count,
+    .capacity = reserved_range.count,
+  };
+}
+
+template<typename T>
+static inline
+void ensure_one_more(
+  CrudeDynamicArray<T> *dynamic,
+  vm::LinearArena *arena
+) {
+  ensure_size(dynamic, arena, dynamic->count + 1);
+}
+
+Range<U8> get_fail_code_description(FailCode code) {
+  switch(code) {
+    case FailCode::expected_newline: {
+      return range_from_cstr("Expected a newline.");
+    }
+    case FailCode::expected_name_directive: {
+      return range_from_cstr("Expected a #name directive.");
+    }
+    case FailCode::expected_uppercase_letter: {
+      return range_from_cstr("Expected an uppercase [A-Z] letter.");
+    }
+    case FailCode::expected_lowercase_letter: {
+      return range_from_cstr("Expected a lowercase [a-z] letter.");
+    }
+    case FailCode::expected_type_definition: {
+      return range_from_cstr("Expected a type definition.");
+    }
+    case FailCode::expected_semicolon: {
+      return range_from_cstr("Expected a semicolon.");
+    }
+    case FailCode::expected_colon_or_semicolon: {
+      return range_from_cstr("Expected ':' or ';'.");
+    }
+    case FailCode::expected_colon_after_type_name: {
+      return range_from_cstr("Expected ':' after a type name.");
+    }
+    case FailCode::expected_colon_after_field_name: {
+      return range_from_cstr("Expected ':' after a field name.");
+    }
+    case FailCode::expected_opening_curly_bracket: {
+      return range_from_cstr("Expected '{'.");
+    }
+    case FailCode::expected_closing_square_bracket: {
+      return range_from_cstr("Expected ']'.");
+    }
+    case FailCode::keyword_reserved: {
+      return range_from_cstr("Can't use a keyword as a name.");
+    }
+    case FailCode::ok: {
+      return range_from_cstr("No error to descibe, please report this.");
+    }
+    case FailCode::backtrack: {
+      return range_from_cstr("Internal backtracking error, please report this.");
+    }
+    default: {
+      return range_from_cstr("Unknown error, please report this.");
+    }
+  }
+}
 
 // Parser state. Used everywhere as part of the context.
 // Can be copied and restored to backtrack.
@@ -27,10 +120,7 @@ struct ParserState {
 
   // On a failure, this is set. The cursor can be used to identify the
   // location of the failure.
-  struct Fail {
-    Bool flag;
-    U64 cursor;
-  } fail;
+  Fail fail;
 };
 
 // Parser context. Used in all parsing functions.
@@ -53,16 +143,16 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result);
 
 // Helps to set the fail flag and cursor.
 static inline
-void set_fail(Ctx ctx) {
-  if (!ctx->state.fail.flag) {
+void set_fail(Ctx ctx, FailCode code) {
+  if (ctx->state.fail.code == FailCode::ok) {
     ctx->state.fail = {
-      .flag = true,
+      .code = code,
       .cursor = ctx->state.cursor,
     };
   }
 }
 
-// Peek one byte = one character, if possible.
+// Peek one byte (= one character), if possible.
 static inline
 U8 peek_byte(Ctx ctx) {
   if (ctx->state.cursor == ctx->input.count) {
@@ -131,7 +221,7 @@ void skip_whitespace_and_exactly_one_newline(Ctx ctx) {
     if (byte == '\n') {
       ctx->state.cursor++;
     } else {
-      set_fail(ctx);
+      set_fail(ctx, FailCode::expected_newline);
     }
   }
 }
@@ -160,7 +250,11 @@ Range<U8> parse_name(Ctx ctx, NameKind kind) {
     ) {
       ctx->state.cursor++;
     } else {
-      set_fail(ctx);
+      set_fail(
+        ctx, kind == NameKind::uppercase
+          ? FailCode::expected_uppercase_letter
+          : FailCode::expected_lowercase_letter
+      );
       return {};
     }
   }
@@ -180,38 +274,49 @@ Range<U8> parse_name(Ctx ctx, NameKind kind) {
     }
   }
 
-  return Range<U8> {
+  auto result = Range<U8> {
     .pointer = (ctx->input.pointer + cursor_start),
     .count = ctx->state.cursor - cursor_start,
   };
+
+  if (
+    range_equal(result, range_from_cstr("struct")) ||
+    range_equal(result, range_from_cstr("choice"))
+  ) {
+    ctx->state.cursor = cursor_start;
+    set_fail(ctx, FailCode::keyword_reserved);
+    return {};
+  }
+
+  return result;
 }
 
 Range<U8> parse_type_name(Ctx ctx) { return parse_name(ctx, NameKind::type); }
 Range<U8> parse_value_name(Ctx ctx) { return parse_name(ctx, NameKind::value); }
 
 // Skip exactly the given character, otherwise fail.
-void skip_specific_character(Ctx ctx, U8 ascii_character) {
+void skip_specific_character(Ctx ctx, U8 ascii_character, FailCode fail_code) {
   auto byte = peek_byte(ctx);
 
   if (byte == ascii_character) {
     ctx->state.cursor++;
   } else {
-    set_fail(ctx);
+    set_fail(ctx, fail_code);
   }
 }
 
 // Skip exactly the given string, otherwise fail.
-void skip_specific_cstring(Ctx ctx, char const* cstr) {
+void skip_specific_cstring(Ctx ctx, char const* cstr, FailCode fail_code) {
   auto clen = strlen(cstr);
   if (ctx->state.cursor + clen > ctx->input.count) {
-    set_fail(ctx);
+    set_fail(ctx, fail_code);
     return;
   }
 
   for (UInt i = 0; i < clen; i++) {
     if (ctx->input.pointer[ctx->state.cursor + i] != cstr[i]) {
       ctx->state.cursor += i;
-      set_fail(ctx);
+      set_fail(ctx, fail_code);
       return;
     }
   }
@@ -234,25 +339,25 @@ Type parse_type_reference(Ctx ctx) {
   };
 
   if (name.count > 0) {
-    if (strncmp("U8", (char const *) name.pointer, name.count) == 0) {
+    if (range_equal(name, range_from_cstr("U8"))) {
       concrete_type = { .which = ConcreteType::Which::u8 };
-    } else if (strncmp("U16", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("U16"))) {
       concrete_type = { .which = ConcreteType::Which::u16 };
-    } else if (strncmp("U32", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("U32"))) {
       concrete_type = { .which = ConcreteType::Which::u32 };
-    } else if (strncmp("U64", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("U64"))) {
       concrete_type = { .which = ConcreteType::Which::u64 };
-    } else if (strncmp("I8", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("I8"))) {
       concrete_type = { .which = ConcreteType::Which::i8 };
-    } else if (strncmp("I16", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("I16"))) {
       concrete_type = { .which = ConcreteType::Which::i16 };
-    } else if (strncmp("I32", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("I32"))) {
       concrete_type = { .which = ConcreteType::Which::i32 };
-    } else if (strncmp("I64", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("I64"))) {
       concrete_type = { .which = ConcreteType::Which::i64 };
-    } else if (strncmp("F32", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("F32"))) {
       concrete_type = { .which = ConcreteType::Which::f32 };
-    } else if (strncmp("F64", (char const *) name.pointer, name.count) == 0) {
+    } else if (range_equal(name, range_from_cstr("F64"))) {
       concrete_type = { .which = ConcreteType::Which::f64 };
     }
   }
@@ -272,7 +377,7 @@ Type parse_type_reference(Ctx ctx) {
   } else if (byte == '[') {
     ctx->state.cursor++;
     skip_whitespace(ctx);
-    skip_specific_character(ctx, ']');
+    skip_specific_character(ctx, ']', FailCode::expected_closing_square_bracket);
     return {
       .which = Type::Which::sequence,
       .sequence = {
@@ -294,31 +399,30 @@ U64 parse_type_definition(Ctx ctx, Range<U8> definition_name) {
   // Save the state, so we can backtrack.
   auto saved_state = ctx->state;
 
-  skip_specific_cstring(ctx, "struct");
+  skip_specific_cstring(ctx, "struct", FailCode::backtrack);
 
-  if (!ctx->state.fail.flag) {
+  if (ctx->state.fail.code == FailCode::ok) {
     // We know it's a struct. Backtrack and parse it.
-    TopLevelDefinition result;
-    ctx->state = saved_state;
-    result.which = TopLevelDefinition::Which::a_struct;
+    TopLevelDefinition result = {};
     parse_struct(ctx, definition_name, &result.a_struct);
+    result.which = TopLevelDefinition::Which::a_struct;
 
     auto defs = &ctx->state.top_level_definitions;
     ensure_one_more(defs, ctx->arena);
     defs->pointer[defs->count] = result;
     defs->count++;
+
     return result.a_struct.name_hash;
   }
 
   // If we failed to parse a struct, try parsing a choice.
   // Backtrack to the beginning of the type definition.
   ctx->state = saved_state;
-  skip_specific_cstring(ctx, "choice");
+  skip_specific_cstring(ctx, "choice", FailCode::backtrack);
 
-  if (!ctx->state.fail.flag) {
+  if (ctx->state.fail.code == FailCode::ok) {
     // We know it's a choice. Backtrack and parse it.
-    TopLevelDefinition result;
-    ctx->state = saved_state;
+    TopLevelDefinition result = {};
     parse_choice(ctx, definition_name, &result.a_choice);
     result.which = TopLevelDefinition::Which::a_choice;
 
@@ -326,27 +430,35 @@ U64 parse_type_definition(Ctx ctx, Range<U8> definition_name) {
     ensure_one_more(defs, ctx->arena);
     defs->pointer[defs->count] = result;
     defs->count++;
+
     return result.a_choice.name_hash;
   }
 
   // It is neither, so we should backtrack and fail.
   ctx->state = saved_state;
-  set_fail(ctx);
+  set_fail(ctx, FailCode::expected_type_definition);
   return U64(-1);
 }
 
+// Can return non-sensical types, callers need to check for parsing failure.
 Type parse_type_reference_or_inline_type_definition(
   Ctx ctx,
   Range<U8> parent_name,
   Range<U8> part_name
 ) {
   auto saved_state = ctx->state;
-  auto type = parse_type_reference(ctx);
 
-  if (!ctx->state.fail.flag) {
-    // It's a type reference, so we're done.
+  parse_name(ctx, NameKind::type);
+
+  if (ctx->state.fail.code == FailCode::ok) {
+    // It's must be a type reference.
+    ctx->state = saved_state;
+    auto type = parse_type_reference(ctx);
     return type;
   }
+
+  // It wasn't a type, so it must be an inline type definition.
+  ctx->state = saved_state;
 
   // We rely on `vm` allocating contiguous memory.
   auto definition_name = Range<U8> {
@@ -373,11 +485,9 @@ Type parse_type_reference_or_inline_type_definition(
     definition_name.count += part_name.count;
   }
 
-  // It wasn't a type, so it must be an inline type definition.
-  ctx->state = saved_state;
   auto hash = parse_type_definition(ctx, definition_name);
 
-  if (!ctx->state.fail.flag) {
+  if (ctx->state.fail.code == FailCode::ok) {
     return {
       .which = Type::Which::concrete,
       .concrete = {
@@ -395,39 +505,42 @@ Type parse_type_reference_or_inline_type_definition(
   return {};
 }
 
-// Parse a choice. Definition name is parsed beforehand, outside of this function.
+// Parse a choice, beginning from the opening curly bracket.
 void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) {
-  skip_specific_cstring(ctx, "choice");
   skip_whitespace(ctx);
-  skip_specific_character(ctx, '{');
+  skip_specific_character(ctx, '{', FailCode::expected_opening_curly_bracket);
   skip_whitespace(ctx);
 
   // Accumulate options here.
   CrudeDynamicArray<OptionDefinition> dynamic_options = {};
 
-  // Try to parse options until the first failure.
   while (true)
   {
-    // This inner loop is similar to the one in `parse_struct`, but
-    // more complicated because of the zero-sized option syntax.
-
     auto saved_state = ctx->state;
+
+    skip_specific_character(ctx, '}', FailCode::backtrack);
+    skip_whitespace(ctx);
+
+    if (ctx->state.fail.code == FailCode::ok) {
+      // Finished.
+      break;
+    }
+
+    ctx->state = saved_state;
+    Type type = {};
     auto option_name = parse_value_name(ctx);
 
-    Type type = {};
-    if (!ctx->state.fail.flag) {
-      // Save post name state, because the zero-sized option syntax
-      // forces us to backtrack.
+    if (ctx->state.fail.code == FailCode::ok) {
+      // Save post-name state, because the zero-sized option syntax forces us to
+      // possibly backtrack.
       auto post_name_state = ctx->state;
 
-      // Optimistically parse the type.
-      skip_specific_character(ctx, ':');
+      // Optimistically parse as zero-sized option.
       skip_whitespace(ctx);
-      type = parse_type_reference_or_inline_type_definition(ctx, definition_name, option_name);
+      skip_specific_character(ctx, ';', FailCode::backtrack);
+      skip_whitespace(ctx);
 
-      // If we could not, assume it's a zero-sized option and continue parsing.
-      if (ctx->state.fail.flag) {
-        ctx->state = post_name_state;
+      if (ctx->state.fail.code == FailCode::ok) {
         type = {
           .which = Type::Which::concrete,
           .concrete = {
@@ -436,18 +549,27 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) 
             },
           },
         };
-      }
+      } else {
+        // If we could not, assume it's a normal option.
+        ctx->state = post_name_state;
+        skip_specific_character(ctx, ':', FailCode::backtrack);
 
-      // End of the option.
-      skip_whitespace(ctx);
-      skip_specific_character(ctx, ';');
-      skip_whitespace(ctx);
+        if (ctx->state.fail.code == FailCode::ok) {
+          skip_whitespace(ctx);
+          type = parse_type_reference_or_inline_type_definition(ctx, definition_name, option_name);
+
+          skip_whitespace(ctx);
+          skip_specific_character(ctx, ';', FailCode::expected_semicolon);
+          skip_whitespace(ctx);
+        } else {
+          ctx->state = post_name_state;
+          set_fail(ctx, FailCode::expected_colon_or_semicolon);
+        }
+      }
     }
 
-    if (ctx->state.fail.flag) {
-      // Seems we are done parsing options. Backtrack and finish the choice.
-      ctx->state = saved_state;
-      break;
+    if (ctx->state.fail.code != FailCode::ok) {
+      return;
     }
 
     // Success. Add the option to the array.
@@ -459,11 +581,6 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) 
     };
   }
 
-  // Finish the choice parsing.
-  skip_whitespace(ctx);
-  skip_specific_character(ctx, '}');
-
-  // Note: this result will be returned even if parsing fails.
   result->name = definition_name;
   result->name_hash = hash64::from_name(definition_name);
   result->options = {
@@ -472,12 +589,10 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) 
   };
 }
 
-// Parse a struct. Definition name is parsed beforehand, outside of this function.
-// Has the same general structure as `parse_choice`.
+// Parse a struct, beginning from the opening curly bracket.
 void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) {
-  skip_specific_cstring(ctx, "struct");
   skip_whitespace(ctx);
-  skip_specific_character(ctx, '{');
+  skip_specific_character(ctx, '{', FailCode::expected_opening_curly_bracket);
   skip_whitespace(ctx);
 
   // Accumulate fields here.
@@ -487,19 +602,28 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
     // This inner loop is similar to the one in `parse_choice`, but
     // it is simpler because we don't have to deal with zero-sized fields here.
     auto saved_state = ctx->state;
+
+    skip_specific_character(ctx, '}', FailCode::backtrack);
+    skip_whitespace(ctx);
+
+    if (ctx->state.fail.code == FailCode::ok) {
+      // Finished.
+      break;
+    }
+
+    ctx->state = saved_state;
     auto field_name = parse_value_name(ctx);
 
-    skip_specific_character(ctx, ':');
+    skip_specific_character(ctx, ':', FailCode::expected_colon_after_field_name);
     skip_whitespace(ctx);
     auto type = parse_type_reference_or_inline_type_definition(ctx, definition_name, field_name);
 
     skip_whitespace(ctx);
-    skip_specific_character(ctx, ';');
+    skip_specific_character(ctx, ';', FailCode::expected_semicolon);
     skip_whitespace(ctx);
 
-    if (ctx->state.fail.flag) {
-      ctx->state = saved_state;
-      break;
+    if (ctx->state.fail.code != FailCode::ok) {
+      return;
     }
 
     // Success. Add the field to the array.
@@ -511,11 +635,6 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
     };
   }
 
-  // Finish the struct parsing.
-  skip_whitespace(ctx);
-  skip_specific_character(ctx, '}');
-
-  // Note: this result will be returned even if parsing fails.
   result->name = definition_name;
   result->name_hash = hash64::from_name(definition_name);
   result->fields = {
@@ -529,17 +648,17 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
 // So, this is straightforward.
 void parse_top_level_definition(Ctx ctx) {
   auto definition_name = parse_type_name(ctx);
-  skip_specific_character(ctx, ':');
+  skip_specific_character(ctx, ':', FailCode::expected_colon_after_type_name);
   skip_whitespace(ctx);
   parse_type_definition(ctx, definition_name);
   skip_whitespace(ctx);
-  skip_specific_character(ctx, ';');
+  skip_specific_character(ctx, ';', FailCode::expected_semicolon);
   skip_whitespace(ctx);
 }
 
 // Parse a #name directive.
 Range<U8> parse_directive_name(Ctx ctx) {
-  skip_specific_cstring(ctx, "#name");
+  skip_specific_cstring(ctx, "#name", FailCode::expected_name_directive);
   skip_whitespace(ctx);
   auto result = parse_name(ctx, NameKind::schema);
   skip_whitespace_and_exactly_one_newline(ctx);
@@ -547,7 +666,7 @@ Range<U8> parse_directive_name(Ctx ctx) {
 }
 
 // Parse the whole schema.
-Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
+ParseResult parse_input(vm::LinearArena *arena, Range<U8> input) {
   ParserContext ctx_ = {
     .arena = arena,
     .input = input,
@@ -562,11 +681,10 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
 
   while (true) {
     // Stop parsing if we have encountered an error.
-    //
-    // This would be a good place to show the error message,
-    // but we don't do that yet.
-    if (ctx->state.fail.flag) {
-      return 0;
+    if (ctx->state.fail.code != FailCode::ok) {
+      return {
+        .fail = ctx->state.fail,
+      };
     }
 
     // Check for EOF.
@@ -587,7 +705,10 @@ Root *parse_input(vm::LinearArena *arena, Range<U8> input) {
       .count = ctx->state.top_level_definitions.count,
     },
   };
-  return root;
+
+  return {
+    .root = root,
+  };
 }
 
 } // namespace parsing

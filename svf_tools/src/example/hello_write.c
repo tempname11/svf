@@ -16,8 +16,8 @@ void example_write(FILE *file) {
   world.currentYear = 2023;
   world.mechanics_tag = SVF_Hello_Mechanics_tag_quantum;
 
-  char const name[] = "The Universe"; // TODO: null-termination is not what we want.
-  world.name.utf8 = SVFRT_WRITE_FIXED_SIZE_ARRAY(&ctx, name);
+  char const name[] = "The Universe";
+  world.name.utf8 = SVFRT_WRITE_FIXED_SIZE_STRING(&ctx, name, NULL);
 
   SVFRT_WRITE_FINISH(&ctx, &world);
   assert(ctx.finished);

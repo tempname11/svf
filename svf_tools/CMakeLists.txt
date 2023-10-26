@@ -167,6 +167,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 #
+# `svf_runtime`, compiled as C.
+#
+add_library(svf_runtime
+  ../svf_runtime/src/svf_internal.c
+  ../svf_runtime/src/svf_runtime.c
+  ../svf_runtime/src/svf_compatibility.c
+  ../svf_runtime/src/svf_conversion.c
+)
+
+#
 # `svfc`
 #
 add_executable(svfc
@@ -178,17 +188,7 @@ add_executable(svfc
   src/core/output_cpp.cpp
   src/core/common.cpp
 )
-target_link_libraries(svfc PRIVATE platform)
-
-#
-# `svf_runtime`, compiled as C.
-#
-add_library(svf_runtime
-  ../svf_runtime/src/svf_internal.c
-  ../svf_runtime/src/svf_runtime.c
-  ../svf_runtime/src/svf_compatibility.c
-  ../svf_runtime/src/svf_conversion.c
-)
+target_link_libraries(svfc PRIVATE platform svf_runtime)
 
 #
 # Everything below will only be built when compiling for the same platform as

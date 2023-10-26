@@ -28,7 +28,11 @@ void example_read(SVFRT_Bytes input_bytes) {
 
   uint8_t const *name0_ptr = SVFRT_READ_SEQUENCE_RAW(uint8_t, ctx, field0->name);
   uint8_t const *name1_ptr = SVFRT_READ_SEQUENCE_RAW(uint8_t, ctx, field1->name);
+
+  assert(field0->name.count == 5);
   assert(strncmp("hello", (char *) name0_ptr, field0->name.count) == 0);
+
+  assert(field1->name.count == 5);
   assert(strncmp("world", (char *) name1_ptr, field1->name.count) == 0);
 
   assert(field0->value_tag == SVF_JSON_Value_tag_number);

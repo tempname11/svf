@@ -7,7 +7,36 @@ namespace core {
   namespace meta = svf::Meta;
 
   namespace parsing {
-    grammar::Root *parse_input(vm::LinearArena *arena, Range<U8> input);
+    enum class FailCode {
+      ok                                                                 = 0,
+      expected_newline                                                   = 0x01,
+      expected_name_directive                                            = 0x02,
+      expected_uppercase_letter                                          = 0x03,
+      expected_lowercase_letter                                          = 0x04,
+      expected_type_definition                                           = 0x05,
+      expected_semicolon                                                 = 0x06,
+      expected_colon_or_semicolon                                        = 0x07,
+      expected_colon_after_type_name                                     = 0x08,
+      expected_colon_after_field_name                                    = 0x09,
+      expected_opening_curly_bracket                                     = 0x0A,
+      expected_closing_square_bracket                                    = 0x0B,
+      keyword_reserved                                                   = 0x0C,
+      backtrack                                                          = 0xFF,
+    };
+
+    struct Fail {
+      FailCode code;
+      U64 cursor;
+    };
+
+    struct ParseResult {
+      grammar::Root *root;
+      Fail fail;
+    };
+
+    ParseResult parse_input(vm::LinearArena *arena, Range<U8> input);
+
+    Range<U8> get_fail_code_description(FailCode code);
   }
 
   namespace generation {

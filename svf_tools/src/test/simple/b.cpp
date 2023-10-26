@@ -70,7 +70,7 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
 
   auto scratch_memory = vm::many<U8>(
     arena,
-    schema::SchemaDescription::min_read_scratch_memory_size
+    schema::_SchemaDescription::min_read_scratch_memory_size
   );
   auto read_result = svf::runtime::read_message<schema::Entry>(
     svf::runtime::Range<U8> { input_range.pointer, (U32) input_range.count },

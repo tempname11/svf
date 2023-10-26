@@ -534,6 +534,14 @@ void const *SVFRT_read_sequence_element(
 #define SVFRT_WRITE_FIXED_SIZE_ARRAY(ctx, array) \
   SVFRT_write_sequence((ctx), (void *) (array), sizeof(*(array)), sizeof(array) / sizeof(*(array)))
 
+#define SVFRT_WRITE_FIXED_SIZE_STRING(ctx, array, termination_type) \
+  SVFRT_write_sequence( \
+    (ctx), \
+    (void *) (array), \
+    sizeof(*(array)), \
+    sizeof(array) / sizeof(*(array)) - (termination_type == NULL ? 1 : 0) \
+  )
+
 #define SVFRT_WRITE_SEQUENCE_ELEMENT(ctx, data_ptr, inout_sequence) \
   SVFRT_write_sequence_element((ctx), (void *) (data_ptr), sizeof(*(data_ptr)), (inout_sequence))
 

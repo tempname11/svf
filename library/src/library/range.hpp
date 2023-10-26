@@ -26,6 +26,15 @@ void range_copy(Range<T> dst, Range<T> src) {
 
 template<typename T>
 static inline
+bool range_equal(Range<T> dst, Range<T> src) {
+  return (
+    (src.count == dst.count) &&
+    (memcmp(src.pointer, dst.pointer, src.count) == 0)
+  );
+}
+
+template<typename T>
+static inline
 Bytes range_to_bytes(Range<T> range) {
   return {
     .pointer = (Byte *) range.pointer,

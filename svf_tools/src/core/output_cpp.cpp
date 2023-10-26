@@ -394,8 +394,8 @@ Bytes as_code(
 
   output_cstring(ctx, "#pragma pack(pop)\n\n");
 
-  output_cstring(ctx, "// C++ trickery: SchemaDescription.\n");
-  output_cstring(ctx, R"(struct SchemaDescription {
+  output_cstring(ctx, "// C++ trickery: _SchemaDescription.\n");
+  output_cstring(ctx, R"(struct _SchemaDescription {
   template<typename T>
   struct PerType;
 
@@ -427,11 +427,11 @@ Bytes as_code(
   output_cstring(ctx, "};\n");
   output_cstring(ctx, "\n");
 
-  output_cstring(ctx, "// C++ trickery: SchemaDescription::PerType.\n");
+  output_cstring(ctx, "// C++ trickery: _SchemaDescription::PerType.\n");
 
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_cstring(ctx, "template<>\nstruct SchemaDescription::PerType<");
+    output_cstring(ctx, "template<>\nstruct _SchemaDescription::PerType<");
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "> {\n  static constexpr uint64_t name_hash = ");
     output_u8_array(ctx, it->name);
@@ -456,7 +456,7 @@ Bytes as_code(
     output_u8_array(ctx, it->name);
     output_cstring(ctx, "> {\n  using SchemaDescription = ");
     output_u8_array(ctx, schema_definition->name);
-    output_cstring(ctx, "::SchemaDescription;\n};\n\n");
+    output_cstring(ctx, "::_SchemaDescription;\n};\n\n");
   }
 
   output_cstring(ctx, "} // namespace runtime\n");

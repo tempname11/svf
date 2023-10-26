@@ -247,12 +247,14 @@ template<typename S, typename T, typename E, int N>
 static inline
 Sequence<S> write_fixed_size_string(
   WriteContext<E> *ctx,
-  T const (&array)[N]
+  T const (&array)[N],
+  bool termination_type = !NULL // Intended use: NULL for null-terminated strings, !NULL otherwise.
 ) noexcept {
   static_assert(sizeof(typename IsPrimitive<S>::Yes) > 0);
   static_assert(sizeof(S) == sizeof(T));
+  static_assert(N > 0);
 
-  return write_sequence(ctx, (S const *) array, (uint32_t) N);
+  return write_sequence(ctx, (S const *) array, (uint32_t) (termination_type == NULL ? N - 1 : N));
 }
 
 template<typename T, typename E>

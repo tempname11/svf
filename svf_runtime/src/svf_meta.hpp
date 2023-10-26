@@ -175,8 +175,8 @@ struct FieldDefinition {
 
 #pragma pack(pop)
 
-// C++ trickery: SchemaDescription.
-struct SchemaDescription {
+// C++ trickery: _SchemaDescription.
+struct _SchemaDescription {
   template<typename T>
   struct PerType;
 
@@ -190,63 +190,63 @@ struct SchemaDescription {
   static constexpr uint64_t content_hash = 0x28B39378619EAB1Eull;
 };
 
-// C++ trickery: SchemaDescription::PerType.
+// C++ trickery: _SchemaDescription::PerType.
 template<>
-struct SchemaDescription::PerType<SchemaDefinition> {
+struct _SchemaDescription::PerType<SchemaDefinition> {
   static constexpr uint64_t name_hash = SchemaDefinition_name_hash;
   static constexpr uint32_t index = SchemaDefinition_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<ChoiceDefinition> {
+struct _SchemaDescription::PerType<ChoiceDefinition> {
   static constexpr uint64_t name_hash = ChoiceDefinition_name_hash;
   static constexpr uint32_t index = ChoiceDefinition_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<StructDefinition> {
+struct _SchemaDescription::PerType<StructDefinition> {
   static constexpr uint64_t name_hash = StructDefinition_name_hash;
   static constexpr uint32_t index = StructDefinition_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<ConcreteType_DefinedStruct> {
+struct _SchemaDescription::PerType<ConcreteType_DefinedStruct> {
   static constexpr uint64_t name_hash = ConcreteType_DefinedStruct_name_hash;
   static constexpr uint32_t index = ConcreteType_DefinedStruct_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<ConcreteType_DefinedChoice> {
+struct _SchemaDescription::PerType<ConcreteType_DefinedChoice> {
   static constexpr uint64_t name_hash = ConcreteType_DefinedChoice_name_hash;
   static constexpr uint32_t index = ConcreteType_DefinedChoice_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<Type_Concrete> {
+struct _SchemaDescription::PerType<Type_Concrete> {
   static constexpr uint64_t name_hash = Type_Concrete_name_hash;
   static constexpr uint32_t index = Type_Concrete_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<Type_Reference> {
+struct _SchemaDescription::PerType<Type_Reference> {
   static constexpr uint64_t name_hash = Type_Reference_name_hash;
   static constexpr uint32_t index = Type_Reference_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<Type_Sequence> {
+struct _SchemaDescription::PerType<Type_Sequence> {
   static constexpr uint64_t name_hash = Type_Sequence_name_hash;
   static constexpr uint32_t index = Type_Sequence_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<OptionDefinition> {
+struct _SchemaDescription::PerType<OptionDefinition> {
   static constexpr uint64_t name_hash = OptionDefinition_name_hash;
   static constexpr uint32_t index = OptionDefinition_struct_index;
 };
 
 template<>
-struct SchemaDescription::PerType<FieldDefinition> {
+struct _SchemaDescription::PerType<FieldDefinition> {
   static constexpr uint64_t name_hash = FieldDefinition_name_hash;
   static constexpr uint32_t index = FieldDefinition_struct_index;
 };
@@ -258,52 +258,52 @@ namespace runtime {
 // C++ trickery: GetSchemaFromType.
 template<>
 struct GetSchemaFromType<Meta::SchemaDefinition> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::ChoiceDefinition> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::StructDefinition> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::ConcreteType_DefinedStruct> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::ConcreteType_DefinedChoice> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::Type_Concrete> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::Type_Reference> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::Type_Sequence> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::OptionDefinition> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 template<>
 struct GetSchemaFromType<Meta::FieldDefinition> {
-  using SchemaDescription = Meta::SchemaDescription;
+  using SchemaDescription = Meta::_SchemaDescription;
 };
 
 } // namespace runtime

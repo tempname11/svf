@@ -18,10 +18,10 @@ struct Control {
 
 SVFRT_Bytes schema_lookup(void *it, uint64_t schema_content_hash) {
   auto control = (Control *) it;
-  if (!control->should_fail && schema_content_hash == schema::SchemaDescription::content_hash) {
+  if (!control->should_fail && schema_content_hash == schema::_SchemaDescription::content_hash) {
     return {
-      .pointer = schema::SchemaDescription::schema_binary_array,
-      .count = schema::SchemaDescription::schema_binary_size,
+      .pointer = schema::_SchemaDescription::schema_binary_array,
+      .count = schema::_SchemaDescription::schema_binary_size,
     };
   }
   return {};
@@ -35,9 +35,9 @@ int main(int /*argc*/, char */*argv*/[]) {
     &ctx,
     write_arena,
     &arena_value,
-    schema::SchemaDescription::content_hash,
+    schema::_SchemaDescription::content_hash,
     {}, // Empty schema!
-    schema::SchemaDescription::PerType<schema::Entry>::name_hash
+    schema::_SchemaDescription::PerType<schema::Entry>::name_hash
   );
   schema::Entry entry = {};
   svf::runtime::write_finish(&ctx, &entry);
