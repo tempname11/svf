@@ -25,7 +25,7 @@ grammar::TopLevelDefinition *resolve_by_name_hash(
         break;
       }
       default: {
-        ASSERT(false);
+        return UNREACHABLE;
       }
     }
   }
@@ -117,8 +117,9 @@ OutputTypeResult output_concrete_type(
         // We rely on the fact that this type has already been output.
         auto size = structs.pointer[struct_index].size;
         ASSERT(size > 0);
-        return { .main_size = size };
-
+        return {
+          .main_size = size
+        };
       } else if (definition->which == grammar::TopLevelDefinition::Which::a_choice) {
         if (!allow_tag) {
           return {
@@ -144,15 +145,11 @@ OutputTypeResult output_concrete_type(
           .main_size = payload_size,
           .tag_size = SVFRT_TAG_SIZE,
         };
-
-      } else {
-        ASSERT(false);
       }
     }
   }
 
-  ASSERT(false);
-  return {};
+  return UNREACHABLE;
 }
 
 OutputTypeResult output_type(
@@ -214,7 +211,7 @@ OutputTypeResult output_type(
     }
   }
 
-  ASSERT(false);
+  return UNREACHABLE;
 }
 
 GenerationResult as_bytes(
@@ -237,7 +234,7 @@ GenerationResult as_bytes(
     } else if (definition->which == grammar::TopLevelDefinition::Which::a_choice) {
       num_choices++;
     } else {
-      ASSERT(false);
+      return UNREACHABLE;
     }
   }
 
@@ -337,7 +334,7 @@ GenerationResult as_bytes(
           break;
         }
         default: {
-          ASSERT(false);
+          return UNREACHABLE;
         }
       }
 

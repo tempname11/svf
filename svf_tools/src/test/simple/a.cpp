@@ -37,8 +37,7 @@ void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
   svf::runtime::write_finish(&ctx, &entry);
 
   if (!ctx.finished) {
-    printf("Write was not finished.\n");
-    abort_this_process();
+    terminate_with_message("Write was not finished.");
   }
 }
 
@@ -56,8 +55,7 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   );
 
   if (!read_result.entry) {
-    printf("Read result is invalid.\n");
-    abort_this_process();
+    terminate_with_message("Read result is invalid.");
   }
 
   auto ctx = &read_result.context;

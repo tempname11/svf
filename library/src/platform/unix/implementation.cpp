@@ -5,10 +5,11 @@
 #include <sys/mman.h>
 #include <src/library.hpp>
 
-void abort_this_process(char const *message, char const *filename, UInt line) {
-  fprintf(stdout, "ASSERT(%s)\n\nat %s:%" PRIu64 "\n", message, filename, line);
-  fflush(stdout);
+ErrorReportFn _internal_report_error_details = report_error_details_default;
+
+Impossible terminate() {
   abort();
+  return Impossible();
 }
 
 namespace vm {

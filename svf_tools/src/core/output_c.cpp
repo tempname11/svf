@@ -118,7 +118,7 @@ void output_concrete_type_name(
       break;
     }
     default: {
-      ASSERT(false);
+      UNREACHABLE;
     }
   }
 }
@@ -154,7 +154,7 @@ void output_type(Ctx ctx, Meta::Type_tag in_tag, Meta::Type_payload *in_payload)
       break;
     }
     default: {
-      ASSERT(false);
+      UNREACHABLE;
     }
   }
 }
@@ -226,7 +226,7 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
         break;
       }
       default: {
-        ASSERT(false);
+        return UNREACHABLE;
       }
     }
   }

@@ -273,9 +273,11 @@ int main(int argc, char *argv[]) {
       printf("Error: failed to write output.\n");
       return 1;
     }
+
     fclose(output_file);
+    return 0;
   } else if (options.subcommand == CommandLineOptions::Subcommand::binary) {
-    // Write the header part only via `SVFRT_write_start`.
+    // Write just the header part via `SVFRT_write_start`.
     SVFRT_WriteContext ctx;
     SVFRT_write_start(
       &ctx,
@@ -296,9 +298,8 @@ int main(int argc, char *argv[]) {
     }
 
     fclose(output_file);
-  } else {
-    ASSERT(false);
+    return 0;
   }
 
-  return 0;
+  return UNREACHABLE;
 }

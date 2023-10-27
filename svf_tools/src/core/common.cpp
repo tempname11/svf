@@ -59,8 +59,7 @@ TypePluralityAndSize get_plurality(
           return { TypePlurality::tag_and_payload, SVFRT_TAG_SIZE + payload_size };
         }
         default: {
-          ASSERT(false);
-          return {};
+          return UNREACHABLE;
         }
       }
     }
@@ -71,8 +70,7 @@ TypePluralityAndSize get_plurality(
       return { TypePlurality::one, 8 };
     }
     default: {
-      ASSERT(false);
-      return {};
+      return UNREACHABLE;
     }
   }
 }

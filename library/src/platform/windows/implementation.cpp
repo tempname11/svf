@@ -1,14 +1,29 @@
 #include <cstdio>
-#include <cinttypes>
 #include <windows.h>
 #include <src/library.hpp>
 
-void abort_this_process(char const *message, char const *filename, UInt line) {
-  char buffer[256];
-  snprintf(buffer, sizeof(buffer), "ASSERT(%s)\n\nat %s:%" PRIu64, message, filename, line);
-  MessageBoxA(0, buffer, "Assertion failed", MB_OK | MB_ICONERROR);
-  _set_abort_behavior( 0, _WRITE_ABORT_MSG);
-  abort();
+// void report_error_details_gui(char const *message) {
+//   MessageBoxA(0, message, "Internal error. Please report this.", MB_OK | MB_ICONERROR);
+// }
+
+ErrorReportFn _internal_report_error_details = report_error_details_default;
+
+Impossible terminate() {
+  // MS quote:
+  //
+  // For Windows compatibility reasons, when abort calls _exit, it may invoke
+  // the Windows ExitProcess API, which in turn allows DLL termination routines
+  // to run. Destructors aren't run in the executable, but the same may not be
+  // true of DLLs loaded in the executable's process space. This behavior
+  // doesn't strictly conform to the C++ standard. To immediately terminate a
+  // process including any DLLs, use the Windows TerminateProcess API.
+
+  TerminateProcess(GetCurrentProcess(), 3);
+  // 3: a weird Windows convention.
+  // "The C runtime abort function terminates the process with exit code 3."
+  // See https://devblogs.microsoft.com/oldnewthing/20110519-00/
+
+  return Impossible();
 }
 
 namespace vm {
