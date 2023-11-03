@@ -957,7 +957,7 @@ void SVFRT_conversion_traverse_any_type(
   SVFRT_Phase2_TraverseAnyType *phase2
 ) {
   recursion_depth += 1;
-  if (recursion_depth >= ctx->max_recursion_depth) {
+  if (recursion_depth > ctx->max_recursion_depth) {
     ctx->error_code = SVFRT_code_conversion__max_recursion_depth_exceeded;
     return;
   }
@@ -1116,21 +1116,24 @@ void SVFRT_conversion_traverse_any_type(
         return;
       }
 
+      uint64_t unsafe_end_offset_src = (
+        (uint64_t) ~unsafe_representation_src.data_offset_complement +
+        (uint64_t) unsafe_representation_src.count * (uint64_t) unsafe_size_src
+      );
+
+      // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
+      // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
+      if (unsafe_end_offset_src > (uint64_t) UINT32_MAX) {
+        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+        return;
+      }
+
       for (uint32_t i = 0; i < unsafe_representation_src.count; i++) {
-        // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
-        // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
-        //
-        // Strictly speaking, it does not seem necessary to catch this, because
-        // offset checks and aliasing checks will do their job anyway, but it's
-        // just nicer to catch obvious problems early.
-        uint64_t unsafe_final_offset_src = (
-          (uint64_t) ~unsafe_representation_src.data_offset_complement +
-          (uint64_t) i * (uint64_t) unsafe_size_src
+        // No overflow possible, see the `unsafe_end_offset_src` check above.
+        uint32_t unsafe_final_offset_src = (
+          ~unsafe_representation_src.data_offset_complement +
+          i * unsafe_size_src
         );
-        if (unsafe_final_offset_src > (uint64_t) UINT32_MAX) {
-          ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
-          return;
-        }
 
         if (phase2) {
           // `phase2_inner.data_range_dst` was filled by `SVFRT_conversion_tally`.
@@ -1142,6 +1145,11 @@ void SVFRT_conversion_traverse_any_type(
           // `SVFRT_conversion_tally` has succeeded, see #phase2-reasonable-dst-sum.
           phase2_inner.data_offset_dst = size_dst * i;
         }
+
+        // TODO: for a sequence of primitives, this is far from optimal. If the
+        // types match, we can just `memcpy` the whole thing instead of looping.
+        //
+        // Typical example would be a long U8 sequence.
 
         SVFRT_conversion_traverse_concrete_type(
           ctx,

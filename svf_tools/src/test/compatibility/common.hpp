@@ -11,30 +11,31 @@ struct PreparedSchema {
   U64 schema_content_hash;
   U64 entry_struct_id;
   U32 entry_stride;
+  SVFRT_RangeU32 struct_strides;
 };
 
 struct PreparedSchemaParams {
-  bool corrupt_structs;
-  bool corrupt_choices;
-  bool corrupt_fields;
-  bool corrupt_options;
-  bool corrupt_struct_index;
-  bool corrupt_choice_index;
+  Bool corrupt_structs;
+  Bool corrupt_choices;
+  Bool corrupt_fields;
+  Bool corrupt_options;
+  Bool corrupt_struct_index;
+  Bool corrupt_choice_index;
 
   U32 extra_structs;
   U32 extra_fields;
   U32 extra_options;
-  bool less_fields;
-  bool change_field_ids;
-  bool change_field_offsets;
-  bool change_option_ids;
-  bool change_option_tags;
-  bool change_type_tag;
-  bool change_concrete_type_tag;
-  bool no_struct_end_padding;
-  bool extra_struct_end_padding;
-  bool different_struct_refs;
-  bool different_choice_refs;
+  Bool less_fields;
+  Bool change_field_ids;
+  Bool change_field_offsets;
+  Bool change_option_ids;
+  Bool change_option_tags;
+  Bool change_type_tag;
+  Bool change_concrete_type_tag;
+  Bool no_struct_end_padding;
+  Bool extra_struct_end_padding;
+  Bool different_struct_refs;
+  Bool different_choice_refs;
 };
 
 PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *params);

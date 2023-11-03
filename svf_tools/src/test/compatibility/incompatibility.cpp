@@ -9,11 +9,10 @@ int main(int /*argc*/, char */*argv*/[]) {
 
   U8 scratch_buffer[256];
   SVFRT_Bytes scratch = { .pointer = scratch_buffer, .count = sizeof(scratch_buffer) };
-  U32 strides_dst[1] = { schema_dst.entry_stride };
 
   SVFRT_ReadMessageParams default_read_params = {};
   default_read_params.expected_schema_content_hash = schema_dst.schema_content_hash;
-  default_read_params.expected_schema_struct_strides = { .pointer = strides_dst, .count = 1 };
+  default_read_params.expected_schema_struct_strides = schema_dst.struct_strides;
   default_read_params.expected_schema = schema_dst.schema;
   default_read_params.required_level = SVFRT_compatibility_binary;
   default_read_params.entry_struct_id = schema_dst.entry_struct_id;

@@ -368,8 +368,8 @@ endfunction(add_our_write_test)
 function(add_our_compatibility_test NAME)
   add_executable(
     test_compatibility_${NAME}
-    src/test/compatibility/common.cpp
     src/test/compatibility/${NAME}.cpp
+    src/test/compatibility/common.cpp
   )
   target_link_libraries(test_compatibility_${NAME} PRIVATE svf_runtime platform)
 
@@ -378,6 +378,20 @@ function(add_our_compatibility_test NAME)
 
   add_test(NAME test_compatibility_${NAME} COMMAND test_compatibility_${NAME})
 endfunction(add_our_compatibility_test)
+
+function(add_our_conversion_test NAME)
+  add_executable(
+    test_conversion_${NAME}
+    src/test/conversion/${NAME}.cpp
+    src/test/conversion/common.cpp
+  )
+  target_link_libraries(test_conversion_${NAME} PRIVATE svf_runtime platform)
+
+  # target_compile_options(test_conversion_${NAME} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+  # target_link_options(test_conversion_${NAME} PRIVATE -fprofile-instr-generate)
+
+  add_test(NAME test_conversion_${NAME} COMMAND test_conversion_${NAME})
+endfunction(add_our_conversion_test)
 
 add_our_write_test(writer_function_failed)
 add_our_write_test(data_would_overflow)
@@ -393,3 +407,11 @@ add_our_compatibility_test(params)
 add_our_compatibility_test(invalid_sufficient_level)
 add_our_compatibility_test(malformed)
 add_our_compatibility_test(incompatibility)
+
+add_our_conversion_test(allocation_failed)
+add_our_conversion_test(total_data_size_limit_exceeded)
+add_our_conversion_test(data_out_of_bounds)
+add_our_conversion_test(bad_choice_tag)
+add_our_conversion_test(max_recursion_depth_exceeded)
+add_our_conversion_test(data_aliasing_detected)
+# add_our_conversion_test(placeholder) # Useless, but added for completeness.

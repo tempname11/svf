@@ -18,9 +18,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
     params = &empty;
   }
 
-  PreparedSchema result = {
-    .schema_content_hash = 0,
-  };
+  auto struct_strides = vm::many<U32>(arena, 3 + params->extra_structs);
 
   svf::runtime::WriteContext<svf::Meta::SchemaDefinition> ctx = {};
   ctx.writer_fn = write_arena;
@@ -48,7 +46,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
         .concrete = {
           .type_tag = svf::Meta::ConcreteType_tag::definedStruct,
           .type_payload = {
-            .definedChoice = {
+            .definedStruct = {
               .index = params->corrupt_struct_index ? U32(0xDEAD) : 1,
             }
           },
@@ -63,7 +61,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
         .concrete = {
           .type_tag = svf::Meta::ConcreteType_tag::definedStruct,
           .type_payload = {
-            .definedChoice = {
+            .definedStruct = {
               .index = params->corrupt_struct_index ? U32(0xDEAD) : (params->different_struct_refs ? 2 : 1),
             }
           },
@@ -154,6 +152,11 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   };
   auto structs = svf::runtime::write_sequence(&ctx, base_structs, 3);
 
+  ASSERT(struct_strides.count == 3 + params->extra_structs);
+  for (UInt i = 0; i < 3; i++) {
+    struct_strides.pointer[i] = base_structs[i].size;
+  }
+
   for (UInt i = 0; i < params->extra_structs; i++) {
     svf::Meta::StructDefinition extra_struct = {
       .typeId = 0x5D00 + i, // "SD" for "Struct Definition".,
@@ -161,6 +164,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
       // TODO: valid fields should be here.
     };
     svf::runtime::write_sequence_element(&ctx, &extra_struct, &structs);
+    struct_strides.pointer[3 + i] = 1;
   }
 
   if (params->corrupt_structs) {
@@ -175,7 +179,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
       .optionId = 0x0D00 + option_id_delta, // "OD" for "Option Definition".
 
       // Do not apply `option_tag_delta` here. We want all-zero data to be
-      // valid, which means that a zero-tag option should exists.
+      // valid, which means that a zero-tag option should exist.
       .tag = 0,
 
       .type_tag = svf::Meta::Type_tag::concrete,
@@ -246,10 +250,12 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   ASSERT(ctx.finished);
   ASSERT(ctx.error_code == 0);
 
+  PreparedSchema result = {};
   result.schema.pointer = (U8 *) schema_pointer;
   result.schema.count = (U8 *) vm::realign(arena, 1) - (U8 *) schema_pointer;
   result.entry_stride = base_structs[0].size;
   result.entry_struct_id = base_structs[0].typeId;
+  result.struct_strides = { struct_strides.pointer, safe_int_cast<U32>(struct_strides.count) };
 
   result.schema_content_hash = hash64::begin();
   hash64::add_bytes(&result.schema_content_hash, {result.schema.pointer, result.schema.count});
@@ -274,8 +280,8 @@ SVFRT_Bytes prepare_message(vm::LinearArena *arena, PreparedSchema *schema) {
   ASSERT(ctx.finished);
   ASSERT(ctx.error_code == 0);
 
-  SVFRT_Bytes message = {};
-  message.pointer = (U8 *) message_pointer;
-  message.count = (U8 *) vm::realign(arena, 1) - (U8 *) message_pointer;
-  return message;
+  return {
+    .pointer = (U8 *) message_pointer,
+    .count = safe_int_cast<U32>((U8 *) vm::realign(arena, 1) - (U8 *) message_pointer),
+  };
 }
