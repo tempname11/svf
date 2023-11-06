@@ -68,32 +68,34 @@ void SVFRT_read_message(
   }
 
   // Prevent addition overflow by casting operands to `uint64_t` first.
-  uint64_t schema_padded_end_offset = SVFRT_align_up(
-    (uint64_t) sizeof(SVFRT_MessageHeader) + (uint64_t) (header->schema_length),
+  uint64_t appendix_padded_end_offset = SVFRT_align_up(
+    SVFRT_align_up(
+      (uint64_t) sizeof(SVFRT_MessageHeader) + (uint64_t) (header->schema_length),
+      SVFRT_MESSAGE_PART_ALIGNMENT
+    ) + (uint64_t) (header->appendix_length),
     SVFRT_MESSAGE_PART_ALIGNMENT
   );
 
-  // Make sure the schema (and additional padding after it) is in-bounds.
-  // This also implies it is less than `UINT32_MAX`.
-  if (schema_padded_end_offset > (uint64_t) message.count) {
+  // Make sure everything is in-bounds.
+  if (appendix_padded_end_offset > (uint64_t) message.count) {
     out_result->error_code = SVFRT_code_read__bad_schema_length;
     return;
   }
 
   // We now have a valid schema and data ranges. The data range is implicit,
-  // from the padded end of the schema, to the end of the message.
+  // from the padded end of the appendix, to the end of the message.
   SVFRT_Bytes schema_range = {
     /*.pointer =*/ message.pointer + sizeof(SVFRT_MessageHeader),
     /*.count =*/ header->schema_length,
   };
   SVFRT_Bytes data_range = {
-    /*.pointer =*/ message.pointer + schema_padded_end_offset,
-    /*.count =*/ message.count - schema_padded_end_offset,
+    /*.pointer =*/ message.pointer + appendix_padded_end_offset,
+    /*.count =*/ message.count - appendix_padded_end_offset,
   };
 
   if (schema_range.count == 0) {
     // Only a reference to the schema is available, so we have to rely on the
-    // user- provided lookup function.
+    // user-provided lookup function.
 
     if (!params->schema_lookup_fn) {
       out_result->error_code = SVFRT_code_read__no_schema_lookup_function;
@@ -201,18 +203,42 @@ void SVFRT_read_message(
   out_result->context.struct_strides = check_result.quirky_struct_strides_dst;
 }
 
+SVFRT_ErrorCode SVFRT_write_part_padding(
+  SVFRT_WriterFn *writer_fn,
+  void *writer_ptr,
+  uint32_t written_part
+) {
+  uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
+  uint32_t misaligned = written_part % SVFRT_MESSAGE_PART_ALIGNMENT;
+  SVFRT_Bytes padding_bytes = {
+    /*.pointer =*/ (uint8_t *) zeros,
+    /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
+  };
+  if (misaligned != 0) {
+    uint32_t written_padding = writer_fn(writer_ptr, padding_bytes);
+    if (written_padding != padding_bytes.count) {
+      return SVFRT_code_write__writer_function_failed;
+    }
+  }
+
+  return 0;
+}
+
 void SVFRT_write_start(
   SVFRT_WriteContext *result,
   SVFRT_WriterFn *writer_fn,
   void *writer_ptr,
   uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
+  SVFRT_Bytes appendix_bytes,
   uint64_t entry_struct_id
 ) {
   SVFRT_MessageHeader header = {
     /*.magic =*/ { 'S', 'V', 'F' },
     /*.version =*/ 0,
-    /*.schema_length =*/ (uint32_t) schema_bytes.count,
+    /*._reserved =*/ {0},
+    /*.schema_length =*/ schema_bytes.count,
+    /*.appendix_length =*/ appendix_bytes.count,
     /*.schema_content_hash =*/ schema_content_hash,
     /*.entry_struct_id =*/ entry_struct_id
   };
@@ -229,23 +255,21 @@ void SVFRT_write_start(
     error_code = SVFRT_code_write__writer_function_failed;
   }
 
-  if (schema_bytes.count > 0) {
+  if (error_code == 0 && schema_bytes.count > 0) {
     uint32_t written_schema = writer_fn(writer_ptr, schema_bytes);
     if (written_schema != schema_bytes.count) {
       error_code = SVFRT_code_write__writer_function_failed;
+    } else {
+      error_code = SVFRT_write_part_padding(writer_fn, writer_ptr, written_schema);
     }
+  }
 
-    uint8_t zeros[SVFRT_MESSAGE_PART_ALIGNMENT] = {0};
-    uint32_t misaligned = written_schema % SVFRT_MESSAGE_PART_ALIGNMENT;
-    SVFRT_Bytes padding_bytes = {
-      /*.pointer =*/ (uint8_t *) zeros,
-      /*.count =*/ SVFRT_MESSAGE_PART_ALIGNMENT - misaligned,
-    };
-    if (misaligned != 0) {
-      uint32_t written_padding = writer_fn(writer_ptr, padding_bytes);
-      if (written_padding != padding_bytes.count) {
-        error_code = SVFRT_code_write__writer_function_failed;
-      }
+  if (error_code == 0 && appendix_bytes.count > 0) {
+    uint32_t written_appendix = writer_fn(writer_ptr, appendix_bytes);
+    if (written_appendix != appendix_bytes.count) {
+      error_code = SVFRT_code_write__writer_function_failed;
+    } else {
+      error_code = SVFRT_write_part_padding(writer_fn, writer_ptr, written_appendix);
     }
   }
 

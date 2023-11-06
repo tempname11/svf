@@ -2,35 +2,30 @@
 
 SchemaDefinition: struct {
   schemaId: U64;
-  name: U8[];
   structs: StructDefinition[];
   choices: ChoiceDefinition[];
 };
 
 ChoiceDefinition: struct {
   typeId: U64;
-  name: U8[];
   payloadSize: U32;
   options: OptionDefinition[];
 };
 
 OptionDefinition: struct {
   optionId: U64;
-  name: U8[];
   tag: U8;
   type: Type;
 };
 
 StructDefinition: struct {
   typeId: U64;
-  name: U8[];
   size: U32;
   fields: FieldDefinition[];
 };
 
 FieldDefinition: struct {
   fieldId: U64;
-  name: U8[];
   offset: U32;
   type: Type;
 };
@@ -65,4 +60,13 @@ Type: choice {
   sequence: struct {
     elementType: ConcreteType;
   };
+};
+
+Appendix: struct {
+  names: NameMapping[];
+};
+
+NameMapping: struct {
+  id: U64;
+  name: U8[];
 };

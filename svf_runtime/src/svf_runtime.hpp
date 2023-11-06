@@ -194,6 +194,7 @@ WriteContext<Entry> write_start(
     writer_ptr,
     SchemaDescription::content_hash,
     { SchemaDescription::schema_binary_array, SchemaDescription::schema_binary_size },
+    {},
     SchemaDescription::template PerType<Entry>::type_id
   );
   return ctx_value;

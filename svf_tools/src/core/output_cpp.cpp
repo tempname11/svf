@@ -8,31 +8,31 @@ namespace core::output::cpp {
 
 void output_struct_declaration(Ctx ctx, Meta::StructDefinition *it) {
   output_cstring(ctx, "struct ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   output_cstring(ctx, ";\n");
 }
 
 void output_choice_declaration(Ctx ctx, Meta::ChoiceDefinition *it) {
   output_cstring(ctx, "enum class ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   output_cstring(ctx, "_tag: uint8_t;\n");
 
   output_cstring(ctx, "union ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   output_cstring(ctx, "_payload;\n");
 }
 
-void output_struct_index(Ctx ctx, svf::runtime::Sequence<U8> name, U32 index) {
+void output_struct_index(Ctx ctx, U64 type_id, U32 index) {
   output_cstring(ctx, "uint32_t const ");
-  output_u8_array(ctx, name);
+  output_name(ctx, type_id);
   output_cstring(ctx, "_struct_index = ");
   output_decimal(ctx, index);
   output_cstring(ctx, ";\n");
 }
 
-void output_type_id(Ctx ctx, svf::runtime::Sequence<U8> name, U64 type_id) {
+void output_type_id(Ctx ctx, U64 type_id) {
   output_cstring(ctx, "uint64_t const ");
-  output_u8_array(ctx, name);
+  output_name(ctx, type_id);
   output_cstring(ctx, "_type_id = 0x");
   output_hexadecimal(ctx, type_id);
   output_cstring(ctx, "ull;\n");
@@ -46,12 +46,12 @@ void output_concrete_type_name(
   switch (in_tag) {
     case Meta::ConcreteType_tag::definedStruct: {
       auto structs = to_range(ctx->schema_bytes, ctx->schema_definition->structs);
-      output_u8_array(ctx, structs.pointer[in_payload->definedStruct.index].name);
+      output_name(ctx, structs.pointer[in_payload->definedStruct.index].typeId);
       break;
     }
     case Meta::ConcreteType_tag::definedChoice: {
       auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
-      output_u8_array(ctx, choices.pointer[in_payload->definedChoice.index].name);
+      output_name(ctx, choices.pointer[in_payload->definedChoice.index].typeId);
       break;
     }
     case Meta::ConcreteType_tag::u8: {
@@ -141,7 +141,7 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
   auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
   output_cstring(ctx, "struct ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   output_cstring(ctx, " {\n");
 
   UInt size_sum = 0;
@@ -174,7 +174,7 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
         output_cstring(ctx, "  ");
         output_type(ctx, field->type_tag, &field->type_payload);
         output_cstring(ctx, " ");
-        output_u8_array(ctx, field->name);
+        output_name(ctx, field->fieldId);
         output_cstring(ctx, ";\n");
         break;
       }
@@ -190,7 +190,7 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
           &field->type_payload.concrete.type_payload
         );
         output_cstring(ctx, "_tag ");
-        output_u8_array(ctx, field->name);
+        output_name(ctx, field->fieldId);
         output_cstring(ctx, "_tag;\n  ");
         output_concrete_type_name(
           ctx,
@@ -198,7 +198,7 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
           &field->type_payload.concrete.type_payload
         );
         output_cstring(ctx, "_payload ");
-        output_u8_array(ctx, field->name);
+        output_name(ctx, field->fieldId);
         output_cstring(ctx, "_payload;\n");
         break;
       }
@@ -221,7 +221,7 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   auto choices = to_range(ctx->schema_bytes, ctx->schema_definition->choices);
 
   output_cstring(ctx, "enum class ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   static_assert(SVFRT_TAG_SIZE == 1);
   output_cstring(ctx, "_tag: uint8_t {\n");
 
@@ -231,7 +231,7 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
     output_cstring(ctx, "  ");
-    output_u8_array(ctx, option->name);
+    output_name(ctx, option->optionId);
     output_cstring(ctx, " = ");
     output_decimal(ctx, (U64) option->tag);
     output_cstring(ctx, ",\n");
@@ -239,7 +239,7 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   output_cstring(ctx, "};\n\n");
 
   output_cstring(ctx, "union ");
-  output_u8_array(ctx, it->name);
+  output_name(ctx, it->typeId);
   output_cstring(ctx, "_payload {\n");
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
@@ -262,7 +262,7 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
     output_cstring(ctx, "  ");
     output_type(ctx, option->type_tag, &option->type_payload);
     output_cstring(ctx, " ");
-    output_u8_array(ctx, option->name);
+    output_name(ctx, option->optionId);
     output_cstring(ctx, ";\n");
   }
 
@@ -308,6 +308,7 @@ template<typename T> struct GetSchemaFromType;
 Bytes as_code(
   vm::LinearArena *arena,
   Bytes schema_bytes,
+  Bytes appendix_bytes,
   validation::Result *validation_result
 ) {
   // TODO @proper-alignment: struct access.
@@ -317,11 +318,20 @@ Bytes as_code(
     sizeof(Meta::SchemaDefinition)
   );
 
+  // TODO @proper-alignment: struct access.
+  auto appendix = (Meta::Appendix *) (
+    appendix_bytes.pointer +
+    appendix_bytes.count -
+    sizeof(Meta::Appendix)
+  );
+
   auto start = vm::realign(arena);
   OutputContext context_value = {
     .dedicated_arena = arena,
     .schema_definition = schema_definition,
     .schema_bytes = schema_bytes,
+    .appendix = appendix,
+    .appendix_bytes = appendix_bytes,
   };
 
   auto ctx = &context_value;
@@ -331,7 +341,7 @@ Bytes as_code(
   output_cstring(ctx, header);
 
   output_cstring(ctx, "namespace ");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, " {\n");
 
   output_cstring(ctx, "#pragma pack(push, 1)\n");
@@ -361,17 +371,17 @@ Bytes as_code(
   output_cstring(ctx, "\n// Indexes of structs.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_struct_index(ctx, it->name, i);
+    output_struct_index(ctx, it->typeId, i);
   }
 
   output_cstring(ctx, "\n// Hashes of top level definition names.\n");
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
-    output_type_id(ctx, it->name, it->typeId);
+    output_type_id(ctx, it->typeId);
   }
   for (UInt i = 0; i < choices.count; i++) {
     auto it = choices.pointer + i;
-    output_type_id(ctx, it->name, it->typeId);
+    output_type_id(ctx, it->typeId);
   }
 
   output_cstring(ctx, "\n// Full declarations.\n");
@@ -432,17 +442,17 @@ Bytes as_code(
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     output_cstring(ctx, "template<>\nstruct _SchemaDescription::PerType<");
-    output_u8_array(ctx, it->name);
+    output_name(ctx, it->typeId);
     output_cstring(ctx, "> {\n  static constexpr uint64_t type_id = ");
-    output_u8_array(ctx, it->name);
+    output_name(ctx, it->typeId);
     output_cstring(ctx, "_type_id;\n  static constexpr uint32_t index = ");
-    output_u8_array(ctx, it->name);
+    output_name(ctx, it->typeId);
     output_cstring(ctx, "_struct_index;\n");
     output_cstring(ctx, "};\n\n");
   }
 
   output_cstring(ctx, "} // namespace ");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, "\n\n");
 
   output_cstring(ctx, "namespace runtime {\n");
@@ -451,11 +461,11 @@ Bytes as_code(
   for (UInt i = 0; i < structs.count; i++) {
     auto it = structs.pointer + i;
     output_cstring(ctx, "template<>\nstruct GetSchemaFromType<");
-    output_u8_array(ctx, schema_definition->name);
+    output_name(ctx, schema_definition->schemaId);
     output_cstring(ctx, "::");
-    output_u8_array(ctx, it->name);
+    output_name(ctx, it->typeId);
     output_cstring(ctx, "> {\n  using SchemaDescription = ");
-    output_u8_array(ctx, schema_definition->name);
+    output_name(ctx, schema_definition->schemaId);
     output_cstring(ctx, "::_SchemaDescription;\n};\n\n");
   }
 
@@ -469,11 +479,11 @@ Bytes as_code(
   output_cstring(ctx, "// Binary schema.\n");
   output_cstring(ctx, "#if defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
   output_cstring(ctx, "#ifndef SVF_");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, "_BINARY_INCLUDED_HPP\n");
 
   output_cstring(ctx, "namespace ");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, " {\n");
   output_cstring(ctx, "\n");
 
@@ -500,11 +510,11 @@ Bytes as_code(
   output_cstring(ctx, "\n");
   output_cstring(ctx, "} // namespace binary\n");
   output_cstring(ctx, "} // namespace ");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#endif // SVF_");
-  output_u8_array(ctx, schema_definition->name);
+  output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, "_BINARY_INCLUDED_HPP\n");
   output_cstring(ctx, "#endif // defined(SVF_INCLUDE_BINARY_SCHEMA) || defined(SVF_IMPLEMENTATION)\n");
 

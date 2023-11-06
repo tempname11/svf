@@ -238,7 +238,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   } else if (params->useq_type == svf::Meta::ConcreteType_tag::u64) {
     result.useq_size = 8;
   } else {
-    ASSERT(false);
+    UNREACHABLE;
   }
 
   if (params->iseq_type == svf::Meta::ConcreteType_tag::i8) {
@@ -250,7 +250,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   } else if (params->iseq_type == svf::Meta::ConcreteType_tag::i64) {
     result.iseq_size = 8;
   } else {
-    ASSERT(false);
+    UNREACHABLE;
   }
 
   if (params->fseq_type == svf::Meta::ConcreteType_tag::f32) {
@@ -258,7 +258,7 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   } else if (params->fseq_type == svf::Meta::ConcreteType_tag::f64) {
     result.fseq_size = 8;
   } else {
-    ASSERT(false);
+    UNREACHABLE;
   }
 
   result.schema_content_hash = hash64::begin();
@@ -283,6 +283,7 @@ SVFRT_Bytes prepare_message(vm::LinearArena *arena, PreparedSchema *schema, Prep
     arena,
     schema->schema_content_hash,
     schema->schema,
+    {},
     schema->entry_struct_id
   );
 

@@ -47,16 +47,19 @@ namespace core {
       empty_struct                                                       = 0x03,
       empty_choice                                                       = 0x04,
       choice_not_allowed                                                 = 0x05,
+      name_collision                                                     = 0x06,
     };
 
     struct GenerationResult {
       Bytes schema;
+      Bytes appendix;
       FailCode fail_code;
     };
 
     GenerationResult as_bytes(
       grammar::Root *root,
-      vm::LinearArena *arena
+      vm::LinearArena *arena,
+      vm::LinearArena *arena2
     );
   }
 
@@ -78,6 +81,7 @@ namespace core {
     Range<U8> as_code(
       vm::LinearArena *arena,
       Bytes schema_bytes,
+      Bytes appendix_bytes,
       validation::Result *validation_result
     );
   }
@@ -86,6 +90,7 @@ namespace core {
     Range<U8> as_code(
       vm::LinearArena *arena,
       Bytes schema_bytes,
+      Bytes appendix_bytes,
       validation::Result *validation_result
     );
   }

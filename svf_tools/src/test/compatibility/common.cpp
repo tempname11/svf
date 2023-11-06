@@ -274,6 +274,7 @@ SVFRT_Bytes prepare_message(vm::LinearArena *arena, PreparedSchema *schema) {
     arena,
     schema->schema_content_hash,
     schema->schema,
+    {},
     schema->entry_struct_id
   );
   SVFRT_write_finish(&ctx, entry_buffer.pointer, entry_buffer.count);

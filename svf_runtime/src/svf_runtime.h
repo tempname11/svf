@@ -66,7 +66,9 @@ typedef struct SVFRT_RangeU32 {
 typedef struct SVFRT_MessageHeader {
   uint8_t magic[3];
   uint8_t version;
+  uint8_t _reserved[4];
   uint32_t schema_length;
+  uint32_t appendix_length;
   uint64_t schema_content_hash;
   uint64_t entry_struct_id;
 } SVFRT_MessageHeader;
@@ -273,6 +275,7 @@ void SVFRT_write_start(
   void *writer_ptr,
   uint64_t schema_content_hash,
   SVFRT_Bytes schema_bytes,
+  SVFRT_Bytes appendix_bytes,
   uint64_t entry_struct_id
 );
 
@@ -525,6 +528,7 @@ void const *SVFRT_read_sequence_element(
     (writer_ptr), \
     (schema_name ## _schema_content_hash), \
     (SVFRT_Bytes) { (void *) schema_name ## _schema_binary_array, schema_name ## _schema_binary_size }, \
+    (SVFRT_Bytes) {0}, \
     entry_name ## _type_id \
   )
 

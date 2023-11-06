@@ -139,11 +139,13 @@ int main(int argc, char *argv[]) {
   }
 
   auto arena_value = vm::create_linear_arena(1ull << 30);
+  auto arena2_value = vm::create_linear_arena(1ull << 30);
   // never free, we will just exit the program.
 
   auto arena = &arena_value;
-  if (!arena->reserved_range.pointer) {
-    printf("Error: could not create main memory arena.\n");
+  auto arena2 = &arena2_value;
+  if (!arena->reserved_range.pointer || !arena2->reserved_range.pointer) {
+    printf("Error: could not create main memory arenas.\n");
     return 1;
   }
 
@@ -216,7 +218,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto generation_result = core::generation::as_bytes(parse_result.root, arena);
+  auto generation_result = core::generation::as_bytes(parse_result.root, arena, arena2);
   if (!generation_result.schema.pointer) {
     // TODO: human-readable errors. This will require more failure information,
     // than just the code. First approximation for what is needed:
@@ -225,12 +227,14 @@ int main(int argc, char *argv[]) {
     // - `empty_struct`: the offending type name.
     // - `empty_choice`: the offending type name.
     // - `choice_not_allowed`: the context/reason as to why.
+    // - `name_collision`: the offending names.
 
     printf("Error: could not generate schema. Code 0x%x\n", int(generation_result.fail_code));
     return 1;
   }
 
   auto schema = generation_result.schema;
+  auto appendix = generation_result.appendix;
 
   auto output_file = stdout;
   if (options.input_file_path.pointer) {
@@ -258,12 +262,14 @@ int main(int argc, char *argv[]) {
       output_range = core::output::cpp::as_code(
         arena,
         schema,
+        appendix,
         &validation_result
       );
     } else {
       output_range = core::output::c::as_code(
         arena,
         schema,
+        appendix,
         &validation_result
       );
     }
@@ -285,6 +291,7 @@ int main(int argc, char *argv[]) {
       (void *) output_file,
       svf::Meta::_SchemaDescription::content_hash,
       {}, // Omit the schema part (here, the meta-schema).
+      { appendix.pointer, safe_int_cast<U32>(appendix.count) },
       svf::Meta::SchemaDefinition_type_id
     );
 

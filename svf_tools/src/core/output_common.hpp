@@ -11,6 +11,8 @@ struct OutputContext {
   vm::LinearArena *dedicated_arena;
   Meta::SchemaDefinition *schema_definition;
   Bytes schema_bytes;
+  Meta::Appendix *appendix;
+  Bytes appendix_bytes;
 };
 
 using Ctx = OutputContext *;
@@ -23,14 +25,24 @@ void output_cstring(Ctx ctx, const char *cstr) {
 }
 
 static inline
-void output_u8_array(Ctx ctx, svf::runtime::Sequence<U8> sequence) {
-  auto out = vm::many<Byte>(ctx->dedicated_arena, sequence.count);
-  auto data = range_subrange(ctx->schema_bytes, ~sequence.data_offset_complement, sequence.count);
-  range_copy(out, data);
+void output_name(Ctx ctx, U64 id) {
+  auto names = to_range(ctx->appendix_bytes, ctx->appendix->names);
+  // TODO @performance: N^2
+  for (UInt i = 0; i < names.count; i++) {
+    auto name = names.pointer[i];
+    if (name.id == id) {
+      auto out = vm::many<Byte>(ctx->dedicated_arena, name.name.count);
+      auto data = range_subrange(ctx->appendix_bytes, ~name.name.data_offset_complement, name.name.count);
+      range_copy(out, data);
+      return;
+    }
+  }
+
+  UNREACHABLE;
 }
 
 static inline
-void output_u8_hex(Ctx ctx, U8 value) {
+void output_u8_hexadecimal(Ctx ctx, U8 value) {
   char buffer[3];
   auto result = snprintf(buffer, 3, "%02X", value);
   ASSERT(result == 2);
@@ -61,7 +73,7 @@ void output_raw_bytes(Ctx ctx, Bytes bytes) {
     output_cstring(ctx, "  ");
     for (UInt j = 0; j < line_count; j++) {
       output_cstring(ctx, "0x");
-      output_u8_hex(ctx, bytes.pointer[i + j]);
+      output_u8_hexadecimal(ctx, bytes.pointer[i + j]);
       if (i + j != bytes.count - 1) {
         if (j == line_count - 1) {
           output_cstring(ctx, ",");

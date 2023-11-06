@@ -1,10 +1,31 @@
+#include <cstdlib>
 #include <src/library.hpp>
 #include <src/svf_runtime.h>
 #include "../core.hpp"
 
 namespace core::generation {
 
-// TODO @performance: should this be replaced by a hash table?
+struct NameMappingToWrite {
+  U64 id;
+  Range<U8> name;
+
+  svf::runtime::Sequence<U8> sequence;
+  Bool is_duplicate;
+};
+
+int compare_by_id(const void *va, const void *vb) {
+  auto a = (NameMappingToWrite *) va;
+  auto b = (NameMappingToWrite *) vb;
+  if (a->id < b->id) {
+    return -1;
+  } else if (a->id > b->id) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+// TODO @performance: N^2.
 grammar::TopLevelDefinition *resolve_by_name_hash(
   grammar::Root *in_root,
   U64 name_hash
@@ -216,12 +237,16 @@ OutputTypeResult output_type(
 
 GenerationResult as_bytes(
   grammar::Root *in_root,
-  vm::LinearArena *arena
+  vm::LinearArena *arena,
+  vm::LinearArena *arena2
 ) {
-  auto start = vm::realign(arena);
+  // TODO: check struct/choice ID for collisions. Currently, multiple
+  // definitions with the same ID are accepted, which is not great.
 
-  // TODO: check struct/choice names for collisions. Currently, multiple
-  // definitions with the same name are accepted, which is not great.
+  // This arena is used to write the message.
+  auto start_arena = vm::realign(arena);
+  // This arena is used to accumulate name mappings.
+  auto start_arena2_map = vm::realign(arena2);
 
   // First pass: count number of defined types.
   UInt num_structs = 0;
@@ -382,15 +407,12 @@ GenerationResult as_bytes(
           auto in_field = in_struct->fields.pointer + j;
           auto out_field = out_fields.pointer + j;
 
-          auto out_name = vm::many<U8>(arena, in_field->name.count);
-          range_copy(out_name, in_field->name);
+          auto mapping = vm::one<NameMappingToWrite>(arena2);
+          mapping->id = in_field->name_hash;
+          mapping->name = in_field->name;
 
           *out_field = Meta::FieldDefinition {
             .fieldId = in_field->name_hash,
-            .name = {
-              .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
-              .count = safe_int_cast<U32>(out_name.count),
-            },
             .offset = size_sum,
           };
 
@@ -422,18 +444,15 @@ GenerationResult as_bytes(
           };
         }
 
-        auto out_name = vm::many<U8>(arena, in_struct->name.count);
-        range_copy(out_name, in_struct->name);
+        auto mapping = vm::one<NameMappingToWrite>(arena2);
+        mapping->id = in_struct->name_hash;
+        mapping->name = in_struct->name;
 
         *out_struct = Meta::StructDefinition {
           .typeId = in_struct->name_hash,
-          .name = {
-            .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
-            .count = safe_int_cast<U32>(out_name.count),
-          },
           .size = size_sum,
           .fields = {
-            .data_offset_complement = ~offset_between<U32>(start, out_fields.pointer),
+            .data_offset_complement = ~offset_between<U32>(start_arena, out_fields.pointer),
             .count = safe_int_cast<U32>(out_fields.count),
           },
         };
@@ -454,15 +473,12 @@ GenerationResult as_bytes(
           auto in_option = in_choice->options.pointer + j;
           auto out_option = out_options.pointer + j;
 
-          auto out_name = vm::many<U8>(arena, in_option->name.count);
-          range_copy(out_name, in_option->name);
+          auto mapping = vm::one<NameMappingToWrite>(arena2);
+          mapping->id = in_option->name_hash;
+          mapping->name = in_option->name;
 
           *out_option = Meta::OptionDefinition {
             .optionId = in_option->name_hash,
-            .name = {
-              .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
-              .count = safe_int_cast<U32>(out_name.count),
-            },
             .tag = safe_int_cast<U8>(j),
           };
 
@@ -493,18 +509,15 @@ GenerationResult as_bytes(
           };
         }
 
-        auto out_name = vm::many<U8>(arena, in_choice->name.count);
-        range_copy(out_name, in_choice->name);
+        auto mapping = vm::one<NameMappingToWrite>(arena2);
+        mapping->id = in_choice->name_hash;
+        mapping->name = in_choice->name;
 
         *out_choice = Meta::ChoiceDefinition {
           .typeId = in_choice->name_hash,
-          .name = {
-            .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
-            .count = safe_int_cast<U32>(out_name.count),
-          },
           .payloadSize = size_max,
           .options = {
-            .data_offset_complement = ~offset_between<U32>(start, out_options.pointer),
+            .data_offset_complement = ~offset_between<U32>(start_arena, out_options.pointer),
             .count = safe_int_cast<U32>(out_options.count),
           },
         };
@@ -514,31 +527,92 @@ GenerationResult as_bytes(
     }
   }
 
-  auto out_name = vm::many<U8>(arena, in_root->schema_name.count);
-  range_copy(out_name, in_root->schema_name);
+  auto mapping = vm::one<NameMappingToWrite>(arena2);
+  mapping->id = in_root->schema_name_hash;
+  mapping->name = in_root->schema_name;
 
   auto out_definition = vm::one<Meta::SchemaDefinition>(arena);
   *out_definition = Meta::SchemaDefinition {
     .schemaId = in_root->schema_name_hash,
-    .name = {
-      .data_offset_complement = ~offset_between<U32>(start, out_name.pointer),
-      .count = safe_int_cast<U32>(out_name.count),
-    },
     .structs = {
-      .data_offset_complement = ~offset_between<U32>(start, out_structs.pointer),
+      .data_offset_complement = ~offset_between<U32>(start_arena, out_structs.pointer),
       .count = safe_int_cast<U32>(out_structs.count),
     },
     .choices = {
-      .data_offset_complement = ~offset_between<U32>(start, out_choices.pointer),
+      .data_offset_complement = ~offset_between<U32>(start_arena, out_choices.pointer),
       .count = safe_int_cast<U32>(out_choices.count),
     },
   };
 
-  auto end = arena->reserved_range.pointer + arena->waterline;
+  auto end_arena = arena->reserved_range.pointer + arena->waterline;
+  auto end_arena2_map = arena2->reserved_range.pointer + arena2->waterline;
+
+  auto names = Range<NameMappingToWrite> {
+    .pointer = (NameMappingToWrite *) start_arena2_map,
+    .count = (end_arena2_map - (Byte *) start_arena2_map) / sizeof(NameMappingToWrite),
+  };
+
+  qsort(names.pointer, names.count, sizeof(*names.pointer), compare_by_id);
+
+  // This arena is now used to write the appendix.
+  auto start_arena2_appendix = vm::realign(arena2);
+
+  UInt duplicate_names = 0;
+  for (UInt i = 0; i < names.count; i++) {
+    auto item = names.pointer + i;
+
+    if (i > 0) {
+      auto prev = names.pointer + i - 1;
+      if (prev->id == item->id) {
+        auto is_same_name = range_equal(prev->name, item->name);
+        if (!is_same_name) {
+          return {
+            .fail_code = FailCode::name_collision,
+          };
+        }
+
+        duplicate_names++;
+        item->is_duplicate = true;
+        continue;
+      }
+    }
+
+    auto out_name = vm::many<U8>(arena2, item->name.count);
+    range_copy(out_name, item->name);
+    item->sequence = {
+      .data_offset_complement = ~offset_between<U32>(start_arena2_appendix, out_name.pointer),
+      .count = safe_int_cast<U32>(out_name.count),
+    };
+  }
+
+  auto out_names = vm::many<Meta::NameMapping>(arena2, names.count - duplicate_names);
+
+  for (UInt i = 0, j = 0; i < names.count; i++) {
+    auto item = names.pointer + i;
+    if (item->is_duplicate) {
+      continue;
+    }
+    out_names.pointer[j].id = item->id;
+    out_names.pointer[j].name = item->sequence;
+    j++;
+  }
+
+  auto out_appendix = vm::one<Meta::Appendix>(arena2);
+  out_appendix->names = {
+    .data_offset_complement = ~offset_between<U32>(start_arena2_appendix, out_names.pointer),
+    .count = safe_int_cast<U32>(out_names.count),
+  };
+
+  auto end_arena2_appendix = arena2->reserved_range.pointer + arena2->waterline;
+
   return GenerationResult {
     .schema = {
-      .pointer = (Byte *) start,
-      .count = offset_between<U64>(start, end),
+      .pointer = (Byte *) start_arena,
+      .count = offset_between<U64>(start_arena, end_arena),
+    },
+    .appendix = {
+      .pointer = (Byte *) start_arena2_appendix,
+      .count = offset_between<U64>(start_arena2_appendix, end_arena2_appendix),
     },
   };
 }
