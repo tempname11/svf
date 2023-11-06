@@ -405,7 +405,7 @@ GenerationResult as_bytes(
             true // allow_tag
           );
 
-          // TODO @proper-alignment.
+          // TODO @proper-alignment: tags.
           size_sum += result.main_size;
           size_sum += result.tag_size;
 

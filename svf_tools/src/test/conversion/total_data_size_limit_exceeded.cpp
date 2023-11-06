@@ -53,7 +53,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     SVFRT_ReadMessageResult read_result = {};
     SVFRT_ReadMessageParams read_params = default_read_params;
 
-    // TODO @proper-alignment.
+    // TODO @proper-alignment: the test will probably break here.
     read_params.max_output_size = schema_dst.entry_stride + sizeof(SVFRT_Reference);
 
     SVFRT_read_message(&read_params, &read_result, message, scratch);

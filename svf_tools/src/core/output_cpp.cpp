@@ -152,7 +152,6 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
     auto field = fields.pointer + i;
 
     // We don't support custom struct layouts yet.
-    // TODO @proper-alignment.
     if (field->offset != size_sum) {
       return false;
     }
@@ -163,6 +162,8 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
       field->type_tag,
       &field->type_payload
     );
+
+    // TODO @proper-alignment: align up first.
     size_sum += plurality.size;
 
     switch (plurality.plurality) {
@@ -207,7 +208,6 @@ Bool output_struct(Ctx ctx, Meta::StructDefinition *it) {
     }
   }
 
-  // TODO @proper-alignment.
   if (size_sum != it->size) {
     return false;
   }
@@ -310,7 +310,7 @@ Bytes as_code(
   Bytes schema_bytes,
   validation::Result *validation_result
 ) {
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   auto schema_definition = (Meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -

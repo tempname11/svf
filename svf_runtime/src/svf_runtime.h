@@ -315,7 +315,7 @@ SVFRT_Reference SVFRT_write_reference(
     return result;
   }
 
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: align up first.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -353,7 +353,7 @@ SVFRT_Sequence SVFRT_write_sequence(
     return result;
   }
 
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: align up first.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {
@@ -409,7 +409,7 @@ void SVFRT_write_sequence_element(
     return;
   }
 
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: align up first.
   uint32_t written = ctx->writer_fn(ctx->writer_ptr, bytes);
 
   if (written != bytes.count) {

@@ -583,12 +583,12 @@ void SVFRT_conversion_traverse_concrete_type(
             }
 
             // Write the tag.
-            // TODO @proper-alignment.
+            // TODO @proper-alignment: tags.
             *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->tag;
 
             phase2_inner.data_range_dst = phase2->data_range_dst;
 
-            // TODO @proper-alignment.
+            // TODO @proper-alignment: tags.
             phase2_inner.data_offset_dst = phase2->data_offset_dst + SVFRT_TAG_SIZE;
           }
 
@@ -596,7 +596,8 @@ void SVFRT_conversion_traverse_concrete_type(
             ctx,
             recursion_depth,
             data_range_src,
-            unsafe_data_offset_src + SVFRT_TAG_SIZE, // TODO: @proper-alignment.
+            // TODO: @proper-alignment: tags.
+            unsafe_data_offset_src + SVFRT_TAG_SIZE,
             unsafe_option_src->type_tag,
             &unsafe_option_src->type_payload,
             option_dst->type_tag,
@@ -1002,7 +1003,8 @@ void SVFRT_conversion_traverse_any_type(
         ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
         return;
       }
-      // TODO @proper-alignment: resulting pointer might be misaligned, watch out.
+
+      // TODO @proper-alignment: potentially misaligned reference.
       SVFRT_Reference unsafe_representation_src = *((SVFRT_Reference *) (data_range_src.pointer + unsafe_data_offset_src));
 
       if (unsafe_representation_src.data_offset_complement == 0) {
@@ -1074,7 +1076,8 @@ void SVFRT_conversion_traverse_any_type(
         ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
         return;
       }
-      // TODO @proper-alignment: resulting pointer might be misaligned, watch out.
+
+      // TODO @proper-alignment: potentially misaligned sequence.
       SVFRT_Sequence unsafe_representation_src = *((SVFRT_Sequence *) (data_range_src.pointer + unsafe_data_offset_src));
 
       // Allow invalid sequences, but only if the representation is zero.
@@ -1203,7 +1206,7 @@ void SVFRT_convert_message(
   }
 
   // Now, `unsafe_entry_size` can be considered safe.
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   SVFRT_Bytes entry_bytes_src = {
     /*.pointer =*/ data_bytes.pointer + data_bytes.count - unsafe_entry_struct_size,
     /*.count =*/ unsafe_entry_struct_size,
@@ -1316,7 +1319,7 @@ void SVFRT_convert_message(
 
   // Entry is special, as it always resides at the end of the data range.
   //
-  // TODO: @proper-alignment.
+  // TODO: @proper-alignment: struct access.
   SVFRT_Bytes entry_bytes_dst = {
     /*.pointer =*/ ctx->allocation.pointer + ctx->allocation.count - definition_dst->size,
     /*.size =*/ definition_dst->size,

@@ -46,14 +46,14 @@ U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
   // Note: returns an upper bound, the real number will depend on how many
   // structs are reachable from the entry.
 
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   auto definition_src = (svf::Meta::SchemaDefinition *) (
     schema_src.pointer +
     schema_src.count -
     sizeof(svf::Meta::SchemaDefinition)
   );
 
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   auto definition_dst = (svf::Meta::SchemaDefinition *) (
     schema_dst.pointer +
     schema_dst.count -

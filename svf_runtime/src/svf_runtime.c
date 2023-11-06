@@ -181,7 +181,9 @@ void SVFRT_read_message(
     return;
   }
 
-  uint32_t entry_alignment = 1; // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
+  uint32_t entry_alignment = 1;
+
   uint32_t final_entry_offset = (uint32_t) SVFRT_align_down(
     final_data_range.count - entry_size,
     entry_alignment

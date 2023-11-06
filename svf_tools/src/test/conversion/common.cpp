@@ -155,7 +155,8 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   svf::Meta::StructDefinition base_structs[2] = {
     {
       .typeId = 0x5D00, // "SD" for "Struct Definition".
-      // TODO: @proper-alignment (there are other places in this file as well).
+      // TODO @proper-alignment: test assumes packed data, need to fix this.
+      // There are other places in this file as well.
       .size = safe_int_cast<U32>(leading_type_size + sizeof(SVFRT_Reference) + 4 * sizeof(SVFRT_Sequence) + sizeof(U8)),
       .fields = entry_fields_sequence,
     },

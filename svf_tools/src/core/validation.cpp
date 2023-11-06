@@ -38,7 +38,7 @@ Result validate(vm::LinearArena *arena, Bytes schema_bytes) {
 
   ASSERT(schema_bytes.count >= sizeof(Meta::SchemaDefinition));
 
-  // TODO: @proper-alignment.
+  // TODO @proper-alignment: struct access.
   auto schema_definition = (Meta::SchemaDefinition *) (
     schema_bytes.pointer +
     schema_bytes.count -

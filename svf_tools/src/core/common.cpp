@@ -55,7 +55,7 @@ TypePluralityAndSize get_plurality(
           auto index = in_payload->concrete.type_payload.definedChoice.index;
           ASSERT(index < choices.count);
           auto payload_size = choices.pointer[index].payloadSize;
-          // TODO @proper-alignment.
+          // TODO @proper-alignment: tags.
           return { TypePlurality::tag_and_payload, SVFRT_TAG_SIZE + payload_size };
         }
         default: {

@@ -584,7 +584,7 @@ void SVFRT_check_compatibility(
     out_result->error_code = SVFRT_code_compatibility__schema_too_small;
     return;
   }
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   SVF_Meta_SchemaDefinition *unsafe_definition_src = (SVF_Meta_SchemaDefinition *) (
     unsafe_schema_src.pointer
     + unsafe_schema_src.count
@@ -595,7 +595,7 @@ void SVFRT_check_compatibility(
     out_result->error_code = SVFRT_code_compatibility_internal__schema_too_small;
     return;
   }
-  // TODO @proper-alignment.
+  // TODO @proper-alignment: struct access.
   SVF_Meta_SchemaDefinition *definition_dst = (SVF_Meta_SchemaDefinition *) (
     schema_dst.pointer
     + schema_dst.count
