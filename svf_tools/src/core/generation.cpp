@@ -78,43 +78,43 @@ OutputTypeResult output_concrete_type(
     }
     case grammar::ConcreteType::Which::u16: {
       *out_tag = Meta::ConcreteType_tag::u16;
-      return { .main_size = 2};
+      return { .main_size = 2 };
     }
     case grammar::ConcreteType::Which::u32: {
       *out_tag = Meta::ConcreteType_tag::u32;
-      return { .main_size = 4};
+      return { .main_size = 4 };
     }
     case grammar::ConcreteType::Which::u64: {
       *out_tag = Meta::ConcreteType_tag::u64;
-      return { .main_size = 8};
+      return { .main_size = 8 };
     }
     case grammar::ConcreteType::Which::i8: {
       *out_tag = Meta::ConcreteType_tag::i8;
-      return { .main_size = 1};
+      return { .main_size = 1 };
     }
     case grammar::ConcreteType::Which::i16: {
       *out_tag = Meta::ConcreteType_tag::i16;
-      return { .main_size = 2};
+      return { .main_size = 2 };
     }
     case grammar::ConcreteType::Which::i32: {
       *out_tag = Meta::ConcreteType_tag::i32;
-      return { .main_size = 4};
+      return { .main_size = 4 };
     }
     case grammar::ConcreteType::Which::i64: {
       *out_tag = Meta::ConcreteType_tag::i64;
-      return { .main_size = 8};
+      return { .main_size = 8 };
     }
     case grammar::ConcreteType::Which::f32: {
       *out_tag = Meta::ConcreteType_tag::f32;
-      return { .main_size = 4};
+      return { .main_size = 4 };
     }
     case grammar::ConcreteType::Which::f64: {
       *out_tag = Meta::ConcreteType_tag::f64;
-      return { .main_size = 8};
+      return { .main_size = 8 };
     }
-    case grammar::ConcreteType::Which::zero_sized: {
-      *out_tag = Meta::ConcreteType_tag::zeroSized;
-      return { .main_size = 0};
+    case grammar::ConcreteType::Which::nothing: {
+      *out_tag = Meta::ConcreteType_tag::nothing;
+      return { .main_size = 0 };
     }
     case grammar::ConcreteType::Which::defined: {
       auto definition = resolve_by_name_hash(
@@ -132,7 +132,7 @@ OutputTypeResult output_concrete_type(
         };
 
         if (force_size) {
-          return { .main_size = U32(-1) };
+          return { .main_size = UINT32_MAX };
         }
 
         // We rely on the fact that this type has already been output.
@@ -156,7 +156,7 @@ OutputTypeResult output_concrete_type(
         };
 
         if (force_size) {
-          return { .main_size = U32(-1) };
+          return { .main_size = UINT32_MAX };
         }
 
         // We rely on the fact that this type has already been output.
@@ -407,13 +407,22 @@ GenerationResult as_bytes(
           auto in_field = in_struct->fields.pointer + j;
           auto out_field = out_fields.pointer + j;
 
+          U64 id = in_field->name_hash;
+          // Force the last (63-d) bit to be 1 for negative polarity, 0 otherwise.
+          if (in_field->negativePolarity) {
+            id |= (1ull << 63);
+          } else {
+            id &= ~(1ull << 63);
+          }
+
           auto mapping = vm::one<NameMappingToWrite>(arena2);
-          mapping->id = in_field->name_hash;
+          mapping->id = id;
           mapping->name = in_field->name;
 
           *out_field = Meta::FieldDefinition {
-            .fieldId = in_field->name_hash,
+            .fieldId = id,
             .offset = size_sum,
+            .removed = in_field->removed,
           };
 
           auto result = output_type(
@@ -473,13 +482,22 @@ GenerationResult as_bytes(
           auto in_option = in_choice->options.pointer + j;
           auto out_option = out_options.pointer + j;
 
+          uint64_t id = in_option->name_hash;
+          // Force the last (63-d) bit to be 1 for negative polarity, 0 otherwise.
+          if (in_option->negativePolarity) {
+            id |= (1ull << 63);
+          } else {
+            id &= ~(1ull << 63);
+          }
+
           auto mapping = vm::one<NameMappingToWrite>(arena2);
-          mapping->id = in_option->name_hash;
+          mapping->id = id;
           mapping->name = in_option->name;
 
           *out_option = Meta::OptionDefinition {
-            .optionId = in_option->name_hash,
-            .tag = safe_int_cast<U8>(j),
+            .optionId = id,
+            .tag = safe_int_cast<U8>(j + 1), // Tag 0 is reserved.
+            .removed = in_option->removed,
           };
 
           auto result = output_type(

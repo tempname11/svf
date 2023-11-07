@@ -53,7 +53,7 @@
 // the allocation, because that's how the entry is always found in the data.
 //
 // TODO: The suballocations should be in the right order (reversed from what is
-
+// currently.
 
 // Note: #unsafe-naming-semantics.
 //
@@ -132,7 +132,7 @@ uint32_t SVFRT_conversion_get_type_size(
       }
       return structs.pointer[index].size;
     }
-    case SVF_Meta_ConcreteType_tag_zeroSized:
+    case SVF_Meta_ConcreteType_tag_nothing:
     case SVF_Meta_ConcreteType_tag_definedChoice:
     default: {
       return 0;
@@ -321,14 +321,17 @@ void SVFRT_conversion_traverse_struct(
     ctx->error_code = SVFRT_code_conversion__bad_schema_struct_index;
     return;
   }
+  SVF_Meta_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + unsafe_struct_index_src;
 
   if (struct_index_dst >= ctx->structs_dst.count) {
     ctx->error_code = SVFRT_code_conversion_internal__bad_schema_struct_index;
     return;
   }
-
-  SVF_Meta_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + unsafe_struct_index_src;
   SVF_Meta_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
+
+  // Field-matches header should have valid indices for every dst-struct, so no
+  // range checking is required here.
+  uint32_t field_matches_index = ctx->info->field_matches_header.pointer[struct_index_dst];
 
   SVFRT_RangeFieldDefinition unsafe_fields_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     ctx->info->unsafe_schema_src,
@@ -350,64 +353,58 @@ void SVFRT_conversion_traverse_struct(
     return;
   }
 
-  // Go over any sequences and references in the intersection between
-  // `unsafe_definition_src` and `definition_dst`. Sub-structs and choices may
-  // also contain these, so recurse over them.
-  //
-  // Assumption: we have verified compatibility, so every dst-schema field will have
-  // exactly one corresponding src-schema field.
-  //
-  // See #compatibility-reasonable-fields.
-  //
-  // Assumption: during the compatibility check, we have gone over the "unsafe"
-  // fields and did find correspondences in a reasonable time. We should have
-  // actually built a correspondence table then, see below...
-  //
-  // TODO @performance: N^2. This looks critical, because here, worst-case data
-  // _and_ worst-case schema could lead to a time-bound, yet unexpectedly slow
-  // conversion. A table will solve everything here.
-  //
+  // Go over all fields. We have a precomputed table of src-indices available to
+  // us here.
   for (uint32_t i = 0; i < fields_dst.count; i++) {
     SVF_Meta_FieldDefinition *field_dst = fields_dst.pointer + i;
 
-    bool found = false;
-
-    for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
-      SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
-
-      if (unsafe_field_src->fieldId != field_dst->fieldId) {
-        continue;
-      }
-
-      SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
-      if (phase2) {
-        phase2_inner.data_range_dst = phase2->struct_bytes_dst;
-        phase2_inner.data_offset_dst = field_dst->offset;
-      }
-
-      SVFRT_conversion_traverse_any_type(
-        ctx,
-        recursion_depth,
-        struct_bytes_src,
-        unsafe_field_src->offset,
-        unsafe_field_src->type_tag,
-        &unsafe_field_src->type_payload,
-        field_dst->type_tag,
-        &field_dst->type_payload,
-        phase2 ? &phase2_inner : NULL
-      );
-
-      if (ctx->error_code) {
-        // Early exit on any error.
-        return;
-      }
-
-      found = true;
-      break;
+    if (field_dst->removed) {
+      continue;
     }
 
-    if (!found) {
+    // Field-matches table should be valid for every possible dst-field, so no
+    // range checking is required here.
+    uint32_t j = ctx->info->field_matches.pointer[field_matches_index + i];
+
+    if (j == UINT32_MAX) {
+      // Field was missing, and we are allowed to zero-initialize it. Before
+      // Phase 2, all data is already zero-initialized, so nothing needs to be
+      // done here.
+      continue;
+    }
+
+    if (j >= unsafe_fields_src.count) {
       ctx->error_code = SVFRT_code_conversion_internal__schema_field_missing;
+      return;
+    }
+
+    SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
+
+    if (unsafe_field_src->fieldId != field_dst->fieldId) {
+      ctx->error_code = SVFRT_code_conversion_internal__schema_field_missing;
+      return;
+    }
+
+    SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
+    if (phase2) {
+      phase2_inner.data_range_dst = phase2->struct_bytes_dst;
+      phase2_inner.data_offset_dst = field_dst->offset;
+    }
+
+    SVFRT_conversion_traverse_any_type(
+      ctx,
+      recursion_depth,
+      struct_bytes_src,
+      unsafe_field_src->offset,
+      unsafe_field_src->type_tag,
+      &unsafe_field_src->type_payload,
+      field_dst->type_tag,
+      &field_dst->type_payload,
+      phase2 ? &phase2_inner : NULL
+    );
+
+    if (ctx->error_code) {
+      // Early exit on any error.
       return;
     }
   }
@@ -417,6 +414,129 @@ typedef struct SVFRT_Phase2_TraverseConcreteType {
   SVFRT_Bytes data_range_dst;
   uint32_t data_offset_dst;
 } SVFRT_Phase2_TraverseConcreteType;
+
+void SVFRT_conversion_traverse_choice(
+  SVFRT_ConversionContext *ctx,
+  uint32_t recursion_depth,
+  uint32_t unsafe_choice_index_src,
+  uint32_t choice_index_dst,
+  SVFRT_Bytes data_range_src,
+  uint32_t unsafe_data_offset_src,
+  SVFRT_Phase2_TraverseConcreteType *phase2
+) {
+  // Prevent addition overflow by casting operands to `uint64_t` first.
+  if ((uint64_t) unsafe_data_offset_src + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) data_range_src.count) {
+    ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
+    return;
+  }
+
+  SVFRT_Bytes choice_tag_bytes_src = {
+    /*.pointer =*/ data_range_src.pointer + unsafe_data_offset_src,
+    /*.count =*/ SVFRT_TAG_SIZE
+  };
+
+  uint8_t choice_tag = *choice_tag_bytes_src.pointer;
+
+  if (unsafe_choice_index_src >= ctx->unsafe_choices_src.count) {
+    ctx->error_code = SVFRT_code_conversion__bad_schema_choice_index;
+    return;
+  }
+  SVF_Meta_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + unsafe_choice_index_src;
+
+  if (choice_index_dst >= ctx->choices_dst.count) {
+    ctx->error_code = SVFRT_code_conversion_internal__bad_schema_choice_index;
+    return;
+  }
+  SVF_Meta_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
+
+  // Option-matches header should have valid indices for every dst-choice, so
+  // no range checking is required here.
+  uint32_t option_matches_index = ctx->info->field_matches_header.pointer[choice_index_dst];
+
+  SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->info->unsafe_schema_src,
+    unsafe_definition_src->options,
+    SVF_Meta_OptionDefinition
+  );
+  if (!unsafe_options_src.pointer && unsafe_options_src.count) {
+    ctx->error_code = SVFRT_code_conversion__bad_schema_options;
+    return;
+  }
+
+  SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
+    ctx->info->schema_dst,
+    definition_dst->options,
+    SVF_Meta_OptionDefinition
+  );
+  if (!options_dst.pointer && options_dst.count) {
+    ctx->error_code = SVFRT_code_conversion_internal__bad_schema_options;
+    return;
+  }
+
+  uint32_t src_index = UINT32_MAX;
+  uint32_t dst_index = UINT32_MAX;
+  for (uint32_t i = 0; i < options_dst.count; i++) {
+    // Option-matches tables should be valid for every possible dst-field, so no
+    // range checking is required here...
+    uint8_t src_tag = ctx->info->option_matches_tags.pointer[option_matches_index + i];
+
+    if (src_tag && src_tag == choice_tag) {
+      // ...and here.
+      src_index = ctx->info->option_matches.pointer[option_matches_index + i];
+      dst_index = i;
+    }
+  }
+
+  if (src_index == UINT32_MAX) {
+    // We did not find the tag, so defaulting to the zero tag. In Phase 2, all
+    // data is already zero-initialized, so nothing needs to be done here.
+    return;
+  }
+
+  SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + src_index;
+  SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + dst_index;
+
+  // Any conversion only needs to happen, if both options are normal (not
+  // removed). For Phase 2, data is already zero-initialized, so nothing needs
+  // to happen here as well.
+  if (!unsafe_option_src->removed && !option_dst->removed) {
+    SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
+    if (phase2) {
+      // Make sure we can at least write the tag.
+      //
+      // Prevent addition overflow by casting operands to `uint64_t` first.
+      //
+      // In this case, it looks rather silly, as we are adding _one_. But
+      // proving an overflow can't happen is much harder that just checking.
+      if ((uint64_t) phase2->data_offset_dst + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) phase2->data_range_dst.count) {
+        ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds;
+        return;
+      }
+
+      // Write the tag.
+      // TODO @proper-alignment: tags.
+      *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->tag;
+
+      phase2_inner.data_range_dst = phase2->data_range_dst;
+
+      // TODO @proper-alignment: tags.
+      phase2_inner.data_offset_dst = phase2->data_offset_dst + SVFRT_TAG_SIZE;
+    }
+
+    SVFRT_conversion_traverse_any_type(
+      ctx,
+      recursion_depth,
+      data_range_src,
+      // TODO: @proper-alignment: tags.
+      unsafe_data_offset_src + SVFRT_TAG_SIZE,
+      unsafe_option_src->type_tag,
+      &unsafe_option_src->type_payload,
+      option_dst->type_tag,
+      &option_dst->type_payload,
+      phase2 ? &phase2_inner : NULL
+    );
+  }
+}
 
 void SVFRT_conversion_traverse_concrete_type(
   SVFRT_ConversionContext *ctx,
@@ -431,6 +551,7 @@ void SVFRT_conversion_traverse_concrete_type(
 ) {
   switch (type_tag_dst) {
     case SVF_Meta_ConcreteType_tag_definedStruct: {
+
       // Sanity check.
       if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_definedStruct) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
@@ -499,135 +620,20 @@ void SVFRT_conversion_traverse_concrete_type(
       uint32_t unsafe_choice_index_src = unsafe_type_payload_src->definedChoice.index;
       uint32_t choice_index_dst = type_payload_dst->definedChoice.index;
 
-      // Prevent addition overflow by casting operands to `uint64_t` first.
-      if ((uint64_t) unsafe_data_offset_src + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) data_range_src.count) {
-        ctx->error_code = SVFRT_code_conversion__data_out_of_bounds;
-        return;
-      }
-
-      SVFRT_Bytes choice_tag_bytes_src = {
-        /*.pointer =*/ data_range_src.pointer + unsafe_data_offset_src,
-        /*.count =*/ SVFRT_TAG_SIZE
-      };
-
-      uint8_t choice_tag = *choice_tag_bytes_src.pointer;
-
-      if (unsafe_choice_index_src >= ctx->unsafe_choices_src.count) {
-        ctx->error_code = SVFRT_code_conversion__bad_schema_choice_index;
-        return;
-      }
-      SVF_Meta_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + unsafe_choice_index_src;
-
-      if (choice_index_dst >= ctx->choices_dst.count) {
-        ctx->error_code = SVFRT_code_conversion_internal__bad_schema_choice_index;
-        return;
-      }
-      SVF_Meta_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
-
-      SVFRT_RangeOptionDefinition unsafe_options_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
-        ctx->info->unsafe_schema_src,
-        unsafe_definition_src->options,
-        SVF_Meta_OptionDefinition
+      SVFRT_conversion_traverse_choice(
+        ctx,
+        recursion_depth,
+        unsafe_choice_index_src,
+        choice_index_dst,
+        data_range_src,
+        unsafe_data_offset_src,
+        phase2
       );
-      if (!unsafe_options_src.pointer && unsafe_options_src.count) {
-        ctx->error_code = SVFRT_code_conversion__bad_schema_options;
-        return;
-      }
-
-      SVFRT_RangeOptionDefinition options_dst = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
-        ctx->info->schema_dst,
-        definition_dst->options,
-        SVF_Meta_OptionDefinition
-      );
-      if (!options_dst.pointer && options_dst.count) {
-        ctx->error_code = SVFRT_code_conversion_internal__bad_schema_options;
-        return;
-      }
-
-      // Assumption: we have done the compatibility check, which should have
-      // ensured that src-schema options are a subset of dst-schema options.
-      //
-      // See #compatibility-reasonable-options.
-      //
-      // TODO: like with struct fields, we should actually have built a
-      // correspondence table during the compatibiltiy check.
-
-      bool found_src = false;
-      bool found_dst = false;
-
-      for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
-        SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
-
-        if (unsafe_option_src->tag != choice_tag) {
-          continue;
-        }
-
-        for (uint32_t j = 0; j < options_dst.count; j++) {
-          SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
-
-          if (option_dst->optionId != unsafe_option_src->optionId) {
-            continue;
-          }
-
-          SVFRT_Phase2_TraverseAnyType phase2_inner = {0};
-          if (phase2) {
-            // Make sure we can at least write the tag.
-            //
-            // Prevent addition overflow by casting operands to `uint64_t` first.
-            //
-            // In this case, it looks rather silly, as we are adding _one_. But
-            // proving an overflow can't happen is much harder that just checking.
-            if ((uint64_t) phase2->data_offset_dst + (uint64_t) SVFRT_TAG_SIZE > (uint64_t) phase2->data_range_dst.count) {
-              ctx->error_code = SVFRT_code_conversion_internal__suballocation_out_of_bounds;
-              return;
-            }
-
-            // Write the tag.
-            // TODO @proper-alignment: tags.
-            *(phase2->data_range_dst.pointer + phase2->data_offset_dst) = option_dst->tag;
-
-            phase2_inner.data_range_dst = phase2->data_range_dst;
-
-            // TODO @proper-alignment: tags.
-            phase2_inner.data_offset_dst = phase2->data_offset_dst + SVFRT_TAG_SIZE;
-          }
-
-          SVFRT_conversion_traverse_any_type(
-            ctx,
-            recursion_depth,
-            data_range_src,
-            // TODO: @proper-alignment: tags.
-            unsafe_data_offset_src + SVFRT_TAG_SIZE,
-            unsafe_option_src->type_tag,
-            &unsafe_option_src->type_payload,
-            option_dst->type_tag,
-            &option_dst->type_payload,
-            phase2 ? &phase2_inner : NULL
-          );
-
-          found_dst = true;
-          break;
-        }
-
-        found_src = true;
-        break;
-      }
-
-      if (!found_src) {
-        ctx->error_code = SVFRT_code_conversion__bad_choice_tag;
-        return;
-      }
-
-      if (!found_dst) {
-        ctx->error_code = SVFRT_code_conversion_internal__schema_option_missing;
-        return;
-      }
-
       return;
     }
-    case SVF_Meta_ConcreteType_tag_zeroSized: {
+    case SVF_Meta_ConcreteType_tag_nothing: {
       // Sanity check. This case should only arise inside choices.
-      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_zeroSized) {
+      if (unsafe_type_tag_src != SVF_Meta_ConcreteType_tag_nothing) {
         ctx->error_code = SVFRT_code_conversion__schema_concrete_type_tag_mismatch;
       }
       return;

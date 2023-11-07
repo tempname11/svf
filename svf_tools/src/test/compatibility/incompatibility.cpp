@@ -44,9 +44,9 @@ int main(int /*argc*/, char */*argv*/[]) {
     ASSERT(read_result.error_code == SVFRT_code_compatibility__field_is_missing);
   }
 
-  // Fail, when a reachable src-choice has more options than the corresponding dst-choice.
+  // Fail, when a reachable src-choice has less options than the corresponding dst-choice.
   {
-    PreparedSchemaParams prepare_params = { .extra_options = 1 };
+    PreparedSchemaParams prepare_params = { .less_options = 1 };
     auto schema_src = prepare_schema(arena, &prepare_params);
     SVFRT_Bytes message = prepare_message(arena, &schema_src);
     SVFRT_ReadMessageResult read_result = {};

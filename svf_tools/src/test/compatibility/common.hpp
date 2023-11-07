@@ -26,6 +26,7 @@ struct PreparedSchemaParams {
   U32 extra_fields;
   U32 extra_options;
   Bool less_fields;
+  Bool less_options;
   Bool change_field_ids;
   Bool change_field_offsets;
   Bool change_option_ids;

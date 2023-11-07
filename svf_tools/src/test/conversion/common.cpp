@@ -19,11 +19,13 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   }
 
   // Make sure params that are zero, are sane.
-  static_assert(int(svf::Meta::ConcreteType_tag::u8) == 0);
-  if (params->iseq_type == svf::Meta::ConcreteType_tag::u8) {
+  if (params->useq_type == svf::Meta::ConcreteType_tag(0)) {
+    params->useq_type = svf::Meta::ConcreteType_tag::u8;
+  }
+  if (params->iseq_type == svf::Meta::ConcreteType_tag(0)) {
     params->iseq_type = svf::Meta::ConcreteType_tag::i8;
   }
-  if (params->fseq_type == svf::Meta::ConcreteType_tag::u8) {
+  if (params->fseq_type == svf::Meta::ConcreteType_tag(0)) {
     params->fseq_type = svf::Meta::ConcreteType_tag::f32;
   }
 
@@ -176,21 +178,21 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   svf::Meta::OptionDefinition base_options[2] = {
     {
       .optionId = 0x0D00, // "OD" for "Option Definition".
-      .tag = 0,
+      .tag = 1,
       .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::nothing
         },
       },
     },
     {
       .optionId = 0x0D01, // "OD" for "Option Definition".
-      .tag = 1,
+      .tag = 2,
       .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::nothing
         },
       },
     },

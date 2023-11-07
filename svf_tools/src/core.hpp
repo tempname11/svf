@@ -15,12 +15,13 @@ namespace core {
       expected_lowercase_letter                                          = 0x04,
       expected_type_definition                                           = 0x05,
       expected_semicolon                                                 = 0x06,
-      expected_colon_or_semicolon                                        = 0x07,
+      expected_option                                                    = 0x07,
       expected_colon_after_type_name                                     = 0x08,
-      expected_colon_after_field_name                                    = 0x09,
+      expected_removed                                                   = 0x09,
       expected_opening_curly_bracket                                     = 0x0A,
       expected_closing_square_bracket                                    = 0x0B,
-      keyword_reserved                                                   = 0x0C,
+      expected_field                                                     = 0x0C,
+      keyword_reserved                                                   = 0x20,
       backtrack                                                          = 0xFF,
     };
 

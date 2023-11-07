@@ -7,7 +7,7 @@ namespace core::parsing {
 
 using namespace grammar;
 
-// TODO: check all the name hashes to not be zero. This is perhaps better suited
+// TODO: check all the IDs to not be zero. This is perhaps better suited
 // for validation than for parsing, but needs to be done anyway.
 
 // General note: the functions here try to parse optimistically, and only
@@ -77,14 +77,14 @@ Range<U8> get_fail_code_description(FailCode code) {
     case FailCode::expected_semicolon: {
       return range_from_cstr("Expected a semicolon.");
     }
-    case FailCode::expected_colon_or_semicolon: {
-      return range_from_cstr("Expected ':' or ';'.");
+    case FailCode::expected_option: {
+      return range_from_cstr("Expected an option definition.");
     }
     case FailCode::expected_colon_after_type_name: {
       return range_from_cstr("Expected ':' after a type name.");
     }
-    case FailCode::expected_colon_after_field_name: {
-      return range_from_cstr("Expected ':' after a field name.");
+    case FailCode::expected_removed: {
+      return range_from_cstr("Expected 'removed'.");
     }
     case FailCode::expected_opening_curly_bracket: {
       return range_from_cstr("Expected '{'.");
@@ -92,11 +92,14 @@ Range<U8> get_fail_code_description(FailCode code) {
     case FailCode::expected_closing_square_bracket: {
       return range_from_cstr("Expected ']'.");
     }
+    case FailCode::expected_field: {
+      return range_from_cstr("Expected a field definition.");
+    }
     case FailCode::keyword_reserved: {
       return range_from_cstr("Can't use a keyword as a name.");
     }
     case FailCode::ok: {
-      return range_from_cstr("No error to descibe, please report this.");
+      return range_from_cstr("No error to describe, please report this.");
     }
     case FailCode::backtrack: {
       return range_from_cstr("Internal backtracking error, please report this.");
@@ -528,42 +531,86 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) 
 
     ctx->state = saved_state;
     Type type = {};
-    auto option_name = parse_value_name(ctx);
+    Bool removed = false;
+    Bool negativePolarity = false;
+
+    // Parse polarity.
+    skip_specific_character(ctx,  '-', FailCode::backtrack);
+    skip_whitespace(ctx);
 
     if (ctx->state.fail.code == FailCode::ok) {
-      // Save post-name state, because the zero-sized option syntax forces us to
-      // possibly backtrack.
-      auto post_name_state = ctx->state;
+      negativePolarity = true;
+    } else {
+      ctx->state = saved_state;
+      skip_specific_character(ctx,  '+', FailCode::backtrack);
+      skip_whitespace(ctx);
 
-      // Optimistically parse as zero-sized option.
-      skip_whitespace(ctx);
-      skip_specific_character(ctx, ';', FailCode::backtrack);
-      skip_whitespace(ctx);
+      if (ctx->state.fail.code != FailCode::ok) {
+        ctx->state = saved_state;
+      }
+    }
+
+    // Parse option name.
+    auto option_name = parse_value_name(ctx);
+
+    if (ctx->state.fail.code != FailCode::ok) {
+      return;
+    }
+
+    // Save post-name state, because the zero-sized option syntax forces us to
+    // possibly backtrack.
+    auto post_name_state = ctx->state;
+
+    // Optimistically parse as zero-sized option.
+    skip_whitespace(ctx);
+    skip_specific_character(ctx, ';', FailCode::backtrack);
+    skip_whitespace(ctx);
+
+    if (ctx->state.fail.code == FailCode::ok) {
+      type = {
+        .which = Type::Which::concrete,
+        .concrete = {
+          .type = {
+            .which = ConcreteType::Which::nothing,
+          },
+        },
+      };
+    } else {
+      // If we could not, assume it's a normal option.
+      ctx->state = post_name_state;
+      skip_specific_character(ctx, ':', FailCode::backtrack);
 
       if (ctx->state.fail.code == FailCode::ok) {
-        type = {
-          .which = Type::Which::concrete,
-          .concrete = {
-            .type = {
-              .which = ConcreteType::Which::zero_sized,
-            },
-          },
-        };
+        skip_whitespace(ctx);
+        type = parse_type_reference_or_inline_type_definition(ctx, definition_name, option_name);
+
+        skip_whitespace(ctx);
+        skip_specific_character(ctx, ';', FailCode::expected_semicolon);
+        skip_whitespace(ctx);
       } else {
-        // If we could not, assume it's a normal option.
+        // Assume it's a removed option.
         ctx->state = post_name_state;
-        skip_specific_character(ctx, ':', FailCode::backtrack);
+        skip_whitespace(ctx);
+        skip_specific_character(ctx, '=', FailCode::backtrack);
+        skip_whitespace(ctx);
+        skip_specific_cstring(ctx, "removed", FailCode::expected_removed);
+        skip_specific_character(ctx, ';', FailCode::expected_semicolon);
+        skip_whitespace(ctx);
 
         if (ctx->state.fail.code == FailCode::ok) {
-          skip_whitespace(ctx);
-          type = parse_type_reference_or_inline_type_definition(ctx, definition_name, option_name);
-
-          skip_whitespace(ctx);
-          skip_specific_character(ctx, ';', FailCode::expected_semicolon);
-          skip_whitespace(ctx);
+          type = {
+            .which = Type::Which::concrete,
+            .concrete = {
+              .type = {
+                .which = ConcreteType::Which::nothing,
+              },
+            },
+          };
+          removed = true;
         } else {
           ctx->state = post_name_state;
-          set_fail(ctx, FailCode::expected_colon_or_semicolon);
+          set_fail(ctx, FailCode::expected_option);
+          return;
         }
       }
     }
@@ -578,6 +625,8 @@ void parse_choice(Ctx ctx, Range<U8> definition_name, ChoiceDefinition *result) 
       .name = option_name,
       .name_hash = hash64::from_name(option_name),
       .type = type,
+      .negativePolarity = negativePolarity,
+      .removed = removed,
     };
   }
 
@@ -599,8 +648,6 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
   CrudeDynamicArray<FieldDefinition> dynamic_fields = {};
 
   while (true) {
-    // This inner loop is similar to the one in `parse_choice`, but
-    // it is simpler because we don't have to deal with zero-sized fields here.
     auto saved_state = ctx->state;
 
     skip_specific_character(ctx, '}', FailCode::backtrack);
@@ -612,18 +659,71 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
     }
 
     ctx->state = saved_state;
+    Type type = {};
+    Bool removed = false;
+    Bool negativePolarity = false;
+
+    // Parse polarity.
+    skip_specific_character(ctx,  '-', FailCode::backtrack);
+    skip_whitespace(ctx);
+
+    if (ctx->state.fail.code == FailCode::ok) {
+      negativePolarity = true;
+    } else {
+      ctx->state = saved_state;
+      skip_specific_character(ctx,  '+', FailCode::backtrack);
+      skip_whitespace(ctx);
+
+      if (ctx->state.fail.code != FailCode::ok) {
+        ctx->state = saved_state;
+      }
+    }
+
+    // Parse field name.
     auto field_name = parse_value_name(ctx);
 
-    skip_specific_character(ctx, ':', FailCode::expected_colon_after_field_name);
+    if (ctx->state.fail.code != FailCode::ok) {
+      return;
+    }
+
+    // Save post-name state, because the removed field syntax forces us to
+    // possibly backtrack.
+    auto post_name_state = ctx->state;
+
+    // Optimistically parse as a normal field.
+    skip_specific_character(ctx, ':', FailCode::backtrack);
     skip_whitespace(ctx);
-    auto type = parse_type_reference_or_inline_type_definition(ctx, definition_name, field_name);
+    type = parse_type_reference_or_inline_type_definition(ctx, definition_name, field_name);
 
     skip_whitespace(ctx);
     skip_specific_character(ctx, ';', FailCode::expected_semicolon);
     skip_whitespace(ctx);
 
     if (ctx->state.fail.code != FailCode::ok) {
-      return;
+      // Assume it's a removed field.
+      ctx->state = post_name_state;
+      skip_whitespace(ctx);
+      skip_specific_character(ctx, '=', FailCode::backtrack);
+      skip_whitespace(ctx);
+      skip_specific_cstring(ctx, "removed", FailCode::expected_removed);
+      skip_specific_character(ctx, ';', FailCode::expected_semicolon);
+      skip_whitespace(ctx);
+
+      if (ctx->state.fail.code == FailCode::ok) {
+        type = {
+          .which = Type::Which::concrete,
+          .concrete = {
+            .type = {
+              .which = ConcreteType::Which::nothing,
+            },
+          },
+        };
+        removed = true;
+      } else {
+        ctx->state = post_name_state;
+        set_fail(ctx, FailCode::expected_field);
+        return;
+      }
     }
 
     // Success. Add the field to the array.
@@ -632,6 +732,8 @@ void parse_struct(Ctx ctx, Range<U8> definition_name, StructDefinition *result) 
       .name = field_name,
       .name_hash = hash64::from_name(field_name),
       .type = type,
+      .negativePolarity = negativePolarity,
+      .removed = removed,
     };
   }
 

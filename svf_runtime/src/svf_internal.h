@@ -62,6 +62,11 @@ typedef struct SVFRT_LogicalCompatibilityInfo {
   uint32_t entry_struct_index_dst;
   uint32_t unsafe_entry_struct_size_src;
   uint32_t entry_struct_size_dst;
+  SVFRT_RangeU32 field_matches_header;
+  SVFRT_RangeU32 field_matches;
+  SVFRT_RangeU32 option_matches_header;
+  SVFRT_Bytes option_matches_tags;
+  SVFRT_RangeU32 option_matches;
 } SVFRT_LogicalCompatibilityInfo;
 
 typedef struct SVFRT_CompatibilityResult {

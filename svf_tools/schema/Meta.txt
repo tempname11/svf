@@ -16,6 +16,7 @@ OptionDefinition: struct {
   optionId: U64;
   tag: U8;
   type: Type;
+  removed: U8;
 };
 
 StructDefinition: struct {
@@ -28,6 +29,7 @@ FieldDefinition: struct {
   fieldId: U64;
   offset: U32;
   type: Type;
+  removed: U8;
 };
 
 ConcreteType: choice {
@@ -41,7 +43,6 @@ ConcreteType: choice {
   i64;
   f32;
   f64;
-  zeroSized;
   definedStruct: struct {
     index: U32;
   };

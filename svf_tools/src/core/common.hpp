@@ -60,11 +60,12 @@ U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
     sizeof(svf::Meta::SchemaDefinition)
   );
 
-  // See #compatibility-work.
-  uint32_t result = definition_src->structs.count; // [1]
+  uint32_t result = definition_src->structs.count; // See #compatibility-work-entry.
 
   auto structs_src = to_range(schema_src, definition_src->structs);
   auto structs_dst = to_range(schema_dst, definition_dst->structs);
+  auto choices_src = to_range(schema_src, definition_src->choices);
+  auto choices_dst = to_range(schema_dst, definition_dst->choices);
 
   for (UInt i = 0; i < structs_dst.count; i++) {
     auto definition_dst = structs_dst.pointer + i;
@@ -79,7 +80,33 @@ U32 get_compatibility_work(Bytes schema_src, Bytes schema_dst) {
 
       ASSERT(!found);
       found = true;
-      result += definition_src->fields.count * definition_dst->fields.count; // [2]
+
+      // See #compatibility-work-fields.
+      result += 2 * definition_src->fields.count * definition_dst->fields.count;
+
+      break;
+    }
+
+    ASSERT(found);
+  }
+
+  for (UInt i = 0; i < choices_dst.count; i++) {
+    auto definition_dst = choices_dst.pointer + i;
+
+    bool found = false;
+    for (UInt j = 0; j < choices_src.count; j++) {
+      auto definition_src = choices_src.pointer + j;
+
+      if (definition_dst->typeId != definition_src->typeId) {
+        continue;
+      }
+
+      ASSERT(!found);
+      found = true;
+
+      // See #compatibility-work-options.
+      result += 2 * definition_src->options.count * definition_dst->options.count;
+
       break;
     }
 
@@ -101,12 +128,29 @@ U32 get_compatibility_work_base(Bytes schema_bytes) {
 }
 
 static inline
-UInt get_min_read_scratch_memory_size(svf::Meta::SchemaDefinition *definition) {
+UInt get_min_read_scratch_memory_size(Bytes schema, svf::Meta::SchemaDefinition *definition) {
+  U32 total_fields = 0;
+  auto structs = to_range(schema, definition->structs);
+  for (U32 i = 0; i < structs.count; i++) {
+    auto definition = structs.pointer + i;
+    total_fields += definition->fields.count;
+  }
+
+  U32 total_options = 0;
+  auto choices = to_range(schema, definition->choices);
+  for (U32 i = 0; i < choices.count; i++) {
+    auto definition = choices.pointer + i;
+    total_options += definition->options.count;
+  }
+
   // #scratch-memory-partitions.
   return (
     (sizeof(U32) - 1) // In case of misalignment.
-    + definition->structs.count * sizeof(U32) * 4 // Strides, matches, 2x queue.
-    + definition->choices.count * sizeof(U32) * 3 // Matches, 2x queue.
+    + definition->structs.count * sizeof(U32) * 5 // Strides, matches, queue (x2), field match header.
+    + definition->choices.count * sizeof(U32) * 4 // Matches, queue (x2), options match header.
+    + total_fields * sizeof(U32)
+    + total_options * sizeof(U32)
+    + total_options * sizeof(U8)
   );
 }
 

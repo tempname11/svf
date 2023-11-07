@@ -256,6 +256,8 @@ generate_schema_files(A0)
 generate_schema_files(A1)
 generate_schema_files(B0)
 generate_schema_files(B1)
+generate_schema_files(D0)
+generate_schema_files(D1)
 generate_schema_files(Meta)
 generate_schema_files(JSON)
 generate_schema_files(Hello)
@@ -281,6 +283,17 @@ add_executable(test_simple_b
 target_link_libraries(test_simple_b PRIVATE svf_runtime platform)
 add_dependencies(test_simple_b schema_B0_hpp)
 add_dependencies(test_simple_b schema_B1_hpp)
+
+#
+# `test_simple_d`
+#
+add_executable(test_simple_d
+  src/test/simple/d.cpp
+  src/test/simple/simple_write_read.cpp
+)
+target_link_libraries(test_simple_d PRIVATE svf_runtime platform)
+add_dependencies(test_simple_d schema_D0_hpp)
+add_dependencies(test_simple_d schema_D1_hpp)
 
 #
 # `test_simple_c`
@@ -338,6 +351,7 @@ add_test(NAME meta_h_consistency COMMAND
 add_test(NAME test_simple_a COMMAND test_simple_a)
 add_test(NAME test_simple_b COMMAND test_simple_b)
 add_test(NAME test_simple_c COMMAND test_simple_c)
+add_test(NAME test_simple_d COMMAND test_simple_d)
 
 # Examples.
 add_test(NAME example_json COMMAND example_json)
@@ -411,7 +425,6 @@ add_our_compatibility_test(incompatibility)
 add_our_conversion_test(allocation_failed)
 add_our_conversion_test(total_data_size_limit_exceeded)
 add_our_conversion_test(data_out_of_bounds)
-add_our_conversion_test(bad_choice_tag)
 add_our_conversion_test(max_recursion_depth_exceeded)
 add_our_conversion_test(data_aliasing_detected)
 # add_our_conversion_test(placeholder) # Useless, but added for completeness.

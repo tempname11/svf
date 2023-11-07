@@ -74,7 +74,7 @@ int main(int /*argc*/, char */*argv*/[]) {
     ASSERT(read_result.error_code == SVFRT_code_compatibility__not_enough_scratch_memory);
   }
 
-  // Fail, when an unknown entry-struct name-hash is provided.
+  // Fail, when an unknown entry-struct ID is provided.
   {
     // Use identical schemas.
     auto schema_src = schema_dst;

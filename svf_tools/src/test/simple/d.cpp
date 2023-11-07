@@ -2,13 +2,16 @@
 #include <cstdlib>
 #include <cinttypes>
 #define SVF_INCLUDE_BINARY_SCHEMA
-#include <generated/hpp/B0.hpp>
-#include <generated/hpp/B1.hpp>
+#include <generated/hpp/D0.hpp>
+#include <generated/hpp/D1.hpp>
 #include <src/svf_runtime.hpp>
 #include <src/library.hpp>
 
+// Note: this test was copied from `b.cpp`, and the schemas were modified to
+// use negative-polarity.
+
 void test_write(svf::runtime::WriterFn *writer_fn, void *writer_ptr) {
-  namespace schema = svf::B0;
+  namespace schema = svf::D0;
 
   auto ctx = svf::runtime::write_start<schema::Entry>(writer_fn, writer_ptr);
 
@@ -77,7 +80,7 @@ void *malloc_adapter(void */*unused*/, size_t size) {
 }
 
 void test_read(vm::LinearArena *arena, Bytes input_range) {
-  namespace schema = svf::B1;
+  namespace schema = svf::D1;
 
   auto scratch_memory = vm::many<U8>(
     arena,

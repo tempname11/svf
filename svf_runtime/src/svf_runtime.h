@@ -136,6 +136,10 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_compatibility__invalid_struct_index                0x00010013
 #define SVFRT_code_compatibility__invalid_choice_index                0x00010014
 #define SVFRT_code_compatibility__schema_too_small                    0x00010015
+#define SVFRT_code_compatibility__duplicate_option                    0x00010016
+#define SVFRT_code_compatibility__field_cannot_be_ignored             0x00010017
+#define SVFRT_code_compatibility__option_cannot_be_ignored            0x00010018
+#define SVFRT_code_compatibility__invalid_tag                         0x00010019
 
 #define SVFRT_code_compatibility_internal__unknown                    0x00020001
 #define SVFRT_code_compatibility_internal__invalid_type_tag           0x00020002
@@ -159,7 +163,6 @@ typedef uint32_t SVFRT_ErrorCode;
 #define SVFRT_code_conversion__bad_schema_option_index                0x0003000A
 #define SVFRT_code_conversion__bad_schema_type_tag                    0x0003000B
 #define SVFRT_code_conversion__data_out_of_bounds                     0x0003000C
-#define SVFRT_code_conversion__bad_choice_tag                         0x0003000D
 #define SVFRT_code_conversion__schema_type_tag_mismatch               0x0003000E
 #define SVFRT_code_conversion__schema_concrete_type_tag_mismatch      0x0003000F
 #define SVFRT_code_conversion__max_recursion_depth_exceeded           0x00030010

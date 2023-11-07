@@ -1,0 +1,68 @@
+#name D1
+
+Entry: struct {
+  - reorderFields: ReorderFields;
+  - reorderOptions: ReorderOptions;
+  - addField: AddField;
+  - removeField: RemoveField;
+  - addOption: AddOption;
+  - removeOption1: RemoveOption;
+  - removeOption2: RemoveOption;
+  - primitives: Primitives;
+};
+
+ReorderFields: struct {
+  - two: U32;
+  - one: U64;
+};
+
+ReorderOptions: choice {
+  - two: I32;
+  - one: I64;
+};
+
+AddField: struct {
+  - one: U8;
+  - two: U16;
+  - three: U32;
+};
+
+RemoveField: struct {
+  - one: U8;
+  - two = removed;
+  - three: U32;
+};
+
+AddOption: choice {
+  - one: U8;
+  - two: U16;
+  - three: U32;
+};
+
+RemoveOption: choice {
+  - one: U8;
+  - two = removed;
+  - three: U32;
+};
+
+Primitives: struct {
+  - u8u16: U16;
+  - u8u32: U32;
+  - u8u64: U64;
+  - u8i16: I16;
+  - u8i32: I32;
+  - u8i64: I64;
+  - u16u32: U32;
+  - u16u64: U64;
+  - u16i32: I32;
+  - u16i64: I64;
+  - u32u64: U64;
+  - u32i64: I64;
+  - i8i16: I16;
+  - i8i32: I32;
+  - i8i64: I64;
+  - i16i32: I32;
+  - i16i64: I64;
+  - i32i64: I64;
+  - f32f64: F64;
+};

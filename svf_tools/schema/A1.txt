@@ -11,8 +11,8 @@ SomeStruct: struct {
 };
 
 SomeChoice: choice {
-  target: Target;
-  x: U64;
+  - target: Target;
+  - x: U64;
 };
 
 Target: struct {

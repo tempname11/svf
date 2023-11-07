@@ -177,39 +177,35 @@ PreparedSchema prepare_schema(vm::LinearArena *arena, PreparedSchemaParams *para
   svf::Meta::OptionDefinition base_options[2] = {
     {
       .optionId = 0x0D00 + option_id_delta, // "OD" for "Option Definition".
-
-      // Do not apply `option_tag_delta` here. We want all-zero data to be
-      // valid, which means that a zero-tag option should exist.
-      .tag = 0,
-
+      .tag = safe_int_cast<U8>(1 + option_tag_delta),
       .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::nothing
         },
       },
     },
     {
       .optionId = 0x0D01 + option_id_delta, // "OD" for "Option Definition".
-      .tag = safe_int_cast<U8>(1 + option_tag_delta),
+      .tag = safe_int_cast<U8>(2 + option_tag_delta),
       .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::Meta::ConcreteType_tag::zeroSized
+          .type_tag = svf::Meta::ConcreteType_tag::nothing
         },
       },
     },
   };
-  auto options = svf::runtime::write_sequence(&ctx, base_options, 2);
+  auto options = svf::runtime::write_sequence(&ctx, base_options, params->less_options ? 1 : 2);
 
   for (UInt i = 0; i < params->extra_options; i++) {
     svf::Meta::OptionDefinition extra_option = {
       .optionId = 0x0D0E + i + option_id_delta, // "OD" for "Option Definition".
-      .tag = safe_int_cast<U8>(2 + i + option_tag_delta),
+      .tag = safe_int_cast<U8>(3 + i + option_tag_delta),
       .type_tag = svf::Meta::Type_tag::concrete,
       .type_payload = {
         .concrete = {
-          .type_tag = svf::Meta::ConcreteType_tag::zeroSized,
+          .type_tag = svf::Meta::ConcreteType_tag::nothing,
         },
       },
     };

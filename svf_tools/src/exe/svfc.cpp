@@ -159,26 +159,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto input_buffer = Bytes {
+  auto input = Bytes {
     .pointer = (U8 *) vm::realign(arena),
     .count = 0,
   };
-  U64 input_cstr_size = 0;
 
   while (!feof(input_file)) {
-    input_buffer.count += vm::many<U8>(arena, 1024).count;
-    input_cstr_size += fread(input_buffer.pointer, 1, 1024, input_file);
+    auto chunk = vm::many<U8>(arena, 1024);
+    input.count += fread(chunk.pointer, 1, 1024, input_file);
 
     if (ferror(input_file)) {
       printf("Error: failed to read input.\n");
       return 1;
     }
   }
-
-  auto input = Range<U8> {
-    .pointer = (U8 *) input_buffer.pointer,
-    .count = input_cstr_size,
-  };
 
   if (input_file != stdin) {
     fclose(input_file);

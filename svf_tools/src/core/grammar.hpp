@@ -6,7 +6,7 @@ namespace core::grammar {
 // This looks a bit like the "meta.hpp" metaschema, but this is specific for
 // parsing, and differs from those definitions in a few ways:
 //
-// - Struct/choice indices are not yet known, and name hashes are used instead.
+// - Struct/choice indices are not yet known, and name-hashes are used instead.
 // - Binary sizes/offsets are not yet known.
 // - Pointers are used directly.
 // - Names are referenced directly.
@@ -14,6 +14,7 @@ namespace core::grammar {
 
 struct ConcreteType {
   enum class Which {
+    nothing,
     u8,
     u16,
     u32,
@@ -24,7 +25,6 @@ struct ConcreteType {
     i64,
     f32,
     f64,
-    zero_sized,
     defined,
   } which;
 
@@ -67,25 +67,29 @@ struct Type {
 
 struct FieldDefinition {
   Range<U8> name;
-  U64 name_hash; // Now called "fieldId" in the metaschema.
+  U64 name_hash;
   Type type;
+  Bool negativePolarity;
+  Bool removed;
 };
 
 struct OptionDefinition {
   Range<U8> name;
-  U64 name_hash; // Now called "optionId" in the metaschema.
+  U64 name_hash;
   Type type;
+  Bool negativePolarity;
+  Bool removed;
 };
 
 struct StructDefinition {
   Range<U8> name;
-  U64 name_hash; // Now called "typeId" in the metaschema.
+  U64 name_hash;
   Range<FieldDefinition> fields;
 };
 
 struct ChoiceDefinition {
   Range<U8> name;
-  U64 name_hash; // Now called "typeId" in the metaschema.
+  U64 name_hash;
   Range<OptionDefinition> options;
 };
 

@@ -62,6 +62,13 @@ typedef struct SVFRT_CheckContext {
   SVFRT_IndexPairQueue struct_queue;
   SVFRT_IndexPairQueue choice_queue;
 
+  SVFRT_RangeU32 field_matches_header;
+  SVFRT_RangeU32 field_matches;
+
+  SVFRT_RangeU32 option_matches_header;
+  SVFRT_Bytes option_matches_tags;
+  SVFRT_RangeU32 option_matches;
+
   // Lowest level seen so far. Should be >= required level.
   SVFRT_CompatibilityLevel current_level;
 
@@ -86,7 +93,7 @@ void SVFRT_check_add_struct(
     return;
   }
 
-  if (match != (uint32_t) (-1)) {
+  if (match != UINT32_MAX) {
     // We previously matched this dst-index to a different src-index, so
     // something is wrong.
     ctx->error_code = SVFRT_code_compatibility__struct_index_mismatch;
@@ -118,7 +125,7 @@ void SVFRT_check_add_choice(
     return;
   }
 
-  if (match != (uint32_t) (-1)) {
+  if (match != UINT32_MAX) {
     // We previously matched this dst-index to a different src-index, so
     // something is wrong.
     ctx->error_code = SVFRT_code_compatibility__choice_index_mismatch;
@@ -332,6 +339,10 @@ void SVFRT_check_struct(
   uint32_t struct_index_src,
   uint32_t struct_index_dst
 ) {
+  // Field-matches header should have valid indices for every dst-struct, so no
+  // range checking is required here.
+  uint32_t field_matches_index = ctx->field_matches_header.pointer[struct_index_dst];
+
   SVF_Meta_StructDefinition *unsafe_definition_src = ctx->unsafe_structs_src.pointer + struct_index_src;
   SVF_Meta_StructDefinition *definition_dst = ctx->structs_dst.pointer + struct_index_dst;
 
@@ -357,79 +368,168 @@ void SVFRT_check_struct(
     return;
   }
 
-  // TODO: this will be more complicated with @optional-types.
+  // Compatibility rules for structs:
+  // ================================
+  // TODO: Additional review for these rules. They look right, but there might be
+  // quirks.
+  //
+  // - All positive-polarity DST-fields must match one of the SRC-fields by ID.
+  // - All negative-polarity SRC-fields must match one of the DST-fields by ID.
+  //
+  // (This implies that positive-polarity SRC-fields might not have matches,
+  // which essentially means they may be ignored.)
+  //
+  // (And also, negative-polarity DST-fields might not have matches,
+  // which essentially means they may be created and zero-initialized.)
+  //
+  // Logical compatibility:
+  // - All field ID matches:
+  //   - Both have the same polarity flag.
+  //   - Their types are logically compatible.
+  //   - Either:
+  //     - Both are marked as present (not removed).
+  //     - Both are marked as removed.
+  //     - Both have positive polarity, the SRC-field is removed, and the DST-field is present.
+  //     - Both have negative polarity, the DST-field is removed, and the SRC-field is present.
+  //
+  // Binary compatibility:
+  // - All DST-fields must match one of the SRC-fields by ID.
+  // - All field ID matches must:
+  //   - Have the same ID, offset, polarity flag, and removal flag.
+  //   - Their types be binary compatible.
+  // - The size of the DST-struct must be _less or equal_ to the size of the SRC-struct.
+  //
+  // Exact compatibility:
+  // - All DST-fields must match one of the SRC-fields by ID.
+  // - All field ID matches must:
+  //   - Have the same ID, offset, polarity flag, and removal flag.
+  //   - Their types be exactly compatible.
+  // - The size of the DST-struct must be _EQUAL_ to the size of the SRC-struct.
 
-  // Logical compatibility: all dst-schema fields must be present in src-schema,
-  // with the same ID. Their types must be logically compatible.
-
-  // Binary compatibility: all dst-schema fields must be present in src-schema, with
-  // the same ID and offset. Their types must be binary compatible.
-
-  // Exact compatibility: all dst-schema fields must be present in src-schema, with
-  // the same ID and offset. Their types must be exactly compatible. The sizes
-  // of structs must be equal.
-
-  if (unsafe_fields_src.count < fields_dst.count) {
-    // Early exit, because we know that at least one field from dst-schema is not
-    // present in src-schema.
-    ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+  // Looping over potentially adversarial data, so limit work. #compatibility-work-fields.
+  if (!SVFRT_check_work(ctx, 2 * unsafe_fields_src.count * fields_dst.count)) {
     return;
   }
 
-  // #compatibility-reasonable-fields.
-  //
-  // #compatibility-work [2]: this is linear in respect to
-  // `unsafe_fields_src.count * fields_dst.count`.
-  //
-  // TODO @performance: N^2
   for (uint32_t i = 0; i < fields_dst.count; i++) {
     SVF_Meta_FieldDefinition *field_dst = fields_dst.pointer + i;
+    bool inverted_polarity_dst = (field_dst->fieldId & (1ull << 63)) != 0;
 
-    // Looping over potentially adversarial data, so limit work.
-    if (!SVFRT_check_work(ctx, unsafe_fields_src.count)) {
-      return;
-    }
+    // Field-matches table should be valid for every possible dst-field, so no
+    // range checking is required here.
+    uint32_t *out_match = ctx->field_matches.pointer + field_matches_index + i;
 
     bool found = false;
     for (uint32_t j = 0; j < unsafe_fields_src.count; j++) {
       SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + j;
 
       if (unsafe_field_src->fieldId == field_dst->fieldId) {
-        if (
-          (ctx->current_level >= SVFRT_compatibility_binary)
-          && (unsafe_field_src->offset != field_dst->offset)
-        ) {
-          ctx->current_level = SVFRT_compatibility_logical;
-          if (ctx->current_level < ctx->required_level) {
-            ctx->error_code = SVFRT_code_compatibility__field_offset_mismatch;
+        if (!inverted_polarity_dst && !unsafe_field_src->removed && field_dst->removed) {
+          // TODO: not covered by tests yet.
+          ctx->error_code = SVFRT_code_compatibility__field_cannot_be_ignored;
+          return;
+        }
+
+        if (inverted_polarity_dst && unsafe_field_src->removed && !field_dst->removed) {
+          ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+          return;
+        }
+
+        if (!unsafe_field_src->removed && !field_dst->removed) {
+          SVFRT_check_type(
+            ctx,
+            unsafe_field_src->type_tag,
+            &unsafe_field_src->type_payload,
+            field_dst->type_tag,
+            &field_dst->type_payload
+          );
+
+          if (ctx->error_code) {
             return;
           }
         }
 
-        SVFRT_check_type(
-          ctx,
-          unsafe_field_src->type_tag,
-          &unsafe_field_src->type_payload,
-          field_dst->type_tag,
-          &field_dst->type_payload
-        );
+        if (ctx->current_level >= SVFRT_compatibility_binary) {
+          // Additional checks for binary compatibility, that either downgrade
+          // the current level to logical compatibility, or return an error.
 
-        if (ctx->error_code) {
-          return;
+          if (unsafe_field_src->offset != field_dst->offset) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__field_offset_mismatch;
+              return;
+            }
+          }
+
+          if (!unsafe_field_src->removed && field_dst->removed) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__field_cannot_be_ignored;
+              return;
+            }
+          };
+
+          if (inverted_polarity_dst && unsafe_field_src->removed && !field_dst->removed) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+              return;
+            }
+          }
         }
 
-        found = true;
-        // Incorrect src-schema could have multiple fields with the same
-        // name-hash. We will simply ignore every but the first one.
+        // Note: an incorrect src-schema could have multiple fields with the
+        // same ID. We will simply ignore those after the first one here.
         //
-        // TODO: should this be guarded against? Can this cause trouble?
+        // This is equivalent to having additional src-fields that do not match
+        // to anything, and should not cause any problems.
+
+        if (!unsafe_field_src->removed) {
+          *out_match = j;
+        }
+        found = true;
         break;
       }
     }
 
     if (!found) {
-      ctx->error_code = SVFRT_code_compatibility__field_is_missing;
-      return;
+      if (!inverted_polarity_dst) {
+        ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+        return;
+      }
+
+      // For binary compatibility, missing negative-polarity src-fields are also an
+      // error.
+      if (ctx->current_level >= SVFRT_compatibility_binary) {
+        ctx->current_level = SVFRT_compatibility_logical;
+        if (ctx->current_level < ctx->required_level) {
+          ctx->error_code = SVFRT_code_compatibility__field_is_missing;
+          return;
+        }
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < unsafe_fields_src.count; i++) {
+    SVF_Meta_FieldDefinition *unsafe_field_src = unsafe_fields_src.pointer + i;
+    bool inverted_polarity_src = (unsafe_field_src->fieldId & (1ull << 63)) != 0;
+
+    bool found = false;
+    for (uint32_t j = 0; j < fields_dst.count; j++) {
+      SVF_Meta_FieldDefinition *field_dst = fields_dst.pointer + j;
+
+      if (unsafe_field_src->fieldId == field_dst->fieldId) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      if (inverted_polarity_src) {
+        // TODO: not covered by tests yet.
+        ctx->error_code = SVFRT_code_compatibility__field_cannot_be_ignored;
+        return;
+      }
     }
   }
 
@@ -465,6 +565,10 @@ void SVFRT_check_choice(
   uint32_t choice_index_src,
   uint32_t choice_index_dst
 ) {
+  // Option matches header should have valid indices for every dst-choice, so
+  // no range checking is required here.
+  uint32_t option_matches_index = ctx->option_matches_header.pointer[choice_index_dst];
+
   SVF_Meta_ChoiceDefinition *unsafe_definition_src = ctx->unsafe_choices_src.pointer + choice_index_src;
   SVF_Meta_ChoiceDefinition *definition_dst = ctx->choices_dst.pointer + choice_index_dst;
 
@@ -490,70 +594,159 @@ void SVFRT_check_choice(
     return;
   }
 
-  // TODO: this will be more complicated with @optional-types.
+  // Compatibility rules for choices:
+  // ================================
+  // TODO: Additional review for these rules. Note: they are mostly adapted from
+  // struct rules and there might be quirks.
+  //
+  // - All positive-polarity DST-options must match one of the SRC-options by ID.
+  // - All negative-polarity SRC-options must match one of the DST-options by ID.
+  //
+  // (This implies that positive-polarity SRC-options might not have matches,
+  // which essentially means they will be reset to tag 0.)
+  //
+  // (And also, negative-polarity DST-options might not have matches,
+  // which essentially means they will not be encountered.)
+  //
+  // Logical compatibility:
+  // - All option ID matches:
+  //   - Both have the same polarity flag.
+  //   - Their types are logically compatible.
+  //   - Either:
+  //     - Both are marked as present (not removed).
+  //     - Both are marked as removed.
+  //     - Both have positive polarity, the SRC-option is removed, and the DST-option is present.
+  //     - Both have negative polarity, the DST-option is removed, and the SRC-option is present.
+  //
+  // Binary compatibility:
+  // - All option ID matches must:
+  //   - Have the same ID, offset, polarity flag, and removal flag.
+  //   - Their types be binary compatible.
+  //
+  // Exact compatibility:
+  // - All option ID matches must:
+  //   - Have the same ID, offset, polarity flag, and removal flag.
+  //   - Their types be exactly compatible.
 
-  // Logical compatibility: all src-schema options must be present in dst-schema,
-  // with the same ID. Their types must be logically compatible.
-
-  // Binary compatibility: all src-schema options must be present in dst-schema, with
-  // the same ID and tag. Their types must be binary compatible.
-
-  // Exact compatibility: all src-schema options must be present in dst-schema, with
-  // the same ID and tag. Their types must be exactly compatible.
-
-  if (options_dst.count < unsafe_options_src.count) {
-    // Early exit, because we know that at least one option from src-schema is not
-    // present in dst-schema.
-    ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+  // Looping over potentially adversarial data, so limit work. #compatibility-work-options
+  if (!SVFRT_check_work(ctx, 2 * unsafe_options_src.count * options_dst.count)) {
     return;
   }
+  for (uint32_t i = 0; i < options_dst.count; i++) {
+    SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + i;
+    bool inverted_polarity_dst = (option_dst->optionId & (1ull << 63)) != 0;
 
-  // Unlike with structs, here we know that the total work done is bound by
-  // `options_dst.count`. So, we don't really need to limit work here, even if
-  // `unsafe_options_dst` is adversarial.
-  //
-  // #compatibility-reasonable-options.
-  //
-  // TODO @performance: N^2
-  for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
-    SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
+    // Option-matches table should be valid for every possible dst-option, so no
+    // range checking is required here.
+    uint32_t *out_match = ctx->option_matches.pointer + option_matches_index + i;
+    uint8_t *out_tag = ctx->option_matches_tags.pointer + option_matches_index + i;
 
     bool found = false;
-    for (uint32_t j = 0; j < options_dst.count; j++) {
-      SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
+    for (uint32_t j = 0; j < unsafe_options_src.count; j++) {
+      SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + j;
 
       if (unsafe_option_src->optionId == option_dst->optionId) {
-        if (
-          (ctx->current_level >= SVFRT_compatibility_binary)
-          && (unsafe_option_src->tag != option_dst->tag)
-        ) {
-          ctx->current_level = SVFRT_compatibility_logical;
-          if (ctx->current_level < ctx->required_level) {
-            ctx->error_code = SVFRT_code_compatibility__option_tag_mismatch;
+        if (!inverted_polarity_dst && !unsafe_option_src->removed && option_dst->removed) {
+          // TODO: not covered by tests yet.
+          ctx->error_code = SVFRT_code_compatibility__option_cannot_be_ignored;
+          return;
+        }
+
+        if (inverted_polarity_dst && unsafe_option_src->removed && !option_dst->removed) {
+          ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+          return;
+        }
+
+        if (!unsafe_option_src->removed && !option_dst->removed) {
+          SVFRT_check_type(
+            ctx,
+            unsafe_option_src->type_tag,
+            &unsafe_option_src->type_payload,
+            option_dst->type_tag,
+            &option_dst->type_payload
+          );
+
+          if (ctx->error_code) {
             return;
           }
         }
 
-        SVFRT_check_type(
-          ctx,
-          unsafe_option_src->type_tag,
-          &unsafe_option_src->type_payload,
-          option_dst->type_tag,
-          &option_dst->type_payload
-        );
+        if (ctx->current_level >= SVFRT_compatibility_binary) {
+          // Additional checks for binary compatibility, that either downgrade
+          // the current level to logical compatibility, or return an error.
 
-        if (ctx->error_code) {
-          return;
+          if (unsafe_option_src->tag != option_dst->tag) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__option_tag_mismatch;
+              return;
+            }
+          }
+
+          if (!unsafe_option_src->removed && option_dst->removed) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__option_cannot_be_ignored;
+              return;
+            }
+          };
+
+          if (inverted_polarity_dst && unsafe_option_src->removed && !option_dst->removed) {
+            ctx->current_level = SVFRT_compatibility_logical;
+            if (ctx->current_level < ctx->required_level) {
+              ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+              return;
+            }
+          }
         }
 
+        // Note: an incorrect src-schema could have multiple options with the
+        // same ID. We will simply ignore those after the first one here.
+        //
+        // This is equivalent to having additional src-options that do not match
+        // to anything, and should not cause any problems.
+
+        if (!unsafe_option_src->removed) {
+          if (unsafe_option_src->tag == 0) {
+            ctx->error_code = SVFRT_code_compatibility__invalid_tag;
+          }
+
+          *out_tag = unsafe_option_src->tag;
+          *out_match = j;
+        }
         found = true;
         break;
       }
     }
 
     if (!found) {
-      ctx->error_code = SVFRT_code_compatibility__option_is_missing;
-      return;
+      if (!inverted_polarity_dst) {
+        ctx->error_code = SVFRT_code_compatibility__option_is_missing;
+        return;
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < unsafe_options_src.count; i++) {
+    SVF_Meta_OptionDefinition *unsafe_option_src = unsafe_options_src.pointer + i;
+    bool inverted_polarity_src = (unsafe_option_src->optionId & (1ull << 63)) != 0;
+
+    bool found = false;
+    for (uint32_t j = 0; j < options_dst.count; j++) {
+      SVF_Meta_OptionDefinition *option_dst = options_dst.pointer + j;
+
+      if (unsafe_option_src->optionId == option_dst->optionId) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      if (inverted_polarity_src) {
+        // TODO: not covered by tests yet.
+        ctx->error_code = SVFRT_code_compatibility__option_cannot_be_ignored;
+        return;
+      }
     }
   }
 }
@@ -602,81 +795,6 @@ void SVFRT_check_compatibility(
     - sizeof(SVF_Meta_SchemaDefinition)
   );
 
-  uint32_t scratch_misalignment = ((uintptr_t) scratch_memory.pointer) % sizeof(uint32_t);
-  uint32_t scratch_padding = scratch_misalignment ? sizeof(uint32_t) - scratch_misalignment : 0;
-
-  // See #scratch-memory-partitions.
-  size_t partitions[5] = {
-    sizeof(uint32_t) * definition_dst->structs.count, // Strides.
-    sizeof(uint32_t) * definition_dst->structs.count, // Matches.
-    sizeof(uint32_t) * definition_dst->choices.count, // Matches.
-    sizeof(SVFRT_IndexPair) * definition_dst->structs.count, // Queue.
-    sizeof(SVFRT_IndexPair) * definition_dst->choices.count  // Queue.
-  };
-
-  size_t total_scratch_needed = (
-    scratch_padding
-    + partitions[0]
-    + partitions[1]
-    + partitions[2]
-    + partitions[3]
-    + partitions[4]
-  );
-  if (scratch_memory.count < total_scratch_needed) {
-    out_result->error_code = SVFRT_code_compatibility__not_enough_scratch_memory;
-    return;
-  }
-
-  uint8_t *partition_pointer = scratch_memory.pointer + scratch_padding;
-  SVFRT_RangeU32 unsafe_struct_strides_dst = {
-    /*.pointer =*/ (uint32_t *) partition_pointer,
-    /*.count =*/ definition_dst->structs.count
-  };
-
-  partition_pointer += partitions[0];
-  SVFRT_RangeU32 dst_to_src_struct_matches = {
-    /*.pointer =*/ (uint32_t *) partition_pointer,
-    /*.count =*/ definition_dst->structs.count
-  };
-
-  partition_pointer += partitions[1];
-  SVFRT_RangeU32 dst_to_src_choice_matches = {
-    /*.pointer =*/ (uint32_t *) partition_pointer,
-    /*.count =*/ definition_dst->choices.count
-  };
-
-  partition_pointer += partitions[2];
-  SVFRT_IndexPairQueue struct_queue_initial = {
-    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
-    /*.capacity =*/ definition_dst->structs.count,
-    /*.occupied =*/ 0
-  };
-
-  partition_pointer += partitions[3];
-  SVFRT_IndexPairQueue choice_queue_initial = {
-    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
-    /*.capacity =*/ definition_dst->choices.count,
-    /*.occupied =*/ 0
-  };
-
-  for (uint32_t i = 0; i < unsafe_struct_strides_dst.count; i++) {
-    unsafe_struct_strides_dst.pointer[i] = 0;
-  }
-  for (uint32_t i = 0; i < dst_to_src_struct_matches.count; i++) {
-    dst_to_src_struct_matches.pointer[i] = (uint32_t) (-1);
-  }
-  for (uint32_t i = 0; i < dst_to_src_choice_matches.count; i++) {
-    dst_to_src_choice_matches.pointer[i] = (uint32_t) (-1);
-  }
-  for (uint32_t i = 0; i < struct_queue_initial.capacity; i++) {
-    struct_queue_initial.pointer[i].index_src = (uint32_t) (-1);
-    struct_queue_initial.pointer[i].index_dst = (uint32_t) (-1);
-  }
-  for (uint32_t i = 0; i < choice_queue_initial.capacity; i++) {
-    choice_queue_initial.pointer[i].index_src = (uint32_t) (-1);
-    choice_queue_initial.pointer[i].index_dst = (uint32_t) (-1);
-  }
-
   // Safety: out-of-bounds access will be caught, and `.pointer` will be NULL.
   SVFRT_RangeStructDefinition unsafe_structs_src = SVFRT_INTERNAL_RANGE_FROM_SEQUENCE(
     unsafe_schema_src,
@@ -722,6 +840,152 @@ void SVFRT_check_compatibility(
     return;
   }
 
+  uint32_t field_matches_count = 0;
+  for (uint32_t i = 0; i < structs_dst.count; i++) {
+    SVF_Meta_StructDefinition *definition_dst = structs_dst.pointer + i;
+    field_matches_count += definition_dst->fields.count;
+  }
+
+  uint32_t option_matches_count = 0;
+  for (uint32_t i = 0; i < choices_dst.count; i++) {
+    SVF_Meta_ChoiceDefinition *definition_dst = choices_dst.pointer + i;
+    option_matches_count += definition_dst->options.count;
+  }
+
+  uint32_t scratch_misalignment = ((uintptr_t) scratch_memory.pointer) % sizeof(uint32_t);
+  uint32_t scratch_padding = scratch_misalignment ? sizeof(uint32_t) - scratch_misalignment : 0;
+
+  // See #scratch-memory-partitions.
+  size_t partitions[10] = {
+    sizeof(uint32_t) * definition_dst->structs.count, // Strides.
+    sizeof(uint32_t) * definition_dst->structs.count, // Matches.
+    sizeof(uint32_t) * definition_dst->choices.count, // Matches.
+    sizeof(SVFRT_IndexPair) * definition_dst->structs.count, // Queue.
+    sizeof(SVFRT_IndexPair) * definition_dst->choices.count,  // Queue.
+    sizeof(uint32_t) * definition_dst->structs.count, // Field-matches header.
+    sizeof(uint32_t) * field_matches_count, // Field-matches.
+    sizeof(uint32_t) * definition_dst->choices.count, // Option-matches header.
+    sizeof(uint32_t) * option_matches_count, // Option-matches.
+    sizeof(uint8_t) * option_matches_count // Option-matches tags.
+  };
+
+  size_t total_scratch_needed = (
+    scratch_padding
+    + partitions[0]
+    + partitions[1]
+    + partitions[2]
+    + partitions[3]
+    + partitions[4]
+    + partitions[5]
+    + partitions[6]
+    + partitions[7]
+    + partitions[8]
+    + partitions[9]
+  );
+  if (scratch_memory.count < total_scratch_needed) {
+    out_result->error_code = SVFRT_code_compatibility__not_enough_scratch_memory;
+    return;
+  }
+
+  uint8_t *partition_pointer = scratch_memory.pointer + scratch_padding;
+  SVFRT_RangeU32 unsafe_struct_strides_dst = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->structs.count
+  };
+
+  partition_pointer += partitions[0];
+  SVFRT_RangeU32 dst_to_src_struct_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->structs.count
+  };
+
+  partition_pointer += partitions[1];
+  SVFRT_RangeU32 dst_to_src_choice_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->choices.count
+  };
+
+  partition_pointer += partitions[2];
+  SVFRT_IndexPairQueue struct_queue_initial = {
+    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
+    /*.capacity =*/ definition_dst->structs.count,
+    /*.occupied =*/ 0
+  };
+
+  partition_pointer += partitions[3];
+  SVFRT_IndexPairQueue choice_queue_initial = {
+    /*.pointer =*/ (SVFRT_IndexPair *) partition_pointer,
+    /*.capacity =*/ definition_dst->choices.count,
+    /*.occupied =*/ 0
+  };
+
+  partition_pointer += partitions[4];
+  SVFRT_RangeU32 field_matches_header = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->structs.count
+  };
+
+  partition_pointer += partitions[5];
+  SVFRT_RangeU32 field_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ field_matches_count
+  };
+
+  partition_pointer += partitions[6];
+  SVFRT_RangeU32 option_matches_header = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ definition_dst->choices.count
+  };
+
+  partition_pointer += partitions[7];
+  SVFRT_RangeU32 option_matches = {
+    /*.pointer =*/ (uint32_t *) partition_pointer,
+    /*.count =*/ option_matches_count
+  };
+
+  partition_pointer += partitions[8];
+  SVFRT_Bytes option_matches_tags = {
+    /*.pointer =*/ (uint8_t *) partition_pointer,
+    /*.count =*/ option_matches_count
+  };
+
+  for (uint32_t i = 0; i < unsafe_struct_strides_dst.count; i++) {
+    unsafe_struct_strides_dst.pointer[i] = 0;
+  }
+  for (uint32_t i = 0; i < dst_to_src_struct_matches.count; i++) {
+    dst_to_src_struct_matches.pointer[i] = UINT32_MAX;
+  }
+  for (uint32_t i = 0; i < dst_to_src_choice_matches.count; i++) {
+    dst_to_src_choice_matches.pointer[i] = UINT32_MAX;
+  }
+  for (uint32_t i = 0; i < struct_queue_initial.capacity; i++) {
+    struct_queue_initial.pointer[i].index_src = UINT32_MAX;
+    struct_queue_initial.pointer[i].index_dst = UINT32_MAX;
+  }
+  for (uint32_t i = 0; i < choice_queue_initial.capacity; i++) {
+    choice_queue_initial.pointer[i].index_src = UINT32_MAX;
+    choice_queue_initial.pointer[i].index_dst = UINT32_MAX;
+  }
+  uint32_t total_fields = 0;
+  for (uint32_t i = 0; i < structs_dst.count; i++) {
+    SVF_Meta_StructDefinition *definition_dst = structs_dst.pointer + i;
+    field_matches_header.pointer[i] = total_fields;
+    total_fields += definition_dst->fields.count;
+  }
+  for (uint32_t i = 0; i < field_matches.count; i++) {
+    field_matches.pointer[i] = UINT32_MAX;
+  }
+  uint32_t total_options = 0;
+  for (uint32_t i = 0; i < choices_dst.count; i++) {
+    SVF_Meta_ChoiceDefinition *definition_dst = choices_dst.pointer + i;
+    option_matches_header.pointer[i] = total_options;
+    total_options += definition_dst->options.count;
+  }
+  for (uint32_t i = 0; i < option_matches.count; i++) {
+    option_matches.pointer[i] = UINT32_MAX;
+    option_matches_tags.pointer[i] = 0;
+  }
+
   SVFRT_CheckContext ctx_val = {
     .unsafe_definition_src = unsafe_definition_src,
     .definition_dst = definition_dst,
@@ -736,22 +1000,24 @@ void SVFRT_check_compatibility(
     .unsafe_struct_strides_dst = unsafe_struct_strides_dst,
     .struct_queue = struct_queue_initial,
     .choice_queue = choice_queue_initial,
+    .field_matches_header = field_matches_header,
+    .field_matches = field_matches,
+    .option_matches_header = option_matches_header,
+    .option_matches = option_matches,
+    .option_matches_tags = option_matches_tags,
     .current_level = sufficient_level,
     .required_level = required_level,
     .max_schema_work = max_schema_work,
   };
   SVFRT_CheckContext *ctx = &ctx_val;
 
-  // #compatibility-work [1]: this is linear in respect to
-  // `unsafe_structs_src.count`.
-  //
-  // Looping over potentially adversarial data, so limit work.
+  // Looping over potentially adversarial data, so limit work. #compatibility-work-entry.
   if (!SVFRT_check_work(ctx, unsafe_structs_src.count)) {
     out_result->error_code = ctx->error_code;
     return;
   }
 
-  uint32_t entry_struct_index_src = (uint32_t) (-1);
+  uint32_t entry_struct_index_src = UINT32_MAX;
   for (uint32_t i = 0; i < unsafe_structs_src.count; i++) {
     if (unsafe_structs_src.pointer[i].typeId == entry_struct_id) {
       entry_struct_index_src = i;
@@ -759,7 +1025,7 @@ void SVFRT_check_compatibility(
     }
   }
 
-  uint32_t entry_struct_index_dst = (uint32_t) (-1);
+  uint32_t entry_struct_index_dst = UINT32_MAX;
   for (uint32_t i = 0; i < structs_dst.count; i++) {
     if (structs_dst.pointer[i].typeId == entry_struct_id) {
       entry_struct_index_dst = i;
@@ -767,7 +1033,7 @@ void SVFRT_check_compatibility(
     }
   }
 
-  if (entry_struct_index_src == (uint32_t) (-1) || entry_struct_index_dst == (uint32_t) (-1)) {
+  if (entry_struct_index_src == UINT32_MAX || entry_struct_index_dst == UINT32_MAX) {
     out_result->error_code = SVFRT_code_compatibility__entry_struct_id_not_found;
     return;
   }
@@ -834,5 +1100,12 @@ void SVFRT_check_compatibility(
     // We found these indices in the arrays, so they are safe to use.
     out_result->logical.unsafe_entry_struct_size_src = unsafe_structs_src.pointer[entry_struct_index_src].size;
     out_result->logical.entry_struct_size_dst = structs_dst.pointer[entry_struct_index_dst].size;
+
+    out_result->logical.field_matches_header = field_matches_header;
+    out_result->logical.field_matches = field_matches;
+
+    out_result->logical.option_matches_header = option_matches_header;
+    out_result->logical.option_matches_tags = option_matches_tags;
+    out_result->logical.option_matches = option_matches;
   }
 }

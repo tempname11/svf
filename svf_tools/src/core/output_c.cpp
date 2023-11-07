@@ -247,6 +247,12 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   auto options = to_range(ctx->schema_bytes, it->options);
   UInt size_max = 0;
 
+  output_cstring(ctx, "#define SVF_");
+  output_name(ctx, ctx->schema_definition->schemaId);
+  output_cstring(ctx, "_");
+  output_name(ctx, it->typeId);
+  output_cstring(ctx, "_tag_nothing 0\n");
+
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
     output_cstring(ctx, "#define SVF_");
@@ -372,7 +378,7 @@ typedef struct SVFRT_Sequence {
   output_cstring(ctx, "#define SVF_");
   output_name(ctx, schema_definition->schemaId);
   output_cstring(ctx, "_min_read_scratch_memory_size ");
-  output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
+  output_decimal(ctx, get_min_read_scratch_memory_size(schema_bytes, schema_definition));
   output_cstring(ctx, "\n");
 
   output_cstring(ctx, "#define SVF_");

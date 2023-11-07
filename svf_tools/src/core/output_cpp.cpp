@@ -228,6 +228,8 @@ Bool output_choice(Ctx ctx, Meta::ChoiceDefinition *it) {
   auto options = to_range(ctx->schema_bytes, it->options);
   UInt size_max = 0;
 
+  output_cstring(ctx, "  nothing = 0,\n");
+
   for (UInt i = 0; i < options.count; i++) {
     auto option = options.pointer + i;
     output_cstring(ctx, "  ");
@@ -419,7 +421,7 @@ Bytes as_code(
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr uint32_t min_read_scratch_memory_size = ");
-  output_decimal(ctx, get_min_read_scratch_memory_size(schema_definition));
+  output_decimal(ctx, get_min_read_scratch_memory_size(schema_bytes, schema_definition));
   output_cstring(ctx, ";\n");
 
   output_cstring(ctx, "  static constexpr uint32_t compatibility_work_base = ");

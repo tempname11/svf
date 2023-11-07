@@ -42,7 +42,7 @@ TypePluralityAndSize get_plurality(
         case Meta::ConcreteType_tag::f64: {
           return { TypePlurality::one, 8 };
         }
-        case Meta::ConcreteType_tag::zeroSized: {
+        case Meta::ConcreteType_tag::nothing: {
           return { TypePlurality::zero, 0 };
         }
         case Meta::ConcreteType_tag::definedStruct: {
