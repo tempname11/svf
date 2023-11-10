@@ -13,11 +13,11 @@ void example_write(FILE *file) {
 
   svf::JSON::Field fields[2] = {};
 
-  fields[0].name = svf::runtime::write_fixed_size_string<uint8_t>(&ctx, "hello", NULL);
+  fields[0].name = svf::runtime::write_fixed_size_string<uint8_t>(&ctx, "hello", 0);
   fields[0].value_tag = svf::JSON::Value_tag::number;
   fields[0].value_payload.number = 42.0;
 
-  fields[1].name = svf::runtime::write_fixed_size_string<uint8_t>(&ctx, "world", NULL);
+  fields[1].name = svf::runtime::write_fixed_size_string<uint8_t>(&ctx, "world", 0);
   fields[1].value_tag = svf::JSON::Value_tag::array;
   for (int i = 0; i < 42; i++) {
     svf::JSON::Item item = {};

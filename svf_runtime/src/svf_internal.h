@@ -70,9 +70,9 @@ typedef struct SVFRT_LogicalCompatibilityInfo {
 } SVFRT_LogicalCompatibilityInfo;
 
 typedef struct SVFRT_CompatibilityResult {
+  SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
   SVFRT_CompatibilityLevel level;
   SVFRT_RangeU32 quirky_struct_strides_dst; // See #logical-compatibility-stride-quirk.
-  SVFRT_ErrorCode error_code; // See `SVFRT_code_compatibility__*`.
 
   SVFRT_LogicalCompatibilityInfo logical; // Only for `SVFRT_compatibility_logical`.
 } SVFRT_CompatibilityResult;

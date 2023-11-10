@@ -8,7 +8,6 @@ static_assert(CHAR_BIT == 8);
 static_assert(__LITTLE_ENDIAN__); // Clang-specific.
 static_assert(sizeof(size_t) == sizeof(void *));
 static_assert(sizeof(void *) >= 4);
-static_assert(NULL == 0); // Probably unnecessary?
 
 // Aliases for types we will use a lot, short and consistent.
 // Like other types, these have uppercase first letter naming.

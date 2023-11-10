@@ -90,7 +90,7 @@ void SVFRT_read_message(
   };
   SVFRT_Bytes data_range = {
     /*.pointer =*/ message.pointer + appendix_padded_end_offset,
-    /*.count =*/ message.count - appendix_padded_end_offset,
+    /*.count =*/ message.count - (uint32_t) appendix_padded_end_offset,
   };
 
   if (schema_range.count == 0) {

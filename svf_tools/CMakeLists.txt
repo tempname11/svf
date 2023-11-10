@@ -119,7 +119,7 @@ endif()
 #
 # Common compiler options.
 #
-add_compile_options(-Wall -Wextra -Wpedantic)
+add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 add_compile_options(-fno-exceptions -fno-rtti -nostdlib++)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/custom)
 include_directories(../library)
@@ -167,7 +167,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 #
-# `svf_runtime`, compiled as C.
+# `svf_runtime`, compiled as C99.
 #
 add_library(svf_runtime
   ../svf_runtime/src/svf_internal.c
@@ -175,6 +175,7 @@ add_library(svf_runtime
   ../svf_runtime/src/svf_compatibility.c
   ../svf_runtime/src/svf_conversion.c
 )
+target_compile_options(svf_runtime PRIVATE -std=c99 -pedantic-errors)
 
 #
 # `svfc`
@@ -301,7 +302,6 @@ add_dependencies(test_simple_d schema_D1_hpp)
 add_executable(test_simple_c
   src/test/simple/c.c
 )
-target_compile_options(test_simple_c PRIVATE)
 add_dependencies(test_simple_c single_file_h)
 add_dependencies(test_simple_c schema_A0_h)
 add_dependencies(test_simple_c schema_A1_h)

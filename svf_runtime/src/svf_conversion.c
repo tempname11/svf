@@ -1125,8 +1125,9 @@ void SVFRT_conversion_traverse_any_type(
         return;
       }
 
+      uint32_t data_offset = ~unsafe_representation_src.data_offset_complement;
       uint64_t unsafe_end_offset_src = (
-        (uint64_t) ~unsafe_representation_src.data_offset_complement +
+        (uint64_t) data_offset +
         (uint64_t) unsafe_representation_src.count * (uint64_t) unsafe_size_src
       );
 
@@ -1305,7 +1306,7 @@ void SVFRT_convert_message(
     return;
   }
 
-  ctx->allocation.pointer = allocated_pointer;
+  ctx->allocation.pointer = (uint8_t *) allocated_pointer;
   ctx->allocation.count = ctx->tally_dst;
   out_result->output_bytes = ctx->allocation;
 

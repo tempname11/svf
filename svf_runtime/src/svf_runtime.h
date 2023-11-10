@@ -10,7 +10,6 @@
   #include <climits>
   #include <cstddef>
   #include <cstdint>
-  #include <cstdbool>
 #else
   #include <limits.h>
   #include <stddef.h>
@@ -20,6 +19,11 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#if defined(_MSC_VER)
+  // MS: "All native scalar types are little-endian for the platforms that Microsoft Visual C++ targets (x86, x64, ARM, ARM64)."
+  #define SVF_PLATFORM_LITTLE_ENDIAN 1
 #endif
 
 #if defined(__clang__) && defined(__LITTLE_ENDIAN__)
@@ -382,10 +386,11 @@ void SVFRT_write_sequence_element(
   uint32_t type_size,
   SVFRT_Sequence *inout_sequence
 ) {
+  uint32_t data_offset = ~inout_sequence->data_offset_complement;
   if (inout_sequence->count != 0) {
     // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
     // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
-    uint64_t end_offset = (uint64_t) (~inout_sequence->data_offset_complement) + (
+    uint64_t end_offset = (uint64_t) data_offset + (
       (uint64_t) type_size * (uint64_t) inout_sequence->count
     );
 
@@ -509,10 +514,11 @@ void const *SVFRT_read_sequence_element(
     return NULL;
   }
 
+  uint32_t data_offset = ~sequence.data_offset_complement;
   // Prevent multiply-add overflow by casting operands to `uint64_t` first. It
   // works, because `UINT64_MAX == UINT32_MAX * UINT32_MAX + UINT32_MAX + UINT32_MAX`.
   uint64_t item_end_offset = (
-    (uint64_t) (~sequence.data_offset_complement) +
+    (uint64_t) data_offset +
     (uint64_t) stride * ((uint64_t) element_index + 1)
   );
 
@@ -546,7 +552,7 @@ void const *SVFRT_read_sequence_element(
     (ctx), \
     (void *) (array), \
     sizeof(*(array)), \
-    sizeof(array) / sizeof(*(array)) - (termination_type == NULL ? 1 : 0) \
+    sizeof(array) / sizeof(*(array)) - (termination_type == 0 ? 1 : 0) \
   )
 
 #define SVFRT_WRITE_SEQUENCE_ELEMENT(ctx, data_ptr, inout_sequence) \
