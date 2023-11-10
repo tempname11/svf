@@ -113,7 +113,7 @@ void test_read(vm::LinearArena *arena, Bytes input_range) {
   ASSERT(entry->removeOption1_tag == schema::RemoveOption_tag::one);
   ASSERT(entry->removeOption1_payload.one == 70);
 
-  ASSERT(entry->removeOption2_tag == schema::RemoveOption_tag(0)); // FIXME
+  ASSERT(entry->removeOption2_tag == schema::RemoveOption_tag::nothing);
 
   ASSERT(entry->primitives.u8u16 == 49);
   ASSERT(entry->primitives.u8u32 == 50);
