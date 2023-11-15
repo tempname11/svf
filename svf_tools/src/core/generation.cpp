@@ -243,8 +243,6 @@ GenerationResult as_bytes(
   // TODO: check struct/choice ID for collisions. Currently, multiple
   // definitions with the same ID are accepted, which is not great.
 
-  // This arena is used to write the message.
-  auto start_arena = vm::realign(arena);
   // This arena is used to accumulate name mappings.
   auto start_arena2_map = vm::realign(arena2);
 
@@ -386,6 +384,10 @@ GenerationResult as_bytes(
   }
 
   // Third pass: fill in our output types.
+
+  // This arena is used to write the message.
+  auto start_arena_data = vm::realign(arena);
+
   auto out_structs = vm::many<Meta::StructDefinition>(arena, num_structs);
   auto out_choices = vm::many<Meta::ChoiceDefinition>(arena, num_choices);
 
@@ -461,7 +463,7 @@ GenerationResult as_bytes(
           .typeId = in_struct->name_hash,
           .size = size_sum,
           .fields = {
-            .data_offset_complement = ~offset_between<U32>(start_arena, out_fields.pointer),
+            .data_offset_complement = ~offset_between<U32>(start_arena_data, out_fields.pointer),
             .count = safe_int_cast<U32>(out_fields.count),
           },
         };
@@ -535,7 +537,7 @@ GenerationResult as_bytes(
           .typeId = in_choice->name_hash,
           .payloadSize = size_max,
           .options = {
-            .data_offset_complement = ~offset_between<U32>(start_arena, out_options.pointer),
+            .data_offset_complement = ~offset_between<U32>(start_arena_data, out_options.pointer),
             .count = safe_int_cast<U32>(out_options.count),
           },
         };
@@ -553,16 +555,16 @@ GenerationResult as_bytes(
   *out_definition = Meta::SchemaDefinition {
     .schemaId = in_root->schema_name_hash,
     .structs = {
-      .data_offset_complement = ~offset_between<U32>(start_arena, out_structs.pointer),
+      .data_offset_complement = ~offset_between<U32>(start_arena_data, out_structs.pointer),
       .count = safe_int_cast<U32>(out_structs.count),
     },
     .choices = {
-      .data_offset_complement = ~offset_between<U32>(start_arena, out_choices.pointer),
+      .data_offset_complement = ~offset_between<U32>(start_arena_data, out_choices.pointer),
       .count = safe_int_cast<U32>(out_choices.count),
     },
   };
 
-  auto end_arena = arena->reserved_range.pointer + arena->waterline;
+  auto end_arena_data = arena->reserved_range.pointer + arena->waterline;
   auto end_arena2_map = arena2->reserved_range.pointer + arena2->waterline;
 
   auto names = Range<NameMappingToWrite> {
@@ -625,8 +627,8 @@ GenerationResult as_bytes(
 
   return GenerationResult {
     .schema = {
-      .pointer = (Byte *) start_arena,
-      .count = offset_between<U64>(start_arena, end_arena),
+      .pointer = (Byte *) start_arena_data,
+      .count = offset_between<U64>(start_arena_data, end_arena_data),
     },
     .appendix = {
       .pointer = (Byte *) start_arena2_appendix,
