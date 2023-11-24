@@ -530,9 +530,9 @@ void const *SVFRT_read_sequence_element(
   return (void *) (ctx->data_range.pointer + (uint32_t) item_end_offset - stride);
 }
 
-#define SVFRT_WRITE_START(schema_name, entry_name, ctx, writer_fn, writer_ptr) \
+#define SVFRT_WRITE_START(schema_name, entry_name, out_ctx, writer_fn, writer_ptr) \
   SVFRT_write_start( \
-    (ctx), \
+    (out_ctx), \
     (writer_fn), \
     (writer_ptr), \
     (schema_name ## _schema_content_hash), \
