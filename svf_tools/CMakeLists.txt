@@ -119,7 +119,7 @@ endif()
 #
 # Common compiler options.
 #
-add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wno-missing-field-initializers)
 add_compile_options(-fno-exceptions -fno-rtti -nostdlib++)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/custom)
 include_directories(../library)
