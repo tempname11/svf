@@ -86,26 +86,28 @@ jobs:
           cmake --build .build
           ctest --test-dir .build
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: svfc_${{ matrix.os-type }}_${{ matrix.arch-type }}_${{ matrix.build-type }}_r${{ github.run_id }}
           path: .build/svfc*
           if-no-files-found: error
+          include-hidden-files: true
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: ${{ matrix.os-type == 'Linux' && matrix.arch-type == 'x64' && matrix.build-type == 'Release' }}
         with:
           name: svf_h_r${{ github.run_id }}
           path: .build/custom/generated/svf.h
           if-no-files-found: error
+          include-hidden-files: true
 
   assemble-release-package:
     runs-on: ubuntu-latest
     needs: build-and-test
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           path: .artifacts
 
@@ -135,8 +137,9 @@ jobs:
 
           echo "Built at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> .package/.build-info
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: svf_release-package_r${{ github.run_id }}
           path: .package/**/*
           if-no-files-found: error
+          include-hidden-files: true
