@@ -20,7 +20,12 @@ jobs:
           - os-type: Linux
             runner-os: ubuntu-22.04
           - os-type: macOS
-            runner-os: macos-12
+            arch-type: x64
+            runner-os: macos-13
+          - os-type: macOS
+            arch-type: arm64
+            runner-os: macos-14
+
 
     runs-on: ${{ matrix.runner-os }}
 
